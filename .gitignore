@@ -1,2 +1,3 @@
 #disable .vscode in subfolders
 **/.vscode/
+**/build/
