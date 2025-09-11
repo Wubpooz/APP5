@@ -124,3 +124,19 @@
 &nbsp;  
 &nbsp;  
 ## Exercice 4
+Voici le contract que je propose pour `affine`:
+```c
+/*@ requires -2147483648 ≤ (int)(a * x) + b ≤ 2147483647;
+requires -2147483648 ≤ a * x ≤ 2147483647; 
+ensures \result == \old(a) * \old(x) + \old(b); */
+```
+On veut éviter les overflows dans le calcul global mais aussi les calculs intermédiaires de la fonction, d'où les préconditions. La postcondition garantit que le résultat est bien celui attendu.  
+
+Et voici le résultat de Frama-C qui valide la spécification:
+![frama-c-affine](./images/TP1_exo4_frama-c-affine.png)
+
+
+
+&nbsp;  
+&nbsp;  
+## Exercice 5
