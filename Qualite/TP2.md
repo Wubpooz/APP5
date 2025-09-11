@@ -116,6 +116,7 @@ Frama-C peut ainsi prouver la fonction:
 ![set_to_zero_proof](./images/TP2_exo3_set_to_zero.png)
 
 
+
 &nbsp;  
 &nbsp;  
 ## Exercice 4
