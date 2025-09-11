@@ -63,3 +63,19 @@
 &nbsp;  
 &nbsp;  
 ## Exercice 2
+Je propose le contract de boucle suivant:
+```c
+/*@ loop invariant 1 <= i <= n+1;
+    loop invariant (c >= 0 ==> result == 2*(i-1)) && (c < 0 ==> result == (i-1));
+    loop assigns result, i;
+    loop variant n - i + 1;
+*/
+```
+Ce contract permet de prouver la fonction. En effet, on a deux invariants de boucle:
+- `1 <= i <= n+1` qui permet de s'assurer que l'index `i` est toujours dans les bornes de la boucle.
+- `(c >= 0 ==> result == 2*(i-1)) && (c < 0 ==> result == (i-1))` qui permet de s'assurer que le résultat est correct en fonction de la valeur de `c`. Si `c` est positif ou nul, le résultat doit être égal à `2*(i-1)` car on incrémente `result` deux fois à chaque itération.
+- `loop assigns result, i;` indique que seules les variables `result` et `i` sont modifiées dans la boucle.
+- `loop variant n - i + 1;` permet de s'assurer que la boucle termine en indiquant que la valeur de `n - i + 1` diminue à chaque itération et est toujours positive.
+
+Frama-C peut ainsi prouver la fonction:
+![behavioral_loop_proof](./images/TP2_exo2_behavioral_loop.png)
