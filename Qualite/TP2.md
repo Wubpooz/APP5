@@ -63,7 +63,7 @@
 &nbsp;  
 &nbsp;  
 ## Exercice 2
-Je propose le contract de boucle suivant:
+On propose le contrat de boucle suivant:
 ```c
 /*@ loop invariant 1 <= i <= n+1;
     loop invariant (c >= 0 ==> result == 2*(i-1)) && (c < 0 ==> result == (i-1));
@@ -79,3 +79,43 @@ Ce contract permet de prouver la fonction. En effet, on a deux invariants de bou
 
 Frama-C peut ainsi prouver la fonction:
 ![behavioral_loop_proof](./images/TP2_exo2_behavioral_loop.png)
+
+
+&nbsp;  
+&nbsp;  
+## Exercice 3
+On propose le contrat suivant:
+```c
+/*@
+  requires n > 0;
+  requires \valid(tab + (0 .. n - 1));
+  ensures \forall int k; 0 <= k < n ==> tab[k] == 0;
+*/
+void set_to_zero(int *tab, int n) {
+  /*@ loop invariant 0 <= i <= n;
+      loop invariant \forall int k; 0 <= k < i ==> tab[k] == 0;
+      loop assigns i, tab[0..n-1];
+      loop variant n - i;
+  */
+	for(int i = 0; i < n; i++) {
+		tab[i] = 0;
+	}
+}
+```
+
+Ce contrat permet de prouver la fonction. En effet, on a:
+- `requires n > 0;` qui indique que la taille du tableau doit être strictement positive.
+- `requires \valid(tab + (0 .. n - 1));` qui indique que le tableau doit être valide pour les indices de `0` à `n-1`.
+- `ensures \forall int k; 0 <= k < n ==> tab[k] == 0;` qui indique que tous les éléments du tableau doivent être égaux à `0` après l'exécution de la fonction.
+- `loop invariant 0 <= i <= n;` qui permet de s'assurer que l'index `i` est toujours dans les bornes de la boucle.
+- `loop invariant \forall int k; 0 <= k < i ==> tab[k] == 0;` qui permet de s'assurer que tous les éléments du tableau jusqu'à l'index `i-1` sont égaux à `0`.
+- `loop assigns i, tab[0..n-1];` indique que seules les variables `i` et les éléments du tableau sont modifiées dans la boucle.
+- `loop variant n - i;` permet de s'assurer que la boucle termine en indiquant que la valeur de `n - i` diminue à chaque itération et est toujours positive.
+
+Frama-C peut ainsi prouver la fonction:
+![set_to_zero_proof](./images/TP2_exo3_set_to_zero.png)
+
+
+&nbsp;  
+&nbsp;  
+## Exercice 4
