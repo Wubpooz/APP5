@@ -200,3 +200,63 @@ Et voici le résultat de Frama-C qui valide la spécification:
 &nbsp;  
 &nbsp;  
 ## Exercice 6
+- Pour `min`, mon implementation avec la spécification est:
+    ```c
+    /*@
+      ensures \result <= a && \result <= b && \result <= c && (a == \result || b == \result || c == \result);
+    */
+    int min(int a, int b, int c) {
+      int m = a;
+      if(b < m) {
+        m = b;
+      }
+      if( c < m) {
+        m = c;
+      }
+      return m;
+    }
+    ```
+    Voici le résultat de Frama-C qui valide la spécification:
+    ![frama-c-min](./images/TP1_exo6_frama-c-min.png)
+
+- Pour `syracuseStep`, mon implementation avec la spécification est:
+    ```c
+    /*@ 
+    requires a != 0 && a != INT_MIN && a != (INT_MAX-1)/3;
+    ensures a%2==0 ==> \result == a/2 && a%2==1 ==> \result == 3*a + 1;
+    */
+    int syracuseStep(int a) {
+      return a%2==0 ? a/2 : 3*a + 1;
+    }
+    ```
+    Voici le résultat de Frama-C qui valide la spécification:
+    ![frama-c-syracuse-step](./images/TP1_exo6_frama-c-syracuse-step.png)
+
+- Pour `roundedDiv`, mon implementation (nombres positifs et négatifs) avec la spécification est:
+    ```c
+    /*@
+      requires b != 0;
+      requires b != -1 || a != INT_MIN;
+      requires b != 1  || a != INT_MAX;
+      requires b < 0 ==> -a >= -2147483647 && -b >= -2147483647;
+      requires b > 0 ==> (
+        (a >= 0 ==> -2147483648 <= a + b/2 <= 2147483647) &&
+        (a < 0  ==> -2147483648 <= a - b/2 <= 2147483647)
+      );
+      ensures b < 0 ==> \result == ((-a >= 0) ? ((-a + -b/2)/-b) : ((-a - -b/2)/-b));
+      ensures b >= 0 ==> \result == ((a >= 0) ? ((a + b/2)/b) : ((a - b/2)/b));
+    */
+    int roundedDiv(int a, int b) {
+      if(b < 0) {
+        a = -a;
+        b = -b;
+      }
+      if(a >= 0) {
+        return (a + b/2)/b;
+      } else {
+        return (a - b/2)/b;
+      }
+    }
+    ```
+    Voici le résultat de Frama-C qui valide la spécification:
+    ![frama-c-rounded-div](./images/TP1_exo6_frama-c-rounded-div.png)
