@@ -220,3 +220,41 @@ Et voici la preuve de Frama-C:
 &nbsp;  
 &nbsp;  
 ## Exercice 5
+1. Frama-C n'arrive pas à prouver `add`:
+   ![add_not_proof](./images/TP2_exo5_add_not_proof.png)
+  De même pour `sub`:
+   ![sub_not_proof](./images/TP2_exo5_sub_not_proof.png)
+
+2. Avec les WP-rte guard, on obtient le même résultat:
+    ![add_sub_rte_not_proof](./images/TP2_exo5_add_sub_rte_not_proof.png)
+    On notera de plus que cliquer sur "ajouter les guards" ou lancer frama-c avec `-rte` n'ajoute rien de plus aux fonctions.
+
+3. Avec l'option `-warn-unsigned-overflow` on remarque bien la présence d'overflow possible:
+    ![add_sub_overflow_warning](./images/TP2_exo5_add_sub_overflow_warning.png)
+    Pour `add`, on remarque que l'overflow peut arriver si `a+b > INT_MAX` (aussi si `a+b<0` mais Frama-C considère que cela ne peut pas arriver). Pour `sub`, l'overflow peut arriver si `0 > a - b;` (aussi si `a-b > INT_MAX` mais Frama-C considère que cette option est prouvé sous condition).
+
+4. On peut spécifier ces contrats pour que Frama-C puisse prouver les fonctions (avec `<limits.h>` pour `INT_MAX`):
+   - Pour `add`:
+      ```c
+      /*@ 
+      requires a + b <= INT_MAX;
+      requires a + b >= 0;
+      ensures \result == a + b;
+      */
+      ```
+   - Pour `sub`:
+      ```c
+      /*@ 
+      requires 0 <= a - b;
+      requires a - b <= INT_MAX;
+      ensures \result == a - b;
+      */
+      ```
+    Avec ces contrats, Frama-C peut prouver les fonctions:
+    ![add_sub_proof](./images/TP2_exo5_add_sub_proof.png)
+
+
+
+&nbsp;  
+&nbsp;  
+## Exercice 6
