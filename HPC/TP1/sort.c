@@ -109,6 +109,29 @@ int main(int argc, char** argv) {
         merge(local_list, received_list, nb_elements_per_process, 1);
       }
     }
+
+    // Corrected version, simpler and avoid deadlock  
+    // MPI_Barrier(MPI_COMM_WORLD);
+
+    // int partner = -1;
+    // int keep_smallest = 0;
+    // if (step % 2 == 0) {
+    //   if (rank % 2 == 0 && rank + 1 < size) { partner = rank + 1; keep_smallest = 1; }
+    //   else if (rank % 2 == 1) { partner = rank - 1; keep_smallest = 0; }
+    // } else {
+    //   if (rank % 2 == 1 && rank + 1 < size) { partner = rank + 1; keep_smallest = 1; }
+    //   else if (rank % 2 == 0 && rank > 0) { partner = rank - 1; keep_smallest = 0; }
+    // }
+
+    // if (partner >= 0) {
+    //   MPI_Sendrecv(local_list, nb_elements_per_process, MPI_INT, partner, 0, received_list,  nb_elements_per_process, MPI_INT, partner, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    //   /* if rank < partner and keep_smallest==1 => keep smaller half in local
+    //     if rank > partner and keep_smallest==0 => keep larger half in local
+    //     unify by always writing into local using keep_smallest when rank<partner,
+    //     otherwise flip keep_smallest. */
+    //   int effective_keep = (rank < partner) ? keep_smallest : !keep_smallest;
+    //   merge(local_list, received_list, nb_elements_per_process, effective_keep);
+    // }
   }
 
   MPI_Gather(local_list, nb_elements_per_process, MPI_INT, list, nb_elements_per_process, MPI_INT, 0, MPI_COMM_WORLD);
