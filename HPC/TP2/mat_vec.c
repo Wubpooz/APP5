@@ -23,9 +23,12 @@ int main(int argc, char **argv) {
     x[i] = 1;
   }
 
+  #pragma omp parallel
+  int nthreads = omp_get_num_threads();
+
 
   for (int repet = 0; repet < NREPET; repet++) {
-    #pragma omp parallel default(none) num_threads(16) shared(A,x,b,dim)
+    #pragma omp parallel default(none) num_threads(nthreads) shared(A,x,b,dim)
     {
       for(size_t i=0; i<dim; i++) {
         #pragma omp single
