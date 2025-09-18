@@ -1,0 +1,4 @@
+/* Ensure each ## (h2) starts on a new page in the PDF */
+h2 {
+  page-break-before: always;
+}

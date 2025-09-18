@@ -1,0 +1,4 @@
+ip link set dev eth0 address FE:FD:C8:01:01:01
+ip address add 200.1.1.1/24 dev eth0
+ip address add 100.0.0.10/30 dev eth1
+ip route add 195.11.14.0/24 via 100.0.0.9 dev eth1
