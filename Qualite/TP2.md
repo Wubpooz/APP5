@@ -304,7 +304,17 @@ int memcpy(char* src, size_t src_size, size_t src_offset, char* dest, size_t des
     return -1;
   }
 
-
+  /*@
+    loop invariant 0 <= i <= size;
+    loop invariant i <= size;
+    loop invariant dest_offset + i <= dest_size;
+    loop invariant src_offset + i <= src_size;
+    loop invariant \forall integer k; 0 <= k < i ==> dest[dest_offset + k] == src[src_offset + k];
+    loop invariant \forall integer k; 0 <= k < dest_size && (k < dest_offset || k >= dest_offset + size) ==> dest[k] == \at(dest[k], Pre);
+    loop invariant \forall integer k; 0 <= k < src_size ==> src[k] == \at(src[k], Pre);
+    loop assigns i, dest[dest_offset .. dest_offset + size - 1];
+    loop variant size - i;
+  */
   for (size_t i = 0; i < size; i++) {
     dest[dest_offset + i] = src[src_offset + i];
   }
@@ -313,4 +323,6 @@ int memcpy(char* src, size_t src_size, size_t src_offset, char* dest, size_t des
 ```
 
 Avec ce contrat, Frama-C peut prouver la fonction (je n'arrivais plus à faire fonctionner le gui donc je ne savais pas l'origine des erreurs):
-![memcpy_proof](./images/TP2_exo6_memcpy_proof.png)
+![memcpy_proof_part1](./images/TP2_exo6_memcpy_proof_1.png)
+![memcpy_proof_part2](./images/TP2_exo6_memcpy_proof_2.png)
+![memcpy_proof_part3](./images/TP2_exo6_memcpy_proof_3.png)
