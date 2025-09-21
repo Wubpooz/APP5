@@ -258,3 +258,5 @@ Et voici la preuve de Frama-C:
 &nbsp;  
 &nbsp;  
 ## Exercice 6
+
+<!-- TODO Exo bonus -->
