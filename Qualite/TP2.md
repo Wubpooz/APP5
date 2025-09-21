@@ -120,100 +120,99 @@ Frama-C peut ainsi prouver la fonction:
 &nbsp;  
 &nbsp;  
 ## Exercice 4
-1.  
-Pour `max_element`, on propose le contrat suivant:
-```c
-/*@ 
-  requires 0 < n <= INT_MAX;
-  requires \valid(t + (0 .. n - 1));
-  requires \separated(t + (0 .. n - 1), t);
-  assigns t[0 .. n-1];
-  ensures \forall int i; 0 <= i < n ==> t[i] <= t[\result];
-  ensures \forall int i; 0 <= i < n ==> t[i] == \old(t[i]);
-*/
-int max_element(const int* t, int n){
-  int max = 0;
-  /*@
-  loop invariant 0 <= i <= n;
-  loop invariant max >= 0 && max < n;
-  loop invariant \forall integer k; 0 <= k < n ==> t[k] == \at(t[k], Pre);
-  loop invariant \forall integer k; 0 <= k < i ==> t[k] <= t[max];
-  loop assigns max, i;
-  loop variant n - i;
-  */
-  for (int i = 0; i < n; i++){
-    if (t[max] < t[i]) max = i;
-  }
-  return max;
-}
-```
-On demande que l'on puisse accéder au tableau `t` pour les indices de `0` à `n-1` et `n` soit un entier strictement positif. On demande aussi que le tableau `t` soit séparé de lui-même pour éviter les aliasing.  
-On souhaite comme postcondition que tous les éléments du tableau soient inférieurs ou égaux à l'élément d'indice `\result` (l'indice de l'élément maximum) et que le tableau n'ait pas été modifié. Indirectement, on demande aussi que `\result` soit un indice valide du tableau (puisqu'on fait `t[\result]`).  
-Pour le contrat de boucle, on s'assure que l'index `i` et `max` sont toujours dans les bornes. Ensuite que les éléments du tableau n'ont pas été modifiés et que `max` est bien l'indice de l'élément maximum parmi les éléments déjà visités.  
-Et voici la preuve de Frama-C:
-![max_element_proof](./images/TP2_exo4_max_element.png)
+1)  Pour `max_element`, on propose le contrat suivant:
+    ```c
+    /*@ 
+      requires 0 < n <= INT_MAX;
+      requires \valid(t + (0 .. n - 1));
+      requires \separated(t + (0 .. n - 1), t);
+      assigns t[0 .. n-1];
+      ensures \forall int i; 0 <= i < n ==> t[i] <= t[\result];
+      ensures \forall int i; 0 <= i < n ==> t[i] == \old(t[i]);
+    */
+    int max_element(const int* t, int n){
+      int max = 0;
+      /*@
+      loop invariant 0 <= i <= n;
+      loop invariant max >= 0 && max < n;
+      loop invariant \forall integer k; 0 <= k < n ==> t[k] == \at(t[k], Pre);
+      loop invariant \forall integer k; 0 <= k < i ==> t[k] <= t[max];
+      loop assigns max, i;
+      loop variant n - i;
+      */
+      for (int i = 0; i < n; i++){
+        if (t[max] < t[i]) max = i;
+      }
+      return max;
+    }
+    ```
+    On demande que l'on puisse accéder au tableau `t` pour les indices de `0` à `n-1` et `n` soit un entier strictement positif. On demande aussi que le tableau `t` soit séparé de lui-même pour éviter les aliasing.  
+    On souhaite comme postcondition que tous les éléments du tableau soient inférieurs ou égaux à l'élément d'indice `\result` (l'indice de l'élément maximum) et que le tableau n'ait pas été modifié. Indirectement, on demande aussi que `\result` soit un indice valide du tableau (puisqu'on fait `t[\result]`).  
+    Pour le contrat de boucle, on s'assure que l'index `i` et `max` sont toujours dans les bornes. Ensuite que les éléments du tableau n'ont pas été modifiés et que `max` est bien l'indice de l'élément maximum parmi les éléments déjà visités.  
+    Et voici la preuve de Frama-C:
+    ![max_element_proof](./images/TP2_exo4_max_element.png)
 
 
-&nbsp;  
-Pour `sum_of_tab`, on propose le contrat suivant:
-```c
-/*@
-  requires 0 < n <= INT_MAX;
-  requires \valid(a + (0 .. n - 1));
-  requires \valid(b + (0 .. n - 1));
-  requires \forall int i; 0 <= i < n ==> INT_MIN <= a[i] + b[i] <= INT_MAX;
-  requires \separated(a + (0 .. n-1), b + (0 .. n-1));
-  assigns a[0 .. n-1];
-  assigns b[0 .. n-1];
-  ensures \forall int i; 0 <= i < n ==> a[i] == \old(a[i]) + b[i];
-  ensures \forall int i; 0 <= i < n ==> b[i] == \old(b[i]);
-*/
-void sum_of_tab(int *a, int *b, int n){
-  /*@
-    loop invariant 0 <= i <= n;
-    loop invariant \forall integer k; 0 <= k < n ==> b[k] == \at(b[k], Pre);
-    loop invariant \forall integer k; 0 <= k < i ==> a[k] == \at(a[k], Pre) + \at(b[k], Pre);
-    loop invariant \forall integer k; i <= k < n ==> a[k] == \at(a[k], Pre);
-    loop assigns a[0 .. n-1], i;
-    loop variant n - i;
-  */
-	for (int i = 0; i<n; i++){
-		a[i] += b[i];
-	}
-}
-```
+    &nbsp;  
+    Pour `sum_of_tab`, on propose le contrat suivant:
+    ```c
+    /*@
+      requires 0 < n <= INT_MAX;
+      requires \valid(a + (0 .. n - 1));
+      requires \valid(b + (0 .. n - 1));
+      requires \forall int i; 0 <= i < n ==> INT_MIN <= a[i] + b[i] <= INT_MAX;
+      requires \separated(a + (0 .. n-1), b + (0 .. n-1));
+      assigns a[0 .. n-1];
+      assigns b[0 .. n-1];
+      ensures \forall int i; 0 <= i < n ==> a[i] == \old(a[i]) + b[i];
+      ensures \forall int i; 0 <= i < n ==> b[i] == \old(b[i]);
+    */
+    void sum_of_tab(int *a, int *b, int n){
+      /*@
+        loop invariant 0 <= i <= n;
+        loop invariant \forall integer k; 0 <= k < n ==> b[k] == \at(b[k], Pre);
+        loop invariant \forall integer k; 0 <= k < i ==> a[k] == \at(a[k], Pre) + \at(b[k], Pre);
+        loop invariant \forall integer k; i <= k < n ==> a[k] == \at(a[k], Pre);
+        loop assigns a[0 .. n-1], i;
+        loop variant n - i;
+      */
+      for (int i = 0; i<n; i++){
+        a[i] += b[i];
+      }
+    }
+    ```
 
-On demande que l'on puisse accéder aux tableaux `a` et `b` pour les indices de `0` à `n-1` et `n` soit un entier strictement positif. On demande aussi que les tableaux `a` et `b` soient séparés pour éviter les aliasing.  
-On demande comme postcondition que chaque élément de `a` soit égal à la somme de l'élément correspondant de `a` et `b` avant l'exécution de la fonction et que le tableau `b` n'ait pas été modifié.  
-Dans la boucle, on s'assure que l'index `i` est toujours dans les bornes. Ensuite que le tableau `b` n'a pas été modifié. Puis que les éléments de `a` jusqu'à l'index `i-1` ont bien été mis à jour et que les éléments de `a` à partir de l'index `i` n'ont pas encore été modifiés.  
-Et voici la preuve de Frama-C:  
-![sum_of_tab_proof](./images/TP2_exo4_sum_of_tab.png)
+    On demande que l'on puisse accéder aux tableaux `a` et `b` pour les indices de `0` à `n-1` et `n` soit un entier strictement positif. On demande aussi que les tableaux `a` et `b` soient séparés pour éviter les aliasing.  
+    On demande comme postcondition que chaque élément de `a` soit égal à la somme de l'élément correspondant de `a` et `b` avant l'exécution de la fonction et que le tableau `b` n'ait pas été modifié.  
+    Dans la boucle, on s'assure que l'index `i` est toujours dans les bornes. Ensuite que le tableau `b` n'a pas été modifié. Puis que les éléments de `a` jusqu'à l'index `i-1` ont bien été mis à jour et que les éléments de `a` à partir de l'index `i` n'ont pas encore été modifiés.  
+    Et voici la preuve de Frama-C:  
+    ![sum_of_tab_proof](./images/TP2_exo4_sum_of_tab.png)
 
 
 &nbsp;  
 2.  On écrit le `main` suivant:
-  ```c
-  int main() {
-    int n = 5;
-    int a[6] = {1, 2, 3, 4, 5, 6};
+    ```c
+    int main() {
+      int n = 5;
+      int a[6] = {1, 2, 3, 4, 5, 6};
 
-    sum_of_tab(a + 1, a, n);
-    for (int i = 0; i < n + 1; i++) {
-      printf("a[%d] = %d\n", i, a[i]);
+      sum_of_tab(a + 1, a, n);
+      for (int i = 0; i < n + 1; i++) {
+        printf("a[%d] = %d\n", i, a[i]);
+      }
+      return 0;
     }
-    return 0;
-  }
-  ```
-  Le résultat de l'exécution est:
-  ```c
-  a[0] = 1
-  a[1] = 3
-  a[2] = 6
-  a[3] = 10
-  a[4] = 15
-  a[5] = 21
-  ```
-  Ce qui ne correspond pas au résultat attendu. En effet, on s'attendait à avoir `a[0]=1`, `a[1] = 3`, `a[2] = 5`, `a[3] = 7`, `a[4] = 9` et `a[5] = 11`. Là on obtient une somme cumulée car on reprend le résultat de `a[i+1] += a[i]`. La fonction `sum_of_tab` ne supporte donc pas l'aliasing.  
+    ```
+    Le résultat de l'exécution est:
+    ```c
+    a[0] = 1
+    a[1] = 3
+    a[2] = 6
+    a[3] = 10
+    a[4] = 15
+    a[5] = 21
+    ```
+    Ce qui ne correspond pas au résultat attendu. En effet, on s'attendait à avoir `a[0]=1`, `a[1] = 3`, `a[2] = 5`, `a[3] = 7`, `a[4] = 9` et `a[5] = 11`. Là on obtient une somme cumulée car on reprend le résultat de `a[i+1] += a[i]`. La fonction `sum_of_tab` ne supporte donc pas l'aliasing.  
 
 
 

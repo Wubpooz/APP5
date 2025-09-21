@@ -93,31 +93,31 @@
     J'ai ajouté une précondition pour éviter la division par zéro. La deuxième partie de la précondition évite l'overflow qui peut arriver si on divise `INT_MIN` par `-1` (le résultat serait `INT_MAX + 1`, ce qui provoque un overflow).
 
 6. L'affichage du retour des "bad-calls" dans calling-functions donnent:
-  ```
-  Result of bad_call_1: -344 => valide mais ne respecte pas la postcondition
-  Result of bad_call_2: -2147483648 => overflow
-  Result of bad_call_3: Floating point exception (core dumped) => div by zero
-  Result of bad_call_4: Floating point exception (core dumped) => overflow
-  ```
-  Frama-C donne:
-  - `bad_call_1`: ![frama-c-bad-call-1](./images/TP1_exo3_6_frama-c-bad-call-1.png)
-    Frama-C détecte que la postcondition n'est pas respectée, car le résultat est négatif.
-  - `bad_call_2`: ![frama-c-bad-call-2](./images/TP1_exo3_6_frama-c-bad-call-2.png)
-    Frama-C détecte que la précondition n'est pas respectée, car `a` est égal à `INT_MIN` et `b` est égal à `-1`, ce qui provoque un overflow.
-  - `bad_call_3`: ![frama-c-bad-call-3](./images/TP1_exo3_6_frama-c-bad-call-3.png)
-    Frama-C détecte que la précondition n'est pas respectée, car `b` est égal à `0`, ce qui provoque une division par zéro.
-  - `bad_call_4`: ![frama-c-bad-call-4](./images/TP1_exo3_6_frama-c-bad-call-4.png)
-    Frama-C détecte que la précondition n'est pas respectée, car `a` est égal à `INT_MIN` et `b` est égal à `-1`, ce qui provoque un overflow.
-  - `good_call_1`: ![frama-c-good-call-1](./images/TP1_exo3_6_frama-c-good-call-1.png)
-    Frama-C valide la précondition et la postcondition.
-  - `good_call_2`: ![frama-c-good-call-2](./images/TP1_exo3_6_frama-c-good-call-2.png)
-    Frama-C valide la précondition et la postcondition.
-  - `good_call_3`: ![frama-c-good-call-3](./images/TP1_exo3_6_frama-c-good-call-3.png)
-    Frama-C valide la précondition et la postcondition.
-  - `good_call_4`: ![frama-c-good-call-4](./images/TP1_exo3_6_frama-c-good-call-4.png)
-    Frama-C valide la précondition et la postcondition.
-  - `good_call_5`: ![frama-c-good-call-5](./images/TP1_exo3_6_frama-c-good-call-5.png)
-    Frama-C valide la précondition et la postcondition.
+    ```
+    Result of bad_call_1: -344 => valide mais ne respecte pas la postcondition
+    Result of bad_call_2: -2147483648 => overflow
+    Result of bad_call_3: Floating point exception (core dumped) => div by zero
+    Result of bad_call_4: Floating point exception (core dumped) => overflow
+    ```
+    Frama-C donne:
+     - `bad_call_1`: ![frama-c-bad-call-1](./images/TP1_exo3_6_frama-c-bad-call-1.png)
+       Frama-C détecte que la postcondition n'est pas respectée, car le résultat est négatif.
+     - `bad_call_2`: ![frama-c-bad-call-2](./images/TP1_exo3_6_frama-c-bad-call-2.png)
+       Frama-C détecte que la précondition n'est pas respectée, car `a` est égal à `INT_MIN` et `b` est égal à `-1`, ce qui provoque un overflow.
+     - `bad_call_3`: ![frama-c-bad-call-3](./images/TP1_exo3_6_frama-c-bad-call-3.png)
+       Frama-C détecte que la précondition n'est pas respectée, car `b` est égal à `0`, ce qui provoque une division par zéro.
+     - `bad_call_4`: ![frama-c-bad-call-4](./images/TP1_exo3_6_frama-c-bad-call-4.png)
+       Frama-C détecte que la précondition n'est pas respectée, car `a` est égal à `INT_MIN` et `b` est égal à `-1`, ce qui provoque un overflow.
+     - `good_call_1`: ![frama-c-good-call-1](./images/TP1_exo3_6_frama-c-good-call-1.png)
+       Frama-C valide la précondition et la postcondition.
+     - `good_call_2`: ![frama-c-good-call-2](./images/TP1_exo3_6_frama-c-good-call-2.png)
+       Frama-C valide la précondition et la postcondition.
+     - `good_call_3`: ![frama-c-good-call-3](./images/TP1_exo3_6_frama-c-good-call-3.png)
+       Frama-C valide la précondition et la postcondition.
+     - `good_call_4`: ![frama-c-good-call-4](./images/TP1_exo3_6_frama-c-good-call-4.png)
+       Frama-C valide la précondition et la postcondition.
+     - `good_call_5`: ![frama-c-good-call-5](./images/TP1_exo3_6_frama-c-good-call-5.png)
+       Frama-C valide la précondition et la postcondition.
 
 
 
