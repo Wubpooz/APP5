@@ -257,5 +257,60 @@ Frama-C peut ainsi prouver la fonction:
 &nbsp;  
 &nbsp;  
 ## Exercice 6
+Je propose le contrat suivant:
+```c
+/*@
+  requires src != \null && dest != \null;
+  requires src_size > 0 && dest_size > 0;
+  requires \valid_read(src + (0 .. src_size-1));
+  requires \valid(dest + (0 .. dest_size-1));
+  requires \separated(src + (0 .. src_size-1), dest + (0 .. dest_size-1));
+  requires src_offset <= src_size;
+  requires dest_offset <= dest_size;
+  requires size <= INT_MAX - src_offset;
+  requires size <= INT_MAX - dest_offset;
 
-<!-- TODO Exo bonus -->
+  behavior error:
+    assumes size > src_size - src_offset || src_offset >= src_size
+         || size > dest_size - dest_offset || dest_offset >= dest_size;
+    ensures \result == -1;
+    ensures \forall integer i; 0 <= i < dest_size ==> dest[i] == \old(dest[i]);
+    ensures \forall integer i; 0 <= i < src_size ==> src[i] == \old(src[i]);
+    assigns \nothing;
+
+  behavior success:
+    assumes src_offset < src_size && dest_offset < dest_size
+         && size <= src_size - src_offset
+         && size <= dest_size - dest_offset;
+    ensures \result == 0;
+    ensures \forall integer i; 0 <= i < src_size ==> src[i] == \old(src[i]);
+    ensures \forall integer i; 0 <= i < dest_size && (i < dest_offset || i >= dest_offset + size) ==> dest[i] == \old(dest[i]);
+    ensures \forall integer i; 0 <= i < size ==> dest[dest_offset + i] == src[src_offset + i];
+    assigns dest[dest_offset .. dest_offset + size - 1];
+
+  complete behaviors;
+  disjoint behaviors;
+@*/
+int memcpy(char *src, size_t src_size, size_t src_offset, char *dest, size_t dest_size, size_t dest_offset, size_t size);
+```
+
+Et l'implémentation:
+```c
+int memcpy(char* src, size_t src_size, size_t src_offset, char* dest, size_t dest_size,  size_t dest_offset, size_t size) {
+  if (src_offset >= src_size ||
+    dest_offset >= dest_size ||
+    size > src_size - src_offset ||
+    size > dest_size - dest_offset) {
+    return -1;
+  }
+
+
+  for (size_t i = 0; i < size; i++) {
+    dest[dest_offset + i] = src[src_offset + i];
+  }
+  return 0;
+}
+```
+
+Avec ce contrat, Frama-C peut prouver la fonction (je n'arrivais plus à faire fonctionner le gui donc je ne savais pas l'origine des erreurs):
+![memcpy_proof](./images/TP2_exo6_memcpy_proof.png)

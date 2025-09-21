@@ -1,8 +1,23 @@
 #include "memcpy.h"
 
-int memcpy(char* src, size_t src_size, size_t src_offset, char* dest, size_t dest_size,  size_t dest_offset, size_t size);
+int memcpy(char* src, size_t src_size, size_t src_offset, char* dest, size_t dest_size,  size_t dest_offset, size_t size) {
+  if (src_offset >= src_size ||
+    dest_offset >= dest_size ||
+    size > src_size - src_offset ||
+    size > dest_size - dest_offset) {
+    return -1;
+  }
 
 
+  for (size_t i = 0; i < size; i++) {
+    dest[dest_offset + i] = src[src_offset + i];
+  }
+  return 0;
+}
+
+/*@
+  assigns \nothing;
+*/
 int main(void){
 	char src[17] = "The expert knows.";
 	char dest[22] = "I am a Frama-C newbie!";
