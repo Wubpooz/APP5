@@ -45,3 +45,52 @@
   
 &nbsp;  
 ## Exercice 2
+
+1) On ajoute ces invariants et assigns à la boucle de la fonction:
+    ```c
+    int f() {
+      int i = 30;
+      int j = 0;
+      /*@ 
+      loop invariant 0 <= i <= 30;
+      loop invariant j == 30 - i;
+      loop assigns i,j; 
+      */
+      while(i>0){
+        j++;
+        i--;
+      }
+      return j;
+    }
+    ```
+    `i` est toujours entre 0 et 30 car elle est initialisée à 30 et décrémentée à chaque itération jusqu'à ce qu'elle atteigne 0. `j` est toujours égal à `30 - i` car elle est initialisée à 0 et incrémentée à chaque itération pendant que `i` est décrémentée. Les `assigns` indiquent que les variables `i` et `j` sont modifiées par la boucle. Frama-C arrive à prouver toutes les clauses.
+    ![terminating_proof](./images/TP3_exo2_1_terminating_proof.png)
+
+2) Cependant, on peut voir sur le screenshot précédent que la clause `terminates \true;` n'est pas prouvée. En effet, Frama-C ne peut pas déterminer automatiquement que la boucle termine.
+  
+3)  Pour l'aider, on ajoute la clause de terminaison `/*@ loop variant i; */`:
+    ```c
+    int f() {
+      int i = 30;
+      int j = 0;
+      /*@ 
+      loop invariant 0 <= i <= 30;
+      loop invariant j == 30 - i;
+      loop assigns i,j; 
+      loop variant i;
+      */
+      while(i>0){
+        j++;
+        i--;
+      }
+      return j;
+    }
+    ```
+    Cela indique à Frama-C que `i` diminue à chaque itération de la boucle et il sait aussi qu'elle est toujours positive au début de chaque itération (grâce à l'invariant `0 <= i <= 30`). Ainsi, Frama-C peut conclure que la boucle termine et donc que la fonction termine.
+    ![terminating_variant](./images/TP3_exo2_2_terminating_variant.png)
+
+
+
+&nbsp;  
+## Exercice 3
+
