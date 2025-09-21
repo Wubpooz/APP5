@@ -138,3 +138,49 @@
 
 &nbsp;  
 ## Exercice 4
+Installation de Z3:
+```bash
+sudo apt install z3
+```
+Installation de CVC5:
+```bash
+sudo apt install cvc5
+```
+Ajouter Z3 et CVC5 à Frama-C:
+```bash
+why3 config detect
+```
+(Il faudra d'abord suivre les instructions de [mise en place du TP](./VERIF_Formelle_ENV_Travail.pdf))
+
+
+1)  J'ai utilisé CVC5 pour prouver les postconditions car Alt-Ergo et Z3 avaient du mal:
+  [euclidan_gcd_partial_proof](./images/TP3_exo4_1_euclidan_gcd_partial_proof.png)
+
+2) Comme variant strictement décroissant, j'ai choisi `*r`:
+  ```c
+  void euclidianDiv(int a, int b, int *q, int *r) {
+    *q = 0;
+    *r = a;
+    /*@ loop invariant I1: *r >= 0;
+      loop invariant I2: a == b * *q + *r;
+      loop assigns *r,*q;
+      loop variant *r;
+    */
+    while (*r >= b) {
+      *r = *r - b;
+      *q = *q + 1;
+    }
+    return;
+  }
+  ```
+  En effet, Frama-C n'arrive pas à le prouver car si `b` est négatif, alors `*r` peut augmenter. Par exemple, si `a` vaut 5 et `b` vaut -3, alors `*r` vaut 5 au début de la boucle. Après une itération, `*r` vaut 8 (5 - (-3)).
+  ![euclidianDiv_variant](./images/TP3_exo4_2_euclidianDiv_variant.png)
+
+3) En lançant Frama-C avec l'option `-wp-variant-with-terminates`, il arrive bien a vérifier le variant et donc la correction totale:
+  ![euclidianDiv_variant_terminates](./images/TP3_exo4_3_euclidianDiv_variant_terminates.png)
+  En effet, comme dit précédement, si `b` est négatif, alors `*r` peut augmenter mais si `b` est positif ou nul, alors `*r` est bien un variant valide et l'option `-wp-variant-with-terminates` permet de prendre en compte la clause de terminaison de la fonction qui indique que `b` est strictement positif et donc `*r` est bien un variant valide dans ce contexte, ce qui permet de prouver la correction totale.
+
+
+
+&nbsp;  
+## Exercice 5
