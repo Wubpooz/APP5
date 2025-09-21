@@ -93,4 +93,48 @@
 
 &nbsp;  
 ## Exercice 3
+1) La fonction de `max_tab` est bien prouvée par Frama-C:
+   ![max_tab_proof](./images/TP3_exo3_1_max_tab_proof.png)
+   Et lorsqu'on ajoute des demandes absurdes comme dans l'exercice 1, Frama-C ne peut pas les prouver:
+   ```c
+    /*@ assert \false; */
+    /*@ assert i == 2*n; */
+   ```
+  ![max_tab_assert](./images/TP3_exo3_1_max_tab_absurd.png)
 
+2) Pour prouver la boucle j'ajoute le variant `/*@ loop variant n-i; */`. Cela indique à Frama-C que `n-i` diminue à chaque itération de la boucle et il sait aussi qu'elle est toujours positive au début de chaque itération (grâce à l'invariant `0 <= i < n`). Ainsi, Frama-C devrait pouvoir conclure que la boucle termine et donc que la fonction termine. Mais il n'y arrive pas:
+    ![max_tab_variant](./images/TP3_exo3_2_max_tab_variant.png)
+    En effet, dans la boucle, `i` est mis à jour avec `i = (i+1)%n;`, ce qui fait que `i` n'augmente pas toujours. Par exemple, si `i` vaut `n-1`, alors `(i+1)%n` vaut `0`. Donc `i` peut diminuer et le variant `n-i` peut augmenter. Frama-C ne peut donc pas prouver que la boucle termine car la boucle peut potentiellement ne jamais terminer.
+
+3) On peut corriger cela en remplaçant `i = (i+1)%n;` par `i++;`:
+    ```c
+    while(i < n){
+      if(max < tab[i]) max = tab[i];
+      i++;
+    }
+    ```
+  Ainsi, `i` augmente toujours et la boucle termine bien lorsque `i` atteint `n`. Frama-C arrive alors à prouver que la boucle termine et donc que la fonction termine et ainsi la correction totale:
+      ![max_tab_fixed](./images/TP3_exo3_3_max_tab_fixed.png)
+
+4) Pour prouver la correction partielle de `mystere`, au vu de la condition dans le while, il suffit d'ajouter une clause `/*@ loop assigns b;*/` pour signifier que la valeur de b change. 
+  ```c
+  int mystery(int hidden){
+    int b = hidden+1;
+    /*@ loop assigns b; */
+    while(b != hidden){
+      b = askPlayerNumber();
+    }
+    return b;
+  }
+  ```
+  Comme la condition d'arrêt est que `b` soit égale à `hidden`, alors si on suppose la terminaison, la sortie de la fonction sera bien égale à `hidden` ce qui correspond à la spécification. Frama-C arrive à prouver la correction partielle:
+      ![mystere_partial](./images/TP3_exo3_4_mystere_partial.png)
+
+1) La spécification de `askPlayerNumber` indique que la valeur retourné est un entier compris entre `INT_MIN` et `INT_MAX`. Elle ne dit rien quant au fait que la valeur soit égale à `hidden` ou non. Ainsi, on ne peut pas prouver la terminaison de `mystere` car rien n'indique que la valeur retournée par `askPlayerNumber` finira par être égale à `hidden`. Par exemple, si `askPlayerNumber` retourne toujours `hidden + 1`, alors la boucle ne termine jamais. Au vu du nom de la fonction et de ce qu'on en dit dans l'énoncé, on peut même supposer que le cas où `askPlayerNumber` retourne `hidden` est extrêmement rare.
+ Frama-C ne pourra donc pas prouver la terminaison:
+      ![mystere_no_termination](./images/TP3_exo3_4_mystere_no_termination.png)
+
+
+
+&nbsp;  
+## Exercice 4
