@@ -184,3 +184,66 @@ why3 config detect
 
 &nbsp;  
 ## Exercice 5
+1) J'ai choisi de prouver `nondet` pour tout a (positif, nul ou négatif). Pour ce faire, j'ai ajouté les spécifications suivantes:
+  ```c
+  /*@
+    behavior neg:
+      assumes a <= 0;
+      ensures \result == 0;
+      assigns \nothing;
+      
+    behavior pos:
+      assumes a > 0;
+      requires a <= INT_MAX/2;
+      ensures 0 <= \result <= 2 * \old(a);
+      assigns \nothing;
+
+    complete behaviors;
+    disjoint behaviors;
+  */
+  int nondet(int a) {
+    int res = 0;
+
+    if(a<=0) {
+      return res;
+    }
+    /*@ 
+      loop invariant 0 <= a <= \at(a,Pre);
+      loop invariant 0 <= res <= 2 * (\at(a,Pre) - a);
+      loop assigns a, res;
+    */
+    while (a > 0) {
+      int b = randInt(a);
+      if (b > 0) {
+        res += b + 1;
+      }
+      a -= b;
+    }
+    return res;
+  }
+  ```
+  On remarque en premier que j'ai ajouté une condition, `if(a<=0) return res;`. Celle-ci ne modifie pas le programme puisque si `a` est négatif ou nul, la boucle while est sautée et on return res systématiquement. En revanche, son simple ajout permet aux solveurs de Frama-C de prouver mes spécifications (en somme ce code les aides à comprendre ce qui se passe dans le cas où `a` est négatif, si l'on requiert `a` positif, la preuve tiendrais pour les même spécifications).  
+  Ensuite, expliquons les spécifications:
+  On a deux cas générals (behaviors), si `a` est négatif ou nul, on va sauter la boucle et renvoyer 0 (le `behavior neg`). Si `a` est positif, on va rentrer dans la boucle. Les invariants pour la boucle sont:
+  - `loop invariant 0 <= a <= \at(a,Pre)`: `a` démarre a sa valeur initale et diminiue jusqu'à ce que `a == 0` (car `randInt` renvoie un entier entre 0 et `a` qui est soustrait à `a`, il suffit ensuite d'imaginer les cas limites).
+  - `loop invariant 0 <= res <= 2 * (\at(a,Pre) - a)`: à chaque itération (où `b != 0` qui est une itération vide d'opérations), on ajoute a `res` un bout de la valeur de `a` qu'on retire a `a` et on rajoute 1. Si `b == 1` à chaque tour, on va ajouter 2 à res `a` fois et donc `res == 2*a`, ceci est le cas où `res` est le plus grand et est donc une borne supérieure. On poura aussi prouver ce résultat par une réccurence forte ($res_{i+1} + 2\times a_{i+1} = (res_i + b + 1) + 2 \times (a_i-b) = res_i + 2 \times a_i + 1 -b \leq res_i + 2\times a_i$ car $b>=1$, où $i$ est un compteur des itérations non nulles).
+
+  Frama-C arrive ainsi à prouver toutes les clauses:
+   ![nondet_partial](./images/TP3_exo5_1_nondet_partial.png)
+
+2) Frama-C ne peut pas prouver la correction totale avec le variant `loop variant a;` par exemple (qui est valide) car il est possible que `randInt` renvoie systématiquement 0 et donc que la boucle ne termine jamais `a` étant décrémenté de 0 donc restant inchangé à chaque itération.
+  ![nondet_no_termination](./images/TP3_exo5_2_nondet_no_termination.png)
+
+3) Pour permettre à Frama-C de prouver la terminaison, il faut que le variant décroisse strictement à chaque itération. Pour cela, sans modifier randInt, j'ai modifié la boucle pour que si `b == 0`, on le remplace par 1 (ce qui est valide car `b` est censé être entre 0 et `a` et que le programme ne faisait rien si `b == 0`, on évite ainsi les boucles infinies). Le code devient:
+  ```c
+  while (a > 0) {
+		int b = randInt(a);
+    if (b == 0) {
+      b = 1;
+    }
+    res += b + 1;
+		a -= b;
+  }
+  ```
+  Frama-C arrive alors à prouver la terminaison et donc la correction totale:
+  ![nondet_total](./images/TP3_exo5_3_nondet_total.png)
