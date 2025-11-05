@@ -6,15 +6,37 @@ import queue
 import time
 
 _print_lock = threading.Lock()
+_current_prompt = ""
 
 def safe_print(*args, **kwargs):
+  """Print without interrupting the input prompt"""
   with _print_lock:
+    # Clear current line and move cursor to beginning
+    sys.stdout.write('\r' + ' ' * (len(_current_prompt) + 80) + '\r')
+    sys.stdout.flush()
+    
+    # Print the message
     print(*args, **kwargs)
+    
+    # Reprint the prompt
+    if _current_prompt:
+      sys.stdout.write(_current_prompt)
+      sys.stdout.flush()
 
-def safe_print_input(prompt):
+def safe_input(prompt):
+  """Input that can be interrupted by safe_print"""
+  global _current_prompt
   with _print_lock:
-    return input(prompt)
-#TODO make it free the lock when the server receives an input and reprint afterwards
+    _current_prompt = prompt
+    sys.stdout.write(prompt)
+    sys.stdout.flush()
+  
+  try:
+    result = sys.stdin.readline().rstrip('\n')
+    return result
+  finally:
+    with _print_lock:
+      _current_prompt = ""
 
 def server(host, port, buffsize):
   with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -65,8 +87,9 @@ def sender(host, port_in, port_out, message_queue):
         for port in port_out:
           s.connect((host, port))
           s.sendall(msg_bytes)
+          s.close()
 
-        safe_print("Client: Message envoyé\n")
+        safe_print("Client: Message envoyé")
       except ConnectionRefusedError:
         safe_print("Client: Échec. Serveur offline?")
       finally:
@@ -95,7 +118,7 @@ def main():
   
 
   while True:
-    message_text = input("Enter message (or 'exit' to quit):\n")
+    message_text = safe_input("Enter message (or 'exit' to quit): ")
     message_queue.put(message_text)
     if message_text.lower() == 'exit':
       break
