@@ -18,21 +18,27 @@ def safe_print_input(prompt):
 
 def server(host, port, buffsize):
   with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     s.bind((host, port))
     s.listen()
     # safe_print("Serveur: en écoute...")
     try:
-      conn, addr = s.accept()
-      with conn:
-          # safe_print(f"Connecté par {addr}")
-          data = conn.recv(buffsize)
-          if not data:
-            return
+      while True:
+        conn, addr = s.accept()
+        with conn:
+          try:
+            # safe_print(f"Connecté par {addr}")
+            data = conn.recv(buffsize)
+            if not data:
+              continue
 
-          msg_str = data.decode('utf-8')
-          msg_obj = json.loads(msg_str)
+            msg_str = data.decode('utf-8')
+            msg_obj = json.loads(msg_str)
 
-          safe_print(f"Reçu: {msg_obj}")
+            safe_print(f"Reçu: {msg_obj}")
+          except Exception as e:
+            safe_print(f"Erreur lors du traitement: {e}")
+            continue
     except Exception as e:
       safe_print(f"Erreur serveur: {e}")
 
