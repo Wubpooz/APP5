@@ -14,8 +14,10 @@ RESET = "\033[0m"
 YELLOW = "\033[33m"
 LIGHT_BLUE = "\033[94m"
 RED = "\033[31m"
+ORANGE = "\033[33m"
+PURPLE = "\033[35m"
 
-# On veut que les messages reçus n'interrompent pas la saisie de l'utilisateur donc on utilise un lock et on flush
+# On veut que les messages reçus n'interrompent pas la saisie de l'utilisateur donc on utilise un lock et on flush en gardant son input, keep same socket
 _print_lock = threading.Lock()
 _current_prompt = ""
 
@@ -40,7 +42,7 @@ def safe_input(prompt):
   global _current_prompt
   with _print_lock:
     _current_prompt = prompt
-  
+
   try:
     result = input(prompt)
     return result
@@ -57,23 +59,44 @@ def server(host, port, buffsize, exit_event):
     s.settimeout(1.0)  # Add timeout so accept() doesn't block forever
     
     try:
+      def handle_conn(conn: socket.socket):
+        try:
+          with conn:
+            conn.settimeout(1.0)  # timeout for recv()
+            buffer = b""  # accumulate bytes to support multiple messages per recv
+            while not exit_event.is_set():
+              try:
+                data = conn.recv(buffsize)
+                if not data:
+                  # connection closed by peer
+                  break
+
+                buffer += data
+                # Process all full lines (NDJSON framing)
+                while b"\n" in buffer:
+                  line, buffer = buffer.split(b"\n", 1)
+                  if not line:
+                    continue
+                  try:
+                    msg_str = line.decode('utf-8')
+                    msg_obj = json.loads(msg_str)
+                    pretty_msg = f"{LIGHT_BLUE}[{msg_obj['timestamp']}] {msg_obj['sender']}: {msg_obj['message']}{RESET}"
+                    safe_print(pretty_msg)
+                  except json.JSONDecodeError as e:
+                    # Skip malformed line but keep the connection open
+                    safe_print(f"{ORANGE}[DEBUG] JSON invalide: {e}{RESET}")
+                    continue
+              except socket.timeout:
+                # No data this tick; loop back to check exit_event
+                continue
+        except Exception as e:
+          safe_print(f"{ORANGE}[DEBUG] Erreur lors du traitement: {e}{RESET}")
+
       while not exit_event.is_set():
         try:
           conn, addr = s.accept()
-          with conn:
-            try:
-              data = conn.recv(buffsize)
-              if not data:
-                continue
-
-              msg_str = data.decode('utf-8')
-              msg_obj = json.loads(msg_str)
-
-              pretty_msg = f"{YELLOW}[{msg_obj['timestamp']}] {msg_obj['sender']}: {msg_obj['message']}{RESET}"
-              safe_print(pretty_msg)
-            except Exception as e:
-              safe_print(f"{RED}Erreur lors du traitement: {e}{RESET}")
-              continue
+          # Handle each connection in its own thread so multiple peers can stay connected
+          threading.Thread(target=handle_conn, args=(conn,), daemon=True).start()
         except socket.timeout:
           # Check exit_event again
           continue
@@ -85,8 +108,28 @@ def server(host, port, buffsize, exit_event):
       if not exit_event.is_set():
         safe_print(f"{RED}Erreur serveur: {e}{RESET}")
 
-# TODO Au lieu de créer un nouveau socket pour chaque message, gardez une connexion ouverte vers le peer
-def sender(host, port_in, port_out, message_queue, exit_event, username):
+
+def sender(host: str, port_in: int, port_out: list[int], message_queue: queue.Queue, exit_event: threading.Event, username: str|None):
+  socks: dict[int, socket.socket|None] = {p: None for p in port_out}
+  
+  def ensure_connection(port):
+    # Already connected
+    if socks.get(port) is not None:
+      return True
+    # Try to (re)connect
+    try:
+      s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+      s.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+      s.connect((host, port))
+      socks[port] = s
+      return True
+    except Exception as e:
+      safe_print(f"{ORANGE}Impossible de se connecter au peer sur le port {port}: {e}{RESET}")
+      # ensure we keep None so we retry later
+      socks[port] = None
+      return False
+  
+
   while not exit_event.is_set():
     try:
       # Use timeout so we can check exit_event periodically
@@ -95,36 +138,64 @@ def sender(host, port_in, port_out, message_queue, exit_event, username):
       continue
 
     try:
+      if message_txt == None or isinstance(message_txt, str) and message_txt.lower() == 'exit':
+        break
+      
       timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
       message = {
         "sender": username or f"Peer:{port_in}",
         "timestamp": timestamp,
         "message": message_txt,
       }
-      msg_str = json.dumps(message)
+      # newline-delimited JSON framing so the server can parse multiple messages per recv
+      msg_str = json.dumps(message) + "\n"
       msg_bytes = msg_str.encode('utf-8')
 
       sent_count = 0
       for port in port_out:
+        if not ensure_connection(port):
+          # connection attempt already logged in ensure_connection
+          continue
         try:
-          with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.connect((host, port))
+          s = socks.get(port)
+          if s is not None:
             s.sendall(msg_bytes)
             sent_count += 1
         except ConnectionRefusedError:
+          safe_print(f"{ORANGE}Connexion refusée par le peer sur le port {port}{RESET}")
           continue
-        except Exception:
+        except Exception as e:
+          safe_print(f"{RED}Erreur lors de l'envoi au peer sur le port {port}: {e}{RESET}")
+          try:
+            s = socks.get(port)
+            if s is not None:
+              try:
+                s.shutdown(socket.SHUT_RDWR)
+              except Exception:
+                pass
+              s.close()
+          except Exception as e:
+            safe_print(f"{RED}Erreur lors de la fermeture du socket: {e}{RESET}")
+          socks[port] = None
           continue
-      
+ 
       if sent_count > 0:
-        safe_print(f"{LIGHT_BLUE}Message envoyé à {sent_count} peer{'s' if sent_count > 1 else ''}{RESET}")
+        safe_print(f"{PURPLE}Message envoyé à {sent_count} peer{'s' if sent_count > 1 else ''}{RESET}")
       else:
         safe_print(f"{RED}Échec. Tous les serveurs sont offline?{RESET}")
 
     except Exception as e:
-      safe_print(f"{RED}Erreur client: {e}{RESET}")
+      safe_print(f"{ORANGE}[DEBUG] Erreur client: {e}{RESET}")
     finally:
+      # mark task done for this message; keep sockets open for persistence
       message_queue.task_done()
+
+  for s in filter(None, list(socks.values())):
+    try:
+      s.close()
+    except Exception as e:
+      safe_print(f"{RED}Erreur lors de la fermeture du socket: {e}{RESET}")
+      continue
 
 
 def main():
@@ -171,7 +242,7 @@ def main():
         break
       message_queue.put(message_text)
   except KeyboardInterrupt:
-    safe_print(f"\n{LIGHT_BLUE}Interrupted by user{RESET}")
+    safe_print(f"\n{PURPLE}Interrupted by user{RESET}")
     message_queue.put('exit')
     exit_event.set()
 
@@ -179,7 +250,7 @@ def main():
   sender_thread.join(timeout=2.0)
   server_thread.join(timeout=2.0)
   
-  safe_print(f"{LIGHT_BLUE}Chat terminated.{RESET}")
+  safe_print(f"{PURPLE}Chat terminated.{RESET}")
 
 
 if __name__ == "__main__":
