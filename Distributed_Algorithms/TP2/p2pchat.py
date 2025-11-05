@@ -5,11 +5,16 @@ import socket
 import queue
 import time
 
+# ANSI color codes
+RESET = "\033[0m"
+YELLOW = "\033[33m"
+LIGHT_BLUE = "\033[94m"
+RED = "\033[31m"
+
 _print_lock = threading.Lock()
 _current_prompt = ""
 
 def safe_print(*args, **kwargs):
-  """Print without interrupting the input prompt"""
   with _print_lock:
     # Clear current line and move cursor to beginning
     sys.stdout.write('\r' + ' ' * (len(_current_prompt) + 80) + '\r')
@@ -24,7 +29,6 @@ def safe_print(*args, **kwargs):
       sys.stdout.flush()
 
 def safe_input(prompt):
-  """Input that can be interrupted by safe_print"""
   global _current_prompt
   with _print_lock:
     _current_prompt = prompt
@@ -57,7 +61,8 @@ def server(host, port, buffsize):
             msg_str = data.decode('utf-8')
             msg_obj = json.loads(msg_str)
 
-            safe_print(f"Reçu: {msg_obj}")
+            pretty_msg = f"{YELLOW}[{msg_obj['timestamp']}] {msg_obj['sender']}: {msg_obj['message']}{RESET}"
+            safe_print(pretty_msg)
           except Exception as e:
             safe_print(f"Erreur lors du traitement: {e}")
             continue
@@ -70,7 +75,7 @@ def sender(host, port_in, port_out, message_queue):
     message_txt = message_queue.get()
     try:
       if message_txt is None or message_txt.lower() == 'exit':
-        safe_print("Exiting chat.")
+        safe_print(f"{LIGHT_BLUE}Exiting chat.{RESET}")
         break
 
       timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
@@ -87,12 +92,12 @@ def sender(host, port_in, port_out, message_queue):
           with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.connect((host, port))
             s.sendall(msg_bytes)
-            safe_print("Client: Message envoyé")
+            safe_print(f"{LIGHT_BLUE}Message envoyé{RESET}")
         except ConnectionRefusedError:
-          safe_print("Client: Échec. Serveur offline?")
+          safe_print(f"{RED}Échec. Serveur offline?{RESET}")
           continue
         except Exception:
-          safe_print("Client: Échec. Unknown error.")
+          safe_print(f"{RED}Échec. Unknown error.{RESET}")
           continue
 
     except Exception as e:
@@ -114,8 +119,8 @@ def main():
   buffsize = 1024 #sys.argv[4] if len(sys.argv) > 4 else 1024
 
   message_queue = queue.Queue()
-  server_thread = threading.Thread(target=server, args=(host, port_in, buffsize), daemon=True)
-  sender_thread = threading.Thread(target=sender, args=(host, port_in, port_out, message_queue), daemon=True)
+  server_thread = threading.Thread(target=server, args=(host, port_in, buffsize))
+  sender_thread = threading.Thread(target=sender, args=(host, port_in, port_out, message_queue))
 
   safe_print(f"Starting P2P chat on port {port_in} connecting to peer on port{'s' if len(port_out) > 1 else ''} {port_out}")
   sender_thread.start()
@@ -123,15 +128,14 @@ def main():
   
 
   while True:
-    message_text = safe_input("Enter message (or 'exit' to quit): ")
+    message_text = safe_input("> ") #Enter message (or 'exit' to quit):
     message_queue.put(message_text)
     if message_text.lower() == 'exit':
+      server_thread.join()
       break
 
   message_queue.join()
-  server_thread.join()
   sender_thread.join()
-
 
 
 if __name__ == "__main__":
