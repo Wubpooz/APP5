@@ -66,34 +66,39 @@ def server(host, port, buffsize):
 
 
 def sender(host, port_in, port_out, message_queue):
-  with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-    while True:
-      message_txt = message_queue.get()
-      if message_txt.lower() == 'exit':
+  while True:
+    message_txt = message_queue.get()
+    try:
+      if message_txt is None or message_txt.lower() == 'exit':
         safe_print("Exiting chat.")
-        message_queue.task_done()
         break
 
-      try:
-        timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
-        message = {
-          "sender": f"Peer:{port_in}",
-          "timestamp": timestamp,
-          "message": message_txt,
-        }
-        msg_str = json.dumps(message)
-        msg_bytes = msg_str.encode('utf-8')
+      timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+      message = {
+        "sender": f"Peer:{port_in}",
+        "timestamp": timestamp,
+        "message": message_txt,
+      }
+      msg_str = json.dumps(message)
+      msg_bytes = msg_str.encode('utf-8')
 
-        for port in port_out:
-          s.connect((host, port))
-          s.sendall(msg_bytes)
-          s.close()
+      for port in port_out:
+        try:
+          with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.connect((host, port))
+            s.sendall(msg_bytes)
+            safe_print("Client: Message envoyé")
+        except ConnectionRefusedError:
+          safe_print("Client: Échec. Serveur offline?")
+          continue
+        except Exception:
+          safe_print("Client: Échec. Unknown error.")
+          continue
 
-        safe_print("Client: Message envoyé")
-      except ConnectionRefusedError:
-        safe_print("Client: Échec. Serveur offline?")
-      finally:
-        message_queue.task_done()
+    except Exception as e:
+      safe_print(f"Erreur client: {e}")
+    finally:
+      message_queue.task_done()
 
 
 
@@ -122,6 +127,7 @@ def main():
     message_queue.put(message_text)
     if message_text.lower() == 'exit':
       break
+
   message_queue.join()
   server_thread.join()
   sender_thread.join()
