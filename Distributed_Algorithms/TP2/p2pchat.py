@@ -4,6 +4,7 @@ import sys
 import socket
 import queue
 import time
+import readline
 
 # Features: colors, timestamps, usernames, multiport, exit, locked printing
 
@@ -20,28 +21,28 @@ _current_prompt = ""
 
 def safe_print(*args, **kwargs):
   with _print_lock:
+    # Get current input buffer before clearing
+    current_input = readline.get_line_buffer()
+    
     # Clear current line and move cursor to beginning
-    sys.stdout.write('\r' + ' ' * (len(_current_prompt) + 80) + '\r')
+    sys.stdout.write('\r' + ' ' * (len(_current_prompt) + len(current_input) + 10) + '\r')
     sys.stdout.flush()
     
     # Print the message
     print(*args, **kwargs)
     
-    # Reprint the prompt
+    # Reprint the prompt with the saved input
     if _current_prompt:
-      sys.stdout.write(_current_prompt)
+      sys.stdout.write(_current_prompt + current_input)
       sys.stdout.flush()
 
-# TODO keep inputed text in input when reprinting prompt
 def safe_input(prompt):
   global _current_prompt
   with _print_lock:
     _current_prompt = prompt
-    sys.stdout.write(prompt)
-    sys.stdout.flush()
   
   try:
-    result = sys.stdin.readline().rstrip('\n')
+    result = input(prompt)
     return result
   finally:
     with _print_lock:
