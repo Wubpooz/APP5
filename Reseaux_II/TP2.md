@@ -37,8 +37,17 @@ En revanche si l'on remet le nom du fichier en `index.html` sans modifier le `.h
 &nbsp;  
 &nbsp;  
 ## Exercice 2 - Load-balancer
+La topologie de ce TP consiste en 2 clients, 3 servers et un load-balancer entre les clients et les serveurs.  
+![Load Balancer Topology](./TP_assets/TP2_Exo2_topology.png)
 
+On va se connecter au load-balancer sur un client avec `links http://10.0.0.2`. Le load-balancer redirige vers un des serveurs. Pour retenter, on peut relancer une connexion et le load-balancer redirige vers un autre serveur ou le même. Cela permet de répartir la charge entre les serveurs, normalement leur comportement est identique. On peut donc observer les 3 servers avec la même commande:
+![Client1 command](./TP_assets/TP2_Exo2_client1_command.png)
+![Server1 response](./TP_assets/TP2_Exo2_server1_response.png)
+![Server2 response](./TP_assets/TP2_Exo2_server2_response.png)
+![Server3 response](./TP_assets/TP2_Exo2_server3_response.png)
 
+On voit bien qu'on a obtenu des réponses de chacun des serveurs.  
+Un autre algorithme de répartition de charge pourrait chercher à nous rediriger autant que possible vers le même serveur quand on est le même client pour réduire la latence de connexion, ne changeant qu'en cas de besoin.  
 
 &nbsp;  
 &nbsp;  
