@@ -1,0 +1,3 @@
+first example: https://www.shadertoy.com/view/DstXWX
+simple mouse: https://www.shadertoy.com/view/DdtSDX
+mouse painter: 	
