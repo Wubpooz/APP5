@@ -1,3 +1,5 @@
+#iChannel0 "/texture-ground-seamless.jpg"
+
 void mainImage(out vec4 fragColor, in vec2 fragCoord)
 {
   vec2 uv = fragCoord / iResolution.xy;
@@ -17,6 +19,14 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
   else if(intensity > 0.0)
     color = vec3(0.2, 0.06, 0.06);
 
+  if (iMouse.x > 0.0 && iMouse.y > 2.0)
+  {
+    vec2 mouseUV = iMouse.xy / iResolution.xy;
+    vec3 mouseP = vec3(mouseUV, 0.0);
+    float mouseDist = distance(p, mouseP);
+    if (mouseDist < 0.2)
+      color += vec3(0.0, 0.5, 0.8) * (0.2 - mouseDist) * 5.0;
+  }
 
   vec3 center = vec3(0.5, 0.5, 0.0);
   center.x += 0.4 * cos(iTime);
@@ -27,7 +37,8 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
     color = vec3(0.0);
     // color += vec3(0.0, 0.5, 0.8) * (0.2 - dist) * 5.0;
   
-  
+    vec4 a = texture(iChannel0, uv);
+  color *= a.xyz;
 
   fragColor = vec4(color, 1.0);
 }
