@@ -30,7 +30,7 @@ Et on change le nom du fichier `index.html` en `custom_file.html` avant de redé
 L'accès à la page web depuis le client fonctionne toujours:
 ![Apache Custom File](./TP_assets/TP2_Exo1_apache_custom_file.png)
 
-En revanche si l'on remet le nom du fichier en `index.html` sans modifier le `.htaccess`, on devrait obtienir une erreur 403 Forbidden mais le serveur nous préviens juste et donne le dossier à la place:
+En revanche si l'on remet le nom du fichier en `index.html` sans modifier le `.htaccess`, on devrait obtenir une erreur 403 Forbidden mais le serveur nous prévient juste et donne le dossier à la place:
 ![Apache Forbidden](./TP_assets/TP2_Exo1_apache_forbidden.png)
 
 
@@ -112,19 +112,19 @@ On peut supprimer le cache DNS avec `rndc flush` sur l'hôte de service.
 
 
 &nbsp;  
-**ping d'une cible absent:** `ping pluto.startup.net`
+**ping d'une cible absente:** `ping pluto.startup.net`
 Résultat: ![Ping cible absente](./TP_assets/TP2_Exo3_ping_pluto.png)
 
 Le trafic DNS capturé montre que la résolution échoue car pluto.startup.net n'existe pas:
 ![Wireshark ping pluto](./TP_assets/TP2_Exo3_wireshark_ping_pluto.png)
-Le parcours est identique à celui du ping précédent jusqu'à l'étape 8 où dsstart ne trouve pas d'enregistrement pour pluto.startup.net et renvoie une erreur de type NXDOMAIN (Non-Existent Domain) à localuni, qui la renvoie à pc1. On n'as pas les mêmes requêtes car on n'as pas vidé le cache DNS entre les pings.
+Le parcours est identique à celui du ping précédent jusqu'à l'étape 8 où dsstart ne trouve pas d'enregistrement pour pluto.startup.net et renvoie une erreur de type NXDOMAIN (Non-Existent Domain) à localuni, qui la renvoie à pc1. On n'a pas les mêmes requêtes car on n'a pas vidé le cache DNS entre les pings.
 
 
 &nbsp;  
 **Requête avancée:**
 `dig pc2.startup.net` sur pc1:
 ![Dig command](./TP_assets/TP2_Exo3_dig_command.png)
-Cela montre l'enregistrement A (IPv4) de pc2.startup.net et des informations sur la requête comme les serveurs d'autorité ainsi que leurs détails comme le temps de conservation que pc1 à conservé du ping précédent.  
+Cela montre l'enregistrement A (IPv4) de pc2.startup.net et des informations sur la requête comme les serveurs d'autorité ainsi que leurs détails comme le temps de conservation que pc1 a conservé du ping précédent.  
 
 
 &nbsp;  
