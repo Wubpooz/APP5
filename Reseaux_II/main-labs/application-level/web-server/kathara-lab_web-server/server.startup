@@ -1,2 +1,13 @@
 ip address add 10.0.0.1/24 dev eth0
+# Allow .htaccess under /var/www/html and ensure DirectoryIndex works
+a2enmod dir >/dev/null 2>&1
+cat >/etc/apache2/conf-available/allow-htaccess.conf <<'EOF'
+<Directory /var/www/html>
+    AllowOverride All
+    Require all granted
+</Directory>
+EOF
+a2enconf allow-htaccess >/dev/null 2>&1
+
+# Start/restart Apache to apply changes
 systemctl start apache2
