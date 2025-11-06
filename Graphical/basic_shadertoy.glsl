@@ -1,5 +1,17 @@
 #iChannel0 "/texture-ground-seamless.jpg"
 
+float sdSphere( vec3 p, float s )
+{
+  return length(p)-s;
+}
+
+float opSmoothUnion( float d1, float d2, float k )
+{
+    k *= 4.0;
+    float h = max(k-abs(d1-d2),0.0);
+    return min(d1, d2) - h*h*0.25/k;
+}
+
 void mainImage(out vec4 fragColor, in vec2 fragCoord)
 {
   vec2 uv = fragCoord / iResolution.xy;
@@ -39,6 +51,11 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
       color += vec3(0.0, 0.5, 0.8) * (0.1 - mouseDist) * 10.0;
   }
   
+  float d = sdSphere(p - vec3(0.3, 0.5, 0.0), 0.15);
+  d = opSmoothUnion(d, sdSphere(p - vec3(0.7, 0.5, 0.0), 0.15), 0.1*sqrt(iMouse.x*iMouse.x + iMouse.y*iMouse.y) / iResolution.x);
+  if (d < 0.0)
+    color += vec3(0.2, 0.8, 0.2);
+
   vec4 a = texture(iChannel0, uv);
   color *= a.xyz;
 
