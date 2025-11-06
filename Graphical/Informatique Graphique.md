@@ -1,4 +1,8 @@
 # Informatique Graphique
+
+Plateformes: [https://shdr.bkcore.com/](https://shdr.bkcore.com/) ou [Shadertoy](https://www.shadertoy.com/).
+
+
 ## Ressources
 ### Shaders
 [Shadertoy Library](https://www.shadertoy.com/)  
