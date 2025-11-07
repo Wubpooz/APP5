@@ -75,9 +75,21 @@ On remarque que les performances d'OpenMP sont légèrement meilleures que celle
 
 
 &nbsp;  
-1) On n'obtient pas les gains attendus car...
+2) On obtient les gains attendus (efficacité > 100% donc superlinéaire) grâce à:
+   - meilleure localité cache (car chaque thread / processus travaille sur une portion plus petite de l’image, donc les données sont plus susceptibles de rester dans le cache entre les accès)
+   - réduction du stress sur la mémoire (car les accès mémoire sont répartis entre plusieurs threads) 
 
-2) Si l'on incluait l'initalisation, ..... Donc, ....
+ Mais on a aussi des pertes d’efficacité dues à:
+   - Dans MPI, la chute d’efficacité à 8 threads (≈91.5%) vient ensuite de la saturation du débit mémoire à cause du coût des communications synchrones
+   - Dans OpenMP, c'est la synchronisation par des barrières implicites aux fins de boucles qui limite les amélioration et au delà de 8 threads l’efficacité chute (78.1% à 16 threads) car le coût de gestion des threads et de synchronisation devient significatif par rapport au temps de calcul.
+
+
+3) Si l’on incluait l’initialisation (rand() de toute l’image + construction du filtre) dans le temps mesuré:
+   - Séquentiel: le temps total augmenterait, mais le speedup resterait le même (tout est séquentiel).
+   - OpenMP: cette phase est séquentielle (à cause du rand non thread compatible) donc le temps total augmenterait beaucoup et l'efficacité plongerait très vite (l'augmentation du nombre de processeur augmente vite le dénominateur mais ne diminue pas le numérateur de manière significative dans la formule d'Amdahl).
+   - MPI: similairement, même si seul le processus 0 initalise l'image, les autres l'attendent (barrier) donc le temps total augmenterait aussi et l'efficacité diminuerait rapidement avec le nombre de processus.
+   
+  On en conclut que la prise en compte d'une partie non parallélisable (ici l'initialisation) dans le temps mesuré fausse les résultats de scalabilité. La paralléliser avec rand_r rendrait sa mesure logique dans le calcul de la scalabilité et de l'accélération. Cela permettrait une mesure complète du temps de traitement, on ne compte que le temps de calcul du filtre et de l'analyse actuellement.
 
 
 &nbsp;  
