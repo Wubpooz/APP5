@@ -83,14 +83,42 @@ int main(int argc, char** argv) {
   double start_time = MPI_Wtime();
 
 
-  // Gestion des bordures
-  MPI_Sendrecv(&local_source[IDX(1, 0)], M,  MPI_UNSIGNED_CHAR, (rank - 1 + size) % size, 0,
-               &local_source[IDX(0, 0)], M, MPI_UNSIGNED_CHAR, (rank + 1) % size, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-  MPI_Sendrecv(&local_source[IDX(blocs_per_process - 2, 0)], M,  MPI_UNSIGNED_CHAR, (rank + 1) % size, 0,
-               &local_source[IDX(blocs_per_process - 1, 0)], M, MPI_UNSIGNED_CHAR, (rank - 1 + size) % size, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+  // Gestion des bordures avec communications non-bloquantes (optimisé)
+  MPI_Request requests[4];
+  int prev = (rank - 1 + size) % size;
+  int next = (rank + 1) % size;
+  
+  // Lancer les 4 communications en parallèle
+  MPI_Isend(&local_source[IDX(1, 0)], M, MPI_UNSIGNED_CHAR, prev, 0, 
+            MPI_COMM_WORLD, &requests[0]);
+  MPI_Irecv(&local_source[IDX(0, 0)], M, MPI_UNSIGNED_CHAR, next, 0, 
+            MPI_COMM_WORLD, &requests[1]);
+  MPI_Isend(&local_source[IDX(blocs_per_process - 2, 0)], M, MPI_UNSIGNED_CHAR, next, 1, 
+            MPI_COMM_WORLD, &requests[2]);
+  MPI_Irecv(&local_source[IDX(blocs_per_process - 1, 0)], M, MPI_UNSIGNED_CHAR, prev, 1, 
+            MPI_COMM_WORLD, &requests[3]);
 
-  // Application du filtre
-  for (int i = 1; i < blocs_per_process - 1; i++) {
+  // Calculer les lignes intérieures pendant que les communications se font
+  for (int i = 2; i < blocs_per_process - 2; i++) {
+    // Gestion des première et dernière colonnes de l'image
+    local_dest[IDX(i, 0)] = local_source[IDX(i, 0)];
+    local_dest[IDX(i, M-1)] = local_source[IDX(i, M-1)];
+    for (int j = 1; j < M-1; j++) {
+      int idx = IDX(i,j);
+      local_dest[idx] = 0;
+      for (int ii = -1; ii <= 1; ii++) {
+        for (int jj = -1; jj <= 1; jj++) {
+          local_dest[idx] += local_source[IDX(i+ii, j+jj)] * coeffs[ii+2][jj+2]; // +2 comme mentionné dans l'énoncé
+        }
+      }
+    }
+  }
+
+  // Attendre que toutes les communications soient terminées avant de traiter les bordures
+  MPI_Waitall(4, requests, MPI_STATUSES_IGNORE);
+
+  // Application du filtre sur les lignes de bordure (i=1 et i=blocs_per_process-2)
+  for (int i = 1; i < blocs_per_process - 1; i += blocs_per_process - 3) {
     // Gestion des première et dernière colonnes de l'image
     local_dest[IDX(i, 0)] = local_source[IDX(i, 0)];
     local_dest[IDX(i, M-1)] = local_source[IDX(i, M-1)];

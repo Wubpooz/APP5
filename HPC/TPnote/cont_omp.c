@@ -32,8 +32,9 @@ int main(int argc, char* argv[])
     return 1;
   }
 
+  // On optimize l'initialisation en collaspant les 2 for
   /* Initialisation du filtre */
-  #pragma omp parallel for collapse(2)
+  #pragma omp parallel for collapse(2) default(none) shared(coeffs, taille_filtre)
   for (int i = 0; i < taille_filtre; i++) {
     for (int j = 0; j < taille_filtre; j++) {
       if( i == j && i == taille_filtre / 2 ) 
@@ -44,6 +45,7 @@ int main(int argc, char* argv[])
   }
 
   /* Initialisation aléatoire de l'image source */
+  // On utilise un seul thread pour l'initialisation, le premier arrivé, les autres attendent
   #pragma omp parallel
   {
     #pragma omp single
@@ -66,12 +68,14 @@ int main(int argc, char* argv[])
   double start_time = omp_get_wtime();
 
   /* Gestion des première et dernière lignes de l'image */
+  // Les itérations sont indépendantes, on peut paralléliser
   #pragma omp parallel for default(none) shared(image_source, image_dest, N, M)
   for (int j = 0; j < M; j++) {
     image_dest[IDX(0,j)] = image_source[IDX(0,j)];
     image_dest[IDX(N-1,j)] = image_source[IDX(N-1,j)];
   }  
   /* Gestion des première et dernière colonnes de l'image */
+  // Les itérations sont indépendantes, on peut paralléliser
   #pragma omp parallel for default(none) shared(image_source, image_dest, N, M)
   for (int i = 0; i < N; i++) {
     image_dest[IDX(i,0)] = image_source[IDX(i,0)];
@@ -79,6 +83,8 @@ int main(int argc, char* argv[])
   }
 
   /* Traitement de l'image */
+  // On a sorti la gestion des première et dernières colonnes pour éviter les calculs dans les boucles intermédiaires et utiliser collapse
+  // On a aussi déroulé la boucle interne de double sommation pour permettre à openMP de mieux optimiser la distribution
   #pragma omp parallel for default(none) shared(image_source, image_dest, coeffs, N, M) collapse(2)
   for (int i = 1; i < N-1; i++) {
     for (int j = 1; j < M-1; j++) {
@@ -105,6 +111,7 @@ int main(int argc, char* argv[])
   pixel_t val_min = 255, val_max = 0;
   int compteur = 0;
 
+  // On parallelise la boucle avec des reductions pour val_min, val_max et compteur, cela permet de faire le calcul en parallèle sans conflits
   #pragma omp parallel for reduction(min:val_min) reduction(max:val_max) reduction(+:compteur) default(none) shared(image_dest, N, M, c)
   for (int i = 0; i < N; i++) {
     for (int j = 0; j < M; j++) {
@@ -116,7 +123,7 @@ int main(int argc, char* argv[])
   }
 
   
-  // Séquentiellement, un seul thread affiche le résultat
+  // Séquentiellement, un seul thread affiche le résultat et enregistre l'image
   printf("valeur minimale = %d | valeur maximale = %d | nombre d'occurences de %d = %d\n", val_min, val_max, c, compteur);
   double end_time = omp_get_wtime();
   printf("Temps d'exécution : %f secondes\n", end_time - start_time);
