@@ -21,13 +21,12 @@ PURPLE = "\033[35m"
 _print_lock: threading.Lock = threading.Lock()
 _current_prompt: str = ""
 
+# Clear current line and move cursor to beginning to overwrite the prompt and input to make the prompt always last on the terminal
 def safe_print(*args, **kwargs) -> None:
   with _print_lock:
-    # Save current input buffer before clearing
-    current_input: str = readline.get_line_buffer()
+    current_input: str = readline.get_line_buffer() # Save current input buffer before clearing
 
-    # Clear current line and move cursor to beginning to overwrite the prompt and input to make the prompt always last on the terminal
-    sys.stdout.write('\r' + ' ' * (len(_current_prompt) + len(current_input) + 10) + '\r')
+    sys.stdout.write('\r\033[2K')  # Clear the entire line
     sys.stdout.flush()
 
     print(*args, **kwargs)
@@ -39,8 +38,8 @@ def safe_print(*args, **kwargs) -> None:
 
 def safe_input(prompt: str) -> str:
   global _current_prompt
-  # On s'assure que le prompt is safely set
-  with _print_lock:
+
+  with _print_lock: # On s'assure que le prompt is safely set
     _current_prompt = prompt
 
   try:
@@ -52,53 +51,57 @@ def safe_input(prompt: str) -> str:
 
 
 def server(host: str, port: int, buffsize: int, exit_event: threading.Event) -> None:
+  # Handle each connection in its own thread
+  def handle_conn(conn: socket.socket):
+    try:
+      with conn:
+        # Improve interactivity/stability on the accepted socket
+        try:
+          conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+          conn.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+        except Exception:
+          pass
+        
+        conn.settimeout(1.0)  # timeout for recv()
+        buffer: bytes = b""  # accumulate bytes to support multiple messages per recv
+        while not exit_event.is_set():
+          try:
+            data: bytes = conn.recv(buffsize)
+            if not data: # connection closed by peer
+              break
+
+            buffer += data
+            while b"\n" in buffer: # process all complete lines
+              line, buffer = buffer.split(b"\n", 1)
+              if not line:
+                continue
+              try:
+                msg_str: str = line.decode('utf-8')
+                msg_obj: dict = json.loads(msg_str)
+                safe_print(f"{LIGHT_BLUE}[{msg_obj['timestamp']}] {msg_obj['sender']}: {msg_obj['message']}{RESET}")
+              except json.JSONDecodeError as e: # Skip malformed line but keep the connection open
+                safe_print(f"{ORANGE}[DEBUG] JSON invalide: {e}{RESET}")
+                continue
+          except socket.timeout: # No data this tick; loop back to check exit_event
+            continue
+    except Exception as e:
+      safe_print(f"{ORANGE}[DEBUG] Erreur lors du traitement: {e}{RESET}")
+
+
   with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1) # Reuse address
     s.bind((host, port))
     s.listen()
     s.settimeout(1.0)  # Add timeout so accept() doesn't block forever
-    
+
     try:
-      def handle_conn(conn: socket.socket):
-        try:
-          with conn:
-            conn.settimeout(1.0)  # timeout for recv()
-            buffer = b""  # accumulate bytes to support multiple messages per recv
-            while not exit_event.is_set():
-              try:
-                data = conn.recv(buffsize)
-                if not data:
-                  # connection closed by peer
-                  break
-
-                buffer += data
-                # Process all full lines (NDJSON framing)
-                while b"\n" in buffer:
-                  line, buffer = buffer.split(b"\n", 1)
-                  if not line:
-                    continue
-                  try:
-                    msg_str = line.decode('utf-8')
-                    msg_obj = json.loads(msg_str)
-                    pretty_msg = f"{LIGHT_BLUE}[{msg_obj['timestamp']}] {msg_obj['sender']}: {msg_obj['message']}{RESET}"
-                    safe_print(pretty_msg)
-                  except json.JSONDecodeError as e:
-                    # Skip malformed line but keep the connection open
-                    safe_print(f"{ORANGE}[DEBUG] JSON invalide: {e}{RESET}")
-                    continue
-              except socket.timeout:
-                # No data this tick; loop back to check exit_event
-                continue
-        except Exception as e:
-          safe_print(f"{ORANGE}[DEBUG] Erreur lors du traitement: {e}{RESET}")
-
+      # Main server loop
       while not exit_event.is_set():
         try:
           conn, addr = s.accept()
           # Handle each connection in its own thread so multiple peers can stay connected
           threading.Thread(target=handle_conn, args=(conn,), daemon=True).start()
-        except socket.timeout:
-          # Check exit_event again
+        except socket.timeout: # Check exit_event again
           continue
         except Exception as e:
           if not exit_event.is_set():
@@ -113,51 +116,51 @@ def sender(host: str, port_in: int, port_out: list[int], message_queue: queue.Qu
   socks: dict[int, socket.socket|None] = {p: None for p in port_out}
 
   def ensure_connection(port: int) -> bool:
-    # Already connected
-    if socks.get(port) is not None:
+    if socks.get(port) is not None: # Already connected
       return True
+
     # Try to (re)connect
     try:
       s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-      s.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+      s.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1) # for interactivity
+      s.settimeout(1.0)  # timeout for connect to avoid blocking forever
       s.connect((host, port))
+      s.settimeout(None)  # remove timeout after connect
       socks[port] = s
       return True
     except Exception as e:
       safe_print(f"{ORANGE}Impossible de se connecter au peer sur le port {port}: {e}{RESET}")
-      # ensure we keep None so we retry later
-      socks[port] = None
+      socks[port] = None # ensure we keep None so we retry later
       return False
-  
 
+
+  # Main sender loop
   while not exit_event.is_set():
     try:
-      # Use timeout so we can check exit_event periodically
-      message_txt: str = message_queue.get(timeout=0.5)
+      message_txt: str = message_queue.get(timeout=0.5) # Use timeout so we can check exit_event periodically
     except queue.Empty:
       continue
 
     try:
-      if message_txt == None or isinstance(message_txt, str) and message_txt.lower() == 'exit':
+      if message_txt == None or isinstance(message_txt, str) and message_txt.lower() == 'exit': # Exit signal
         break
-      
-      timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
-      message = {
+
+      timestamp: str = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+      message: dict[str, str] = {
         "sender": username or f"Peer:{port_in}",
         "timestamp": timestamp,
         "message": message_txt,
       }
-      # newline-delimited JSON framing so the server can parse multiple messages per recv
-      msg_str: str = json.dumps(message) + "\n"
+      msg_str: str = json.dumps(message) + "\n" # newline delimiter so that the server can parse multiple messages per recv
       msg_bytes: bytes = msg_str.encode('utf-8')
 
       sent_count: int = 0
       for port in port_out:
-        if not ensure_connection(port):
-          # connection attempt already logged in ensure_connection
+        if not ensure_connection(port): # connection attempt already logged in ensure_connection
           continue
+
         try:
-          s = socks.get(port)
+          s: socket.socket|None = socks.get(port)
           if s is not None:
             s.sendall(msg_bytes)
             sent_count += 1
@@ -167,7 +170,8 @@ def sender(host: str, port_in: int, port_out: list[int], message_queue: queue.Qu
         except Exception as e:
           safe_print(f"{RED}Erreur lors de l'envoi au peer sur le port {port}: {e}{RESET}")
           try:
-            s = socks.get(port)
+            # Close the socket on error to force reconnection next time
+            s: socket.socket|None = socks.get(port)
             if s is not None:
               try:
                 s.shutdown(socket.SHUT_RDWR)
@@ -190,7 +194,7 @@ def sender(host: str, port_in: int, port_out: list[int], message_queue: queue.Qu
       # mark task done for this message; keep sockets open for persistence
       message_queue.task_done()
 
-  for s in filter(None, list(socks.values())):
+  for s in filter(None, list(socks.values())): # Close all open sockets
     try:
       s.close()
     except Exception as e:
@@ -239,6 +243,7 @@ def main():
       message_text = safe_input("> ")
       if message_text.lower() == 'exit':
         exit_event.set()
+        message_queue.put('exit')
         break
       message_queue.put(message_text)
   except KeyboardInterrupt:
