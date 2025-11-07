@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <omp.h>
+#include "img_output.h"
 
 typedef unsigned char pixel_t;
 
@@ -123,6 +124,9 @@ int main(int argc, char* argv[])
   }
   fwrite(&image_dest[IDX(0,0)], sizeof(pixel_t), N * M, fichier);
   fclose(fichier);
+
+  save_to_bmp("image_source.bmp", image_source, M, N);
+  save_to_bmp("image_dest.bmp", image_dest, M, N);
 
   free(image_source);
   free(image_dest);
