@@ -49,7 +49,52 @@ float sdTriangle( in vec2 p, in vec2 p0, in vec2 p1, in vec2 p2 )
 
 
 // ============== CSG Operations ==============
+float smin(float a, float b, float k) {
+  float h = clamp(0.5 + 0.5*(b - a)/k, 0.0, 1.0);
+  return mix(b, a, h) - k*h*(1.0 - h);
+}
 
+float opUnion( float d1, float d2 )
+{
+    return min(d1,d2);
+}
+float opSubtraction( float d1, float d2 )
+{
+    return max(-d1,d2);
+}
+float opIntersection( float d1, float d2 )
+{
+    return max(d1,d2);
+}
+float opXor( float d1, float d2 )
+{
+    return max(min(d1,d2),-max(d1,d2));
+}
+
+float opSmoothUnion( float d1, float d2, float k )
+{
+    k *= 4.0;
+    float h = max(k-abs(d1-d2),0.0);
+    return min(d1, d2) - h*h*0.25/k;
+}
+
+float opSmoothSubtraction( float d1, float d2, float k )
+{
+    return -opSmoothUnion(d1,-d2,k);
+
+    //k *= 4.0;
+    // float h = max(k-abs(-d1-d2),0.0);
+    // return max(-d1, d2) + h*h*0.25/k;
+}
+
+float opSmoothIntersection( float d1, float d2, float k )
+{
+    return -opSmoothUnion(-d1,-d2,k);
+
+    //k *= 4.0;
+    // float h = max(k-abs(d1-d2),0.0);
+    // return max(d1, d2) + h*h*0.25/k;
+}
 
 
 // ============== Own Utils ==============
@@ -58,6 +103,7 @@ vec3 rgb(int r, int g, int b) {
 }
 
 
+// ============== Shapes ==============
 float cloudShape(vec2 uv, vec2 center, float size) {
   float d = length(uv - center);
   return smoothstep(size, size * 0.5, d);
@@ -67,6 +113,43 @@ float rockShape(vec2 uv, vec2 center, float size) {
   float d = length(uv - center);
   return smoothstep(size * 0.5, size, d);
 }
+
+// Blobby cloud made from 3 circles (smooth union), returns mask 0..1
+float cloudBlob(vec2 uv, vec2 c, float size) {
+  // Scale UV relative to cloud center for size control
+  vec2 p = (uv - c) / size;
+
+  float radius_base = 0.13;
+  float radius_mid = 0.08;
+  float radius_small = 0.05;
+  float smoothness = 0.0018;
+
+  vec2 displ_base = p - vec2(0.0, 0.12);
+  vec2 displ_mid_left = p - vec2(-0.18, 0.08);
+  vec2 displ_mid_right = p - vec2(0.18, 0.08);
+  vec2 displ_small_left = p - vec2(-0.3, 0.03);
+  vec2 displ_small_right = p - vec2(0.3, 0.03);
+
+  vec2 p_shifted = p - vec2(0.0, 0.0);
+  float width = 0.30;
+  float height = 0.02;
+  float skew = -0.01;
+
+  float d = sdParallelogram(p_shifted, width, height, skew);
+
+  d = opSmoothUnion(d, sdCircle(displ_base, radius_base), smoothness);
+
+  d = opSmoothUnion(d, sdCircle(displ_mid_left, radius_mid), smoothness);
+  d = opSmoothUnion(d, sdCircle(displ_mid_right, radius_mid), smoothness);
+
+  d = opSmoothUnion(d, sdCircle(displ_small_left, radius_small), smoothness);
+  d = opSmoothUnion(d, sdCircle(displ_small_right, radius_small), smoothness);
+
+  float feather = 0.03;
+  return 1.0 - smoothstep(0.0, feather, d);
+}
+
+
 
 
 // "Paris 2025 JO style" beach with nice blue water (non transparent) and "orange" rocks on the side with failaises. Someone goes and swims in the water. The sun is shining bright. The sky is blue with some clouds. The scene is peaceful and relaxing.
@@ -89,16 +172,15 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
   vec3 color = vec3(0.0);
   if (uv.y > 0.5) {
     color = skyColor;
-    // Clouds
-    float cloud1 = cloudShape(uv, vec2(0.3 + 0.1 * sin(iTime), 0.8), 0.15);
-    float cloud2 = cloudShape(uv, vec2(0.6 + 0.1 * cos(iTime * 1.5), 0.7), 0.1);
-    float cloud3 = cloudShape(uv, vec2(0.8 + 0.1 * sin(iTime * 0.5), 0.9), 0.12);
-    float cloudMask = max(max(cloud1, cloud2), cloud3);
+    float cloudMask = 0.0;
+    cloudMask = max(cloudMask, cloudBlob(uv, vec2(0.32 + 0.06*sin(iTime*0.4), 0.82), 0.2));
+    cloudMask = max(cloudMask, cloudBlob(uv, vec2(0.62 + 0.05*cos(iTime*0.5), 0.72), 0.2));
+    cloudMask = max(cloudMask, cloudBlob(uv, vec2(0.82 + 0.04*sin(iTime*0.3), 0.90), 0.2));
     color = mix(color, cloudColor, cloudMask);
   }
 
   // ============== Sun =============
-  float sunDist = sdCircle(uv - vec2(0.2, 0.8), 0.1);
+  float sunDist = sdCircle(uv - vec2(0.14, 0.84), 0.07);
   if (sunDist < 0.0) {
     color = sunColor;
   }
@@ -121,17 +203,29 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
     color = seaColor;
   }
 
+  // shoreline (sea edge, combination of bezier curves)
+
+  // sea foam
+
+
   // ============== Rocks ==============
-  float sdBoxRock = sdBox(uv - vec2(0.8, 0.6), vec2(0.2, 0.2));
-  if (sdBoxRock < 0.0) {
-    color = rockColor; // Orange rocks on the left
-  }
+  // float sdBoxRock = sdBox(uv - vec2(0.8, 0.6), vec2(0.2, 0.2));
+  // if (sdBoxRock < 0.0) {
+  //   color = rockColor;
+  // }
 
   // ============== People ==============
 
 
   // Animations (waves, moving clouds, people swimming)
 
+
+  // Paris 2025 grain filter
+  vec3 grain = vec3(0.0);
+  float noise_intensity = 0.3;
+  float noise = fract(sin(dot(uv.xy, vec2(12.9898, 78.233))) * 43758.5453) * noise_intensity;
+  grain += vec3(noise);
+  color = mix(color, grain, 0.1);
 
   fragColor = vec4(color, 1.0);
 }
