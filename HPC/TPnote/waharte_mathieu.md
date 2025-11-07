@@ -35,6 +35,8 @@ Ce qui signifie que l'utilisation de rand() dans une région parallèle peut cau
 (en gras les meilleurs résultats pour chaque catégorie et en italique les moins bons)
 
 &nbsp;  
+![alt text](mermaid-diagram-1.png)
+![alt text](mermaid-diagram-2.png)
 ```mermaid
 %%{init: {'theme':'forest'}}%%
 xychart-beta
@@ -56,6 +58,7 @@ xychart-beta
     line [108.2, 106, 101.5, 91.5, 0]
     line [114.8, 114.9, 114.4, 104.8, 78.1]
 ````
+
 &nbsp;  
 On remarque que les performances d'OpenMP sont légèrement meilleures que celles de MPI, probablement à cause de la surcharge de communication entre processus dans MPI. On remarque aussi une bonne scalabilité jusqu'à 8 threads, mais à 16 threads l'efficacité diminue, probablement à cause de la surcharge de gestion des threads et des limites du partage des ressources. On déduit que ici, il vaut mieux utiliser OpenMP plutôt que MPI pour ce type de calcul et se limiter à 4 ou 8 threads pour un bon compromis entre temps de calcul et efficacité.  
 
