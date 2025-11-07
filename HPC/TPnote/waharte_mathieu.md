@@ -31,20 +31,44 @@ Ce qui signifie que l'utilisation de rand() dans une région parallèle peut cau
 &nbsp;  
 ## III. Performances
 1-2)&nbsp;  &nbsp;  Après mesure, on obtient les résultats suivants:  
-|   | Temps   | Accélération | Efficacité |
-|---|---| ---|---|
-| Séquentiel  | 16.02s  | 1x | 100% |
-| MPI (4 process)  | 3.95s  | 4.06x | **101.5%** |
-| OpenMP (16 threads)  | **1.28s**  | **12.5x** | 78.1% |
+|                     | Temps     | Accélération | Efficacité |
+|---------------------|-----------|--------------|------------|
+| Séquentiel          | 16.02s    | 1x           | 100%       |
+| MPI (1 thread)      | 14.81s    | 1.08x        | 108.2%     |
+| MPI (2 threads)     | 7.56s     | 2.12x        | 106%       |
+| MPI (4 threads)     | 3.95s     | 4.06x        | 101.5%     |
+| MPI (8 threads)     | 2.19s     | 7.32x        | 91.5%      |
+| MPI (16 threads)    | X         | X            | X          |
+| OpenMP (1 thread)   | 13.96s    | 1.15x        | 114.8%     |
+| OpenMP (2 threads)  | 6.97s     | 2.30x        | **114.9%** |
+| OpenMP (4 threads)  | 3.50s     | 4.58x        | 114.4%     |
+| OpenMP (8 threads)  |  1.91s    | 7.32x        | 104.8%     |
+| OpenMP (16 threads) | **1.28s** | **12.5x**    | 78.1%      |
+
+On remarque que les performances d'OpenMP sont légèrement meilleures que celles de MPI, probablement à cause de la surcharge de communication entre processus dans MPI. On remarque aussi une bonne scalabilité jusqu'à 8 threads, mais à 16 threads l'efficacité diminue, probablement à cause de la surcharge de gestion des threads et des limites du partage des ressources. On déduit que ici, il vaut mieux utiliser OpenMP plutôt que MPI pour ce type de calcul et se limiter à 4 ou 8 threads pour un bon compromis entre temps de calcul et efficacité.  
+
+<!-- TODO Graphe -->
+
 
 &nbsp;  
-3) On n'obtient pas les gains attendus car...
+1) On n'obtient pas les gains attendus car...
 
-4) Si l'on incluait l'initalisation, ..... Donc, ....
+2) Si l'on incluait l'initalisation, ..... Donc, ....
 
 
 &nbsp;  
-Sources des mesures:   
+#### Sources des mesures
 ![Sequential time](sequential_time.png)
-![MPI Time 4 processus](mpi_time_4proc.png)
-![OpenMP Time 16 processus](openmp_time_16.png)
+
+**MPI:**
+![MPI 1 thread](mpi_time_1.png)
+![MPI 2 threads](mpi_time_2.png)
+![MPI 4 threads](mpi_time_4.png)
+![MPI 8 threads](mpi_time_8.png)
+
+**OpenMP:**
+![OpenMP 1 thread](openmp_time_1.png)
+![OpenMP 2 threads](openmp_time_2.png)
+![OpenMP 4 threads](openmp_time_4.png)
+![OpenMP 8 threads](openmp_time_8.png)
+![OpenMP 16 threads](openmp_time_16.png)

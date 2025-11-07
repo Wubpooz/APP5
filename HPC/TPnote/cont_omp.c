@@ -8,6 +8,8 @@ typedef unsigned char pixel_t;
 
 int main(int argc, char* argv[])
 {
+  omp_set_num_threads(16);
+
   const int N = 8192, M = 16384, taille_filtre = 3;
 
   #pragma omp parallel
