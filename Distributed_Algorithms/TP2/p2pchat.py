@@ -1,3 +1,6 @@
+# Mathieu Waharte - APP5 IIM 2025-2026
+# P2P Chat Application
+# Features: colors, timestamps, usernames, multiport, exit, locked printing
 import threading
 import json
 import sys
@@ -6,7 +9,6 @@ import queue
 import time
 import readline
 
-# Features: colors, timestamps, usernames, multiport, exit, locked printing
 
 
 # ANSI color codes
