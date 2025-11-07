@@ -56,6 +56,7 @@ int main(int argc, char* argv[])
     /* Application du filtre */
     for (int j = 1; j < M-1; j++) {
       int idx = IDX(i,j);
+      image_dest[idx] = 0;
       for (int ii = -1; ii <= 1; ii++) {
         for (int jj = -1; jj <= 1; jj++) {
           image_dest[idx] += image_source[IDX(i+ii,j+jj)] * coeffs[ii+2][jj+2]; // +2 comme mentionné dans l'énoncé

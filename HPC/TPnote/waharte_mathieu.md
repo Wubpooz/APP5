@@ -21,4 +21,13 @@ Sur une autre note, avoir 2 SendRecv qui se suivent peut être optimisé par 2 I
 Indice: y'a-t-il un processus qui risque d'attendre les données plus longtemps que les autres?  -->
 
 
+&nbsp;  
 ## II. OpenMP
+Impossible d'optimiser l'initalisation aléatoire car dans la spécification de rand() (trouvable en ligne ou avec `man rand`) on trouve:  
+![alt text](image.png)  
+Ce qui signifie que l'utilisation de rand() dans une région parallèle peut causer des problèmes de concurrence et des résultats imprévisibles. Pour contourner ce problème, on pourrait utiliser rand_r() qui est une version réentrante de rand() et permet de gérer l'état de manière explicite pour chaque thread. Mais sinon on ne peut pas utliser rand() dans une région parallèle donc on ne peut pas paralléliser cette partie du code.  
+
+
+&nbsp;  
+## III. Performances
+
