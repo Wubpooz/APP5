@@ -23,7 +23,7 @@ Indice: y'a-t-il un processus qui risque d'attendre les données plus longtemps 
 
 &nbsp;  
 ## II. OpenMP
-Impossible d'optimiser l'initalisation aléatoire car dans la spécification de rand() (trouvable en ligne ou avec `man rand`) on trouve:  
+Il est impossible d'optimiser l'initalisation aléatoire en la parallélisant, car dans la spécification de rand() (trouvable en ligne ou avec `man rand`) on trouve:  
 ![man rand](man_rand.png)  
 Ce qui signifie que l'utilisation de rand() dans une région parallèle peut causer des problèmes de concurrence et des résultats imprévisibles. Pour contourner ce problème, on pourrait utiliser rand_r() qui est une version réentrante de rand() et permet de gérer l'état de manière explicite pour chaque thread. Mais sinon on ne peut pas utliser rand() dans une région parallèle donc on ne peut pas paralléliser cette partie du code.  
 
@@ -45,9 +45,33 @@ Ce qui signifie que l'utilisation de rand() dans une région parallèle peut cau
 | OpenMP (8 threads)  |  1.91s    | 7.32x        | 104.8%     |
 | OpenMP (16 threads) | **1.28s** | **12.5x**    | 78.1%      |
 
+&nbsp;  
+```mermaid
+%%{init: {'theme':'forest'}}%%
+xychart-beta
+    title "Accélération (Speedup)"
+    x-axis [1, 2, 4, 8, 16]
+    y-axis "Speedup" 0 --> 16
+    line [1, 2, 4, 8, 16]
+    line [1.08, 2.12, 4.06, 7.32, 0]
+    line [1.15, 2.30, 4.58, 8.39, 12.5]
+```
+
+````mermaid
+%%{init: {'theme':'forest'}}%%
+xychart-beta
+    title "Efficacité (Efficiency)"
+    x-axis [1, 2, 4, 8, 16]
+    y-axis "Efficiency (%)" 0 --> 120
+    line [100, 100, 100, 100, 100]
+    line [108.2, 106, 101.5, 91.5, 0]
+    line [114.8, 114.9, 114.4, 104.8, 78.1]
+````
+&nbsp;  
 On remarque que les performances d'OpenMP sont légèrement meilleures que celles de MPI, probablement à cause de la surcharge de communication entre processus dans MPI. On remarque aussi une bonne scalabilité jusqu'à 8 threads, mais à 16 threads l'efficacité diminue, probablement à cause de la surcharge de gestion des threads et des limites du partage des ressources. On déduit que ici, il vaut mieux utiliser OpenMP plutôt que MPI pour ce type de calcul et se limiter à 4 ou 8 threads pour un bon compromis entre temps de calcul et efficacité.  
 
-<!-- TODO Graphe -->
+
+
 
 
 &nbsp;  
