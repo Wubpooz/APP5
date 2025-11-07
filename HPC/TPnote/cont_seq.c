@@ -55,12 +55,10 @@ int main(int argc, char* argv[])
 
     /* Application du filtre */
     for (int j = 1; j < M-1; j++) {
-      /* Indice, à compléter... */
       int idx = IDX(i,j);
       for (int ii = -1; ii <= 1; ii++) {
         for (int jj = -1; jj <= 1; jj++) {
-          /* A FAIRE */
-          image_dest[idx] += image_source[IDX(i+ii,j+jj)] * coeffs[ii+2][jj+2];
+          image_dest[idx] += image_source[IDX(i+ii,j+jj)] * coeffs[ii+2][jj+2]; // +2 comme mentionné dans l'énoncé
         }
       }
     }
