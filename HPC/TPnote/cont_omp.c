@@ -1,7 +1,6 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <omp.h>
-#include "img_output.h"
 
 typedef unsigned char pixel_t;
 
@@ -56,10 +55,13 @@ int main(int argc, char* argv[])
         }
       }
   
-      printf("Traitement de l'image...\n");
     } // barrière implicite => l'image source est partagée
   }
+  
+  printf("Traitement de l'image...\n");
 
+  // timer start
+  double start_time = omp_get_wtime();
 
   /* Gestion des première et dernière lignes de l'image */
   #pragma omp parallel for default(none) shared(image_source, image_dest, N, M)
@@ -111,9 +113,12 @@ int main(int argc, char* argv[])
     }
   }
 
+  
   // Séquentiellement, un seul thread affiche le résultat
   printf("valeur minimale = %d | valeur maximale = %d | nombre d'occurences de %d = %d\n", val_min, val_max, c, compteur);
-
+  double end_time = omp_get_wtime();
+  printf("Temps d'exécution : %f secondes\n", end_time - start_time);
+  
   /* Écriture de l'image traitée dans un fichier */
   FILE* fichier = fopen("image_dest.bin", "wb");
   if (!fichier) {
@@ -125,9 +130,8 @@ int main(int argc, char* argv[])
   fwrite(&image_dest[IDX(0,0)], sizeof(pixel_t), N * M, fichier);
   fclose(fichier);
 
-  save_to_bmp("image_source.bmp", image_source, M, N);
-  save_to_bmp("image_dest.bmp", image_dest, M, N);
-
+  
+  
   free(image_source);
   free(image_dest);
   return 0;

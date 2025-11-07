@@ -1,3 +1,9 @@
 #disable .vscode in subfolders
 **/.vscode/
 **/build/
+
+*.bin
+*.o
+*.exe
+*.out
+*.bmp

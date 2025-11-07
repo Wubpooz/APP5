@@ -1,9 +1,17 @@
 #include <stdlib.h>
 #include <stdio.h>
+#include <time.h>
+#include <sys/time.h>
 
 typedef unsigned char pixel_t;
 
 #define IDX(i, j) (((i) * M) + (j))
+
+static inline double now_sec(void) {
+  struct timeval tv;
+  gettimeofday(&tv, NULL);
+  return tv.tv_sec + tv.tv_usec * 1e-6;
+}
 
 int main(int argc, char* argv[])
 {
@@ -39,6 +47,11 @@ int main(int argc, char* argv[])
       image_source[IDX(i,j)] = rand() % 256;
     }
   }
+
+
+  // timer start
+  double start_time = now_sec();
+
 
   printf("Traitement de l'image...\n");
   /* Gestion des première et dernière lignes de l'image */
@@ -80,8 +93,10 @@ int main(int argc, char* argv[])
     }
   }
 
-  printf("valeur minimale = %d | valeur maximale = %d | nombre d'occurences de %d = %d\n",
-         val_min, val_max, c, compteur);
+  printf("valeur minimale = %d | valeur maximale = %d | nombre d'occurences de %d = %d\n", val_min, val_max, c, compteur);
+  // timer end
+  double end_time = now_sec();
+  printf("Temps de traitement : %.6f secondes\n", end_time - start_time);
 
   /* Écriture de l'image traitée dans un fichier */
   FILE* fichier = fopen("image_dest.bin", "wb");

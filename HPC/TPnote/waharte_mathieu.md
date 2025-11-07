@@ -24,10 +24,27 @@ Indice: y'a-t-il un processus qui risque d'attendre les données plus longtemps 
 &nbsp;  
 ## II. OpenMP
 Impossible d'optimiser l'initalisation aléatoire car dans la spécification de rand() (trouvable en ligne ou avec `man rand`) on trouve:  
-![alt text](image.png)  
+![man rand](man_rand.png)  
 Ce qui signifie que l'utilisation de rand() dans une région parallèle peut causer des problèmes de concurrence et des résultats imprévisibles. Pour contourner ce problème, on pourrait utiliser rand_r() qui est une version réentrante de rand() et permet de gérer l'état de manière explicite pour chaque thread. Mais sinon on ne peut pas utliser rand() dans une région parallèle donc on ne peut pas paralléliser cette partie du code.  
 
 
 &nbsp;  
 ## III. Performances
+1-2)&nbsp;  &nbsp;  Après mesure, on obtient les résultats suivants:  
+|   | Temps   | Accélération | Efficacité |
+|---|---| ---|---|
+| Séquentiel  | 16.02s  | 1x | 100% |
+| MPI (4 process)  | 3.95s  | 4.06x | **101.5%** |
+| OpenMP (16 threads)  | **1.28s**  | **12.5x** | 78.1% |
 
+&nbsp;  
+3) On n'obtient pas les gains attendus car...
+
+4) Si l'on incluait l'initalisation, ..... Donc, ....
+
+
+&nbsp;  
+Sources des mesures:   
+![Sequential time](sequential_time.png)
+![MPI Time 4 processus](mpi_time_4proc.png)
+![OpenMP Time 16 processus](openmp_time_16.png)

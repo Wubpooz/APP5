@@ -79,6 +79,9 @@ int main(int argc, char** argv) {
   // On attend que 0 ait fini l'initialisation et l'envoi
   MPI_Barrier(MPI_COMM_WORLD);
 
+  // Timer start
+  double start_time = MPI_Wtime();
+
 
   // Gestion des bordures
   MPI_Sendrecv(&local_source[IDX(1, 0)], M,  MPI_UNSIGNED_CHAR, (rank - 1 + size) % size, 0,
@@ -125,7 +128,12 @@ int main(int argc, char** argv) {
   // On commence à 1 et on finit à blocs_per_process - 1 pour éviter les bordures
   MPI_Gather(&local_dest[IDX(1, 0)], (blocs_per_process - 2) * M, MPI_UNSIGNED_CHAR, image_dest, (blocs_per_process - 2) * M, MPI_UNSIGNED_CHAR, 0, MPI_COMM_WORLD);
 
+  // Timer end
+  
   if(rank == 0) {
+    double end_time = MPI_Wtime();
+    printf("Temps de traitement : %f secondes\n", end_time - start_time);
+
     FILE* fichier = fopen("image_dest.bin", "wb");
     if (!fichier) {
       printf("Erreur à l'ouverture du fichier\n");
