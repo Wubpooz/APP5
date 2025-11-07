@@ -1,4 +1,5 @@
 # Informatique Graphique
+[Course drive](https://onedrive.live.com/?id=%2Fpersonal%2F5f0c2f1ef061b067%2FDocuments%2F1d%2Dpublic%2FLectures%2F3DCG%2D1&listurl=%2Fpersonal%2F5f0c2f1ef061b067%2FDocuments)
 
 Plateformes: [https://shdr.bkcore.com/](https://shdr.bkcore.com/) ou [Shadertoy](https://www.shadertoy.com/).
 

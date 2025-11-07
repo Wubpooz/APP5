@@ -18,28 +18,28 @@ ORANGE = "\033[33m"
 PURPLE = "\033[35m"
 
 # On veut que les messages reçus n'interrompent pas la saisie de l'utilisateur donc on utilise un lock et on flush en gardant son input, keep same socket
-_print_lock = threading.Lock()
-_current_prompt = ""
+_print_lock: threading.Lock = threading.Lock()
+_current_prompt: str = ""
 
-def safe_print(*args, **kwargs):
+def safe_print(*args, **kwargs) -> None:
   with _print_lock:
-    # Get current input buffer before clearing
-    current_input = readline.get_line_buffer()
-    
-    # Clear current line and move cursor to beginning
+    # Save current input buffer before clearing
+    current_input: str = readline.get_line_buffer()
+
+    # Clear current line and move cursor to beginning to overwrite the prompt and input to make the prompt always last on the terminal
     sys.stdout.write('\r' + ' ' * (len(_current_prompt) + len(current_input) + 10) + '\r')
     sys.stdout.flush()
-    
-    # Print the message
+
     print(*args, **kwargs)
-    
+
     # Reprint the prompt with the saved input
     if _current_prompt:
       sys.stdout.write(_current_prompt + current_input)
       sys.stdout.flush()
 
-def safe_input(prompt):
+def safe_input(prompt: str) -> str:
   global _current_prompt
+  # On s'assure que le prompt is safely set
   with _print_lock:
     _current_prompt = prompt
 
@@ -51,7 +51,7 @@ def safe_input(prompt):
       _current_prompt = ""
 
 
-def server(host, port, buffsize, exit_event):
+def server(host: str, port: int, buffsize: int, exit_event: threading.Event) -> None:
   with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
     s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     s.bind((host, port))
@@ -109,10 +109,10 @@ def server(host, port, buffsize, exit_event):
         safe_print(f"{RED}Erreur serveur: {e}{RESET}")
 
 
-def sender(host: str, port_in: int, port_out: list[int], message_queue: queue.Queue, exit_event: threading.Event, username: str|None):
+def sender(host: str, port_in: int, port_out: list[int], message_queue: queue.Queue, exit_event: threading.Event, username: str|None) -> None:
   socks: dict[int, socket.socket|None] = {p: None for p in port_out}
-  
-  def ensure_connection(port):
+
+  def ensure_connection(port: int) -> bool:
     # Already connected
     if socks.get(port) is not None:
       return True
@@ -133,7 +133,7 @@ def sender(host: str, port_in: int, port_out: list[int], message_queue: queue.Qu
   while not exit_event.is_set():
     try:
       # Use timeout so we can check exit_event periodically
-      message_txt = message_queue.get(timeout=0.5)
+      message_txt: str = message_queue.get(timeout=0.5)
     except queue.Empty:
       continue
 
@@ -148,10 +148,10 @@ def sender(host: str, port_in: int, port_out: list[int], message_queue: queue.Qu
         "message": message_txt,
       }
       # newline-delimited JSON framing so the server can parse multiple messages per recv
-      msg_str = json.dumps(message) + "\n"
-      msg_bytes = msg_str.encode('utf-8')
+      msg_str: str = json.dumps(message) + "\n"
+      msg_bytes: bytes = msg_str.encode('utf-8')
 
-      sent_count = 0
+      sent_count: int = 0
       for port in port_out:
         if not ensure_connection(port):
           # connection attempt already logged in ensure_connection
