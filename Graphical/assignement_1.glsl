@@ -1,4 +1,6 @@
-// ============== Primitive Shapes ==============
+// ===================================================================
+// ======================== Primitive Shapes =========================
+// ===================================================================
 float sdCircle(vec2 p, float r)
 {
     return length(p) - r;
@@ -47,8 +49,9 @@ float sdTriangle( in vec2 p, in vec2 p0, in vec2 p1, in vec2 p2 )
     return -sqrt(d.x)*sign(d.y);
 }
 
-
-// ============== CSG Operations ==============
+// ===================================================================
+// ======================== CSG Operations ============================
+// ===================================================================
 float smin(float a, float b, float k) {
   float h = clamp(0.5 + 0.5*(b - a)/k, 0.0, 1.0);
   return mix(b, a, h) - k*h*(1.0 - h);
@@ -96,24 +99,32 @@ float opSmoothIntersection( float d1, float d2, float k )
     // return max(d1, d2) + h*h*0.25/k;
 }
 
-
-// ============== Own Utils ==============
+// ===================================================================
+// ============================ Own Utils ============================
+// ===================================================================
 vec3 rgb(int r, int g, int b) {
   return vec3(float(r), float(g), float(b)) / 255.0;
 }
 
-
-// ============== Shapes ==============
-float cloudShape(vec2 uv, vec2 center, float size) {
-  float d = length(uv - center);
-  return smoothstep(size, size * 0.5, d);
+vec2 applyPerspective(vec2 uv, vec2 vanishingPoint, float strength) {
+  vec2 dir = uv - vanishingPoint;
+  float dist = length(dir);
+  float factor = 1.0 / (1.0 + strength * dist);
+  return vanishingPoint + dir * factor;
 }
 
-float rockShape(vec2 uv, vec2 center, float size) {
-  float d = length(uv - center);
-  return smoothstep(size * 0.5, size, d);
+// Reverse perspective transformation
+vec2 removePerspective(vec2 uv, vec2 vanishingPoint, float strength) {
+  vec2 dir = uv - vanishingPoint;
+  float dist = length(dir);
+  float factor = (1.0 + strength * dist);
+  return vanishingPoint + dir * factor;
 }
 
+
+// ===================================================================
+// ============================ Shapes ===============================
+// ===================================================================
 // Blobby cloud made from 3 circles (smooth union), returns mask 0..1
 float cloudBlob(vec2 uv, vec2 c, float size) {
   // Scale UV relative to cloud center for size control
@@ -152,13 +163,78 @@ float cloudBlob(vec2 uv, vec2 c, float size) {
 
 
 
+float rockShape(vec2 uv, vec2 center, float size) {
+  float d = length(uv - center);
+  return smoothstep(size * 0.5, size, d);
+}
+
+
+// parallelogram towel with white and blue stripes
+// Returns 0 for outside, 1 for white stripes, 2 for blue stripes
+// orientation: 0.0 = horizontal stripes, 1.0 = vertical stripes
+float towelShape(vec2 uv, vec2 center, float size, float width, float height, float skew, float numStripes, float orientation) {
+  vec2 p = (uv - center) / size;
+
+  float d = sdParallelogram(p, width, height, skew);
+
+  float feather = 0.01;
+  float mask = 1.0 - smoothstep(0.0, feather, d);
+
+  if (mask < 0.01) {
+    return 0.0; // Outside towel
+  }
+
+  // Stripes pattern that follows the parallelogram shape
+  // For horizontal: stripes follow the x-axis (compensate for skew in y)
+  // For vertical: stripes follow the y-axis (no skew compensation needed)
+  float stripeCoord;
+  float stripeSize;
+  
+  if (orientation < 0.5) {
+    // Horizontal stripes - follow the parallelogram's horizontal edges
+    stripeCoord = p.x - skew * p.y;
+    stripeSize = width;
+  } else {
+    // Vertical stripes - follow the parallelogram's vertical edges
+    stripeCoord = p.y;
+    stripeSize = height;
+  }
+  
+  float stripePattern = fract(stripeCoord * numStripes / stripeSize);
+  
+  // Alternate between white (1) and blue (2)
+  float stripeValue = step(0.5, stripePattern);
+  
+  // Return 1 for white, 2 for blue (multiplied by mask)
+  return mask * (1.0 + stripeValue);
+}
+
+
+// ====================================================================
+// ============================ Main Image ============================
+// ====================================================================
 // "Paris 2025 JO style" beach with nice blue water (non transparent) and "orange" rocks on the side with failaises. Someone goes and swims in the water. The sun is shining bright. The sky is blue with some clouds. The scene is peaceful and relaxing.
 void mainImage(out vec4 fragColor, in vec2 fragCoord)
 {
+  //TODO 
+  // - fix towel perspective
+  // - make the towel start and finish with the same color
+  // - fix sea
+  // - add peoples
+  // - add shadows
+  // - add the rocks
+  // add waves and color variations to the sea
+
   vec2 uv = fragCoord / iResolution.xy;
   float aspectRatio = iResolution.x / iResolution.y;
   uv.x *= aspectRatio;
   vec3 p = vec3(uv, 0.0);
+  vec2 uvOriginal = uv;
+  vec2 vanishingPoint = vec2(aspectRatio * 0.2, 0.6); // Center horizontally, at horizon
+  float perspectiveStrength = 0.2;
+  vec2 uvPerspective = applyPerspective(uv, vanishingPoint, perspectiveStrength);
+
+
 
   // ============== Colors ==============
   vec3 skyColor = mix(rgb(96, 178, 197), rgb(35, 140, 181), uv.x + uv.y);
@@ -197,15 +273,15 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
   }
 
   // ============== Sea ==============
-  // float seaLevel = 0.4 + 0.1 * sin(iTime + uv.x * 10.0);
   float sdTriangleSea = sdTriangle(uv, vec2(0.0, -0.04), vec2(0.0, 0.5), vec2(0.7, 0.5));
   if (sdTriangleSea < 0.0) {
     color = seaColor;
   }
 
   // shoreline (sea edge, combination of bezier curves)
-
   // sea foam
+  // Animations (waves, moving clouds, people swimming)
+  // float seaLevel = 0.4 + 0.1 * sin(iTime + uv.x * 10.0);
 
 
   // ============== Rocks ==============
@@ -215,12 +291,31 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
   // }
 
   // ============== People ==============
+  float towelWidth = 0.8;
+  float towelHeight = 0.4;
+  float towelSkew = 0.2;
+  float numStripes = 2.0; // Number of stripe pairs (white+blue)
+  float stripeOrientation = 1.0; // 0.0 = horizontal, 1.0 = vertical
+  float towel = towelShape(uvPerspective, vec2(0.5, 0.2), 0.1, towelWidth, towelHeight, towelSkew, numStripes, stripeOrientation);
+  
+  if (towel > 0.5 && towel < 1.5) {
+    // White stripes
+    color = rgb(255, 255, 255);
+  } else if (towel >= 1.5) {
+    // Blue stripes
+    color = rgb(0, 105, 200);
+  }
+
+  // person swimming
+  // float swimmer = sdCircle(uv - vec2(0.2, 0.35), 0.02);
+  // if (swimmer < 0.0) {
+  //   color = rgb(255, 200, 150);
+  // }
 
 
-  // Animations (waves, moving clouds, people swimming)
 
 
-  // Paris 2025 grain filter
+  // ============== Paris 2025 grain filter ==============
   vec3 grain = vec3(0.0);
   float noise_intensity = 0.3;
   float noise = fract(sin(dot(uv.xy, vec2(12.9898, 78.233))) * 43758.5453) * noise_intensity;
