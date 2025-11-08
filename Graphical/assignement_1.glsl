@@ -439,14 +439,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
   // ==========================================
   // =================== Sea ==================
   // ==========================================
-  // Use triangle for sea area (original approach)
-  float sdTriangleSea = sdTriangle(uv, shoreP0, shoreP1, shoreP2);
-  if (sdTriangleSea < 0.0) {
-    color = seaColor;
-  }
-
-  // ============== Shoreline with Bezier =========
-  // Create smooth curved edge on the beach using bezier curves
+  // Create curved shoreline using bezier curve
   vec2 shoreBezier[8] = vec2[8](
     shoreP0,
     vec2(0.08, 0.12),
@@ -458,16 +451,27 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
     shoreP2
   );
   
+  // Calculate distance to bezier curve
   float shoreDist = 1000.0;
   for (int i = 0; i < shoreBezier.length() - 2; i++) {
     float dist = sdBezier(uv, shoreBezier[i], shoreBezier[i + 1], shoreBezier[i + 2]);
     shoreDist = (i == 0) ? dist : min(shoreDist, dist);
   }
   
-  float shoreFeather = 0.02;
-  float shoreMask = 1.0 - smoothstep(0.0, shoreFeather, shoreDist);
-  shoreMask = min(shoreMask, -sdTriangleSea);
-  color = mix(color, seaColor, shoreMask);
+  // Use triangle as bounds, but bezier defines the actual edge
+  float sdTriangleSea = sdTriangle(uv, shoreP0, shoreP1, shoreP2);
+  
+  // Sea is where we're inside the triangle AND on the water side of the bezier curve
+  if (sdTriangleSea < 0.0 && shoreDist < 0.0) {
+    color = seaColor;
+  }
+  
+  // Add smooth edge transition at the bezier curve
+  float shoreFeather = 0.015;
+  float shoreMask = smoothstep(shoreFeather, -shoreFeather, shoreDist);
+  if (sdTriangleSea < 0.0) {
+    color = mix(color, seaColor, shoreMask);
+  }
 
   // ============== Foam ==============
   float foam = shoreline(uv, shoreP0, shoreP2, iTime);
