@@ -414,41 +414,45 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
   // ==========================================
   // =================== Sea ==================
   // ==========================================
-  float sdTriangleSea = sdTriangle(uv, shoreP0, shoreP1, shoreP2);
-  if (sdTriangleSea < 0.0) {
-    color = seaColor;
-  }
-
-  // ============== Shoreline =========
-  // shoreline (sea edge, combination of bezier curves)
-  vec2 shoreBezier[10] = vec2[10](
-    shoreP0, 
-    shoreP0 + vec2(0.05, 0.08), 
-    shoreP0 + vec2(0.1, 0.15), 
-    shoreP0 + vec2(0.2, 0.25),
-    shoreP0 + vec2(0.3, 0.32),
-    shoreP0 + vec2(0.4, 0.38),
-    shoreP0 + vec2(0.5, 0.42),
-    shoreP0 + vec2(0.6, 0.48),
-    vec2(seaWidth - 0.05, skyHeight - 0.05),
+  // Create curved shoreline using bezier curve
+  vec2 shoreBezier[8] = vec2[8](
+    shoreP0,
+    vec2(0.05, 0.1),
+    vec2(0.15, 0.25),
+    vec2(0.25, 0.35),
+    vec2(0.35, 0.42),
+    vec2(0.45, 0.48),
+    vec2(0.55, 0.53),
     shoreP2
   );
-  float ShoreDist = 0.0;
+  
+  float shoreDist = 1000.0;
   for (int i = 0; i < shoreBezier.length() - 2; i++) {
     float dist = sdBezier(uv, shoreBezier[i], shoreBezier[i + 1], shoreBezier[i + 2]);
-    ShoreDist = (i == 0) ? dist : min(ShoreDist, dist);
+    shoreDist = min(shoreDist, dist);
   }
-  float shoreFeather = 0.02;
-  float shoreMask = 1.0 - smoothstep(0.0, shoreFeather, ShoreDist);
   
-  // Make seacolor extend properly to the shore
-  float seaMask = step(0.0, -sdTriangleSea) * (1.0 - shoreMask * 0.5);
-  if (sdTriangleSea < 0.05) {
-    // Add wave animation and color variations to the sea
-    float wavePattern = sin(uv.x * 20.0 + iTime * 2.0) * 0.5 + 0.5;
-    wavePattern *= sin(uv.y * 15.0 - iTime * 1.5) * 0.5 + 0.5;
-    vec3 seaColorVariation = mix(seaColor, seaColor * 0.8, wavePattern * 0.3);
-    color = mix(color, seaColorVariation, seaMask);
+  // Use the curved shoreline to define the sea boundary
+  float seaFeather = 0.015;
+  float seaMask = 1.0 - smoothstep(-seaFeather, seaFeather, shoreDist);
+  
+  // Only draw sea on the left side of the shoreline and below sky
+  if (uv.y < skyHeight && shoreDist < 0.0) {
+    // Add visible wave pattern to the sea
+    float wave1 = sin(uv.x * 30.0 - iTime * 3.0) * cos(uv.y * 25.0 + iTime * 2.0);
+    float wave2 = sin(uv.x * 40.0 + iTime * 4.0) * sin(uv.y * 35.0 - iTime * 3.0);
+    float wavePattern = (wave1 * 0.3 + wave2 * 0.2) * 0.5 + 0.5;
+    
+    // Add depth variation to sea color
+    float depthFactor = smoothstep(0.0, skyHeight, uv.y);
+    vec3 seaColorDark = rgb(0, 80, 120);
+    vec3 seaColorBright = rgb(0, 180, 240);
+    vec3 finalSeaColor = mix(seaColorDark, seaColorBright, depthFactor);
+    
+    // Apply waves to color
+    finalSeaColor = mix(finalSeaColor, finalSeaColor * 1.2, wavePattern * 0.4);
+    
+    color = finalSeaColor;
   }
 
   // ============== Foam ==============
@@ -460,26 +464,45 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
   // =============================================
   // =================== Rocks ===================
   // =============================================
-  // Add multiple rocks with different sizes and positions
-  float rock1 = sdCircle(uv - vec2(0.1, 0.5), rockSize * 0.3);
-  float rock2 = sdCircle(uv - vec2(0.15, 0.52), rockSize * 0.25);
-  float rock3 = sdCircle(uv - vec2(0.05, 0.48), rockSize * 0.2);
+  // Create calanque-style cliffs on the edges (like French Mediterranean)
   
-  // Combine rocks with smooth union
-  float rocks = opSmoothUnion(rock1, rock2, 0.01);
-  rocks = opSmoothUnion(rocks, rock3, 0.01);
+  // Left side cliff formation
+  float leftCliff1 = sdBox(uv - vec2(0.05, 0.68), vec2(0.06, 0.18));
+  float leftCliff2 = sdCircle(uv - vec2(0.05, 0.86), 0.08);
+  float leftCliff3 = sdBox(uv - vec2(0.12, 0.72), vec2(0.05, 0.12));
+  float leftCliff = opSmoothUnion(leftCliff1, leftCliff2, 0.015);
+  leftCliff = opSmoothUnion(leftCliff, leftCliff3, 0.015);
   
-  // Add a cliff-like rock formation on the side
-  float cliffRock1 = sdBox(uv - vec2(0.9, 0.65), vec2(0.08, 0.15));
-  float cliffRock2 = sdCircle(uv - vec2(0.9, 0.8), 0.12);
-  float cliff = opSmoothUnion(cliffRock1, cliffRock2, 0.02);
+  // Right side cliff formation (larger, more prominent)
+  float rightCliff1 = sdBox(uv - vec2(0.88, 0.65), vec2(0.12, 0.22));
+  float rightCliff2 = sdCircle(uv - vec2(0.88, 0.87), 0.14);
+  float rightCliff3 = sdBox(uv - vec2(0.78, 0.70), vec2(0.08, 0.15));
+  float rightCliff4 = sdCircle(uv - vec2(0.95, 0.72), 0.10);
+  float rightCliff = opSmoothUnion(rightCliff1, rightCliff2, 0.02);
+  rightCliff = opSmoothUnion(rightCliff, rightCliff3, 0.02);
+  rightCliff = opSmoothUnion(rightCliff, rightCliff4, 0.015);
   
-  rocks = opUnion(rocks, cliff);
+  // Add small rocks on beach (not in water)
+  float beachRock1 = sdCircle(uv - vec2(0.75, 0.25), 0.035);
+  float beachRock2 = sdCircle(uv - vec2(0.78, 0.27), 0.025);
+  float beachRock3 = sdCircle(uv - vec2(0.73, 0.28), 0.020);
+  float beachRocks = opSmoothUnion(beachRock1, beachRock2, 0.008);
+  beachRocks = opSmoothUnion(beachRocks, beachRock3, 0.008);
   
-  if (rocks < 0.0) {
-    // Add some shading to rocks
-    float rockShading = smoothstep(-0.05, 0.0, rocks);
-    color = mix(rockColor * 0.7, rockColor, rockShading);
+  // Combine all rock formations
+  float allRocks = opUnion(leftCliff, rightCliff);
+  allRocks = opUnion(allRocks, beachRocks);
+  
+  if (allRocks < 0.0) {
+    // Add shading for depth - darker at edges, lighter on top
+    float rockShading = smoothstep(-0.08, 0.0, allRocks);
+    vec3 darkRockColor = rockColor * 0.5;
+    vec3 lightRockColor = rockColor * 1.1;
+    color = mix(darkRockColor, lightRockColor, rockShading);
+    
+    // Add some texture variation
+    float rockNoise = fract(sin(dot(uv * 200.0, vec2(12.9898, 78.233))) * 43758.5453);
+    color = mix(color, color * 0.9, rockNoise * 0.2);
   }
 
 
@@ -487,14 +510,22 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
   // ==============================================
   // =================== People ===================
   // ==============================================
-  // Towel with perspective
-  float towel = towelShape(uvPerspective, towelCenter, 0.1, towelWidth, towelHeight, towelSkew, numStripes, stripeOrientation);
+  // Towel with improved perspective - make it smaller and closer to beach
+  vec2 towelCenterAdj = vec2(0.42, 0.15);
+  float towelSizeAdj = 0.08; // Smaller for better perspective
+  float towelWidthAdj = 0.6;
+  float towelHeightAdj = 0.3;
+  float towelSkewAdj = 0.15;
+  
+  // Apply perspective to towel position for depth effect
+  vec2 towelPerspectivePos = applyPerspective(towelCenterAdj, vanishingPoint, perspectiveStrength);
+  float towel = towelShape(uv, towelPerspectivePos, towelSizeAdj, towelWidthAdj, towelHeightAdj, towelSkewAdj, numStripes, stripeOrientation);
   
   // Add shadow for towel (simple offset shadow)
-  vec2 shadowOffset = vec2(0.02, -0.015);
-  float towelShadow = towelShape(uvPerspective, towelCenter + shadowOffset, 0.1, towelWidth, towelHeight, towelSkew, numStripes, stripeOrientation);
+  vec2 shadowOffset = vec2(0.015, -0.012);
+  float towelShadow = towelShape(uv, towelPerspectivePos + shadowOffset, towelSizeAdj, towelWidthAdj, towelHeightAdj, towelSkewAdj, numStripes, stripeOrientation);
   if (towelShadow > 0.5) {
-    color = mix(color, color * 0.6, 0.5); // Darken for shadow
+    color = mix(color, color * 0.65, 0.4); // Darken for shadow
   }
   
   if (towel > 0.5 && towel < 1.5) {
@@ -503,37 +534,74 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
     color = towelTone2;
   }
 
-  // Person on towel (simple stick figure)
-  vec2 personPos = uvPerspective - vec2(0.48, 0.18);
-  float personHead = sdCircle(personPos - vec2(0.0, 0.03), 0.015);
-  float personBody = sdBox(personPos, vec2(0.008, 0.025));
-  float personArm1 = sdOrientedBox(uvPerspective, vec2(0.47, 0.17), vec2(0.46, 0.16), 0.004);
-  float personArm2 = sdOrientedBox(uvPerspective, vec2(0.49, 0.17), vec2(0.50, 0.16), 0.004);
+  // Person on towel - better proportioned figure
+  vec2 personCenter = towelPerspectivePos + vec2(-0.01, 0.0);
   
-  float person = opUnion(personHead, personBody);
-  person = opUnion(person, personArm1);
-  person = opUnion(person, personArm2);
+  // Head
+  float personHead = sdCircle(uv - personCenter - vec2(0.0, 0.022), 0.012);
+  
+  // Body (torso)
+  float personBody = sdBox(uv - personCenter - vec2(0.0, 0.005), vec2(0.010, 0.018));
+  
+  // Arms (lying down position)
+  float armThickness = 0.004;
+  float personArmL = sdOrientedBox(uv, personCenter + vec2(-0.012, 0.008), personCenter + vec2(-0.025, 0.005), armThickness);
+  float personArmR = sdOrientedBox(uv, personCenter + vec2(0.012, 0.008), personCenter + vec2(0.025, 0.005), armThickness);
+  
+  // Legs
+  float personLegL = sdBox(uv - personCenter - vec2(-0.005, -0.015), vec2(0.004, 0.015));
+  float personLegR = sdBox(uv - personCenter - vec2(0.005, -0.015), vec2(0.004, 0.015));
+  
+  // Combine person parts
+  float person = opSmoothUnion(personHead, personBody, 0.003);
+  person = opUnion(person, personArmL);
+  person = opUnion(person, personArmR);
+  person = opUnion(person, personLegL);
+  person = opUnion(person, personLegR);
   
   vec3 skinColor = rgb(255, 200, 150);
+  vec3 swimsuitColor = rgb(220, 50, 80);
+  
   if (person < 0.0) {
-    color = skinColor;
+    // Differentiate skin and swimsuit
+    float swimsuitArea = sdBox(uv - personCenter - vec2(0.0, 0.0), vec2(0.012, 0.012));
+    if (swimsuitArea < 0.0) {
+      color = swimsuitColor;
+    } else {
+      color = skinColor;
+    }
   }
 
-  // Person swimming in the water (with animation)
-  vec2 swimmerPos = vec2(0.25 + 0.03*sin(iTime*0.5), 0.35 + 0.01*cos(iTime*2.0));
-  float swimmerHead = sdCircle(uv - swimmerPos, 0.012);
-  float swimmerBody = sdCircle(uv - swimmerPos - vec2(0.0, -0.01), 0.015);
+  // Person swimming in the water - better figure
+  vec2 swimmerCenter = vec2(0.28 + 0.04*sin(iTime*0.6), 0.38 + 0.015*cos(iTime*2.5));
   
-  float swimmer = opSmoothUnion(swimmerHead, swimmerBody, 0.005);
-  
-  if (swimmer < 0.0 && sdTriangleSea < 0.0) {
-    color = skinColor;
+  // Only draw if in water
+  float swimmerShoreDist = 1000.0;
+  for (int i = 0; i < shoreBezier.length() - 2; i++) {
+    float dist = sdBezier(swimmerCenter, shoreBezier[i], shoreBezier[i + 1], shoreBezier[i + 2]);
+    swimmerShoreDist = min(swimmerShoreDist, dist);
   }
   
-  // Add shadow for swimmer in water
-  float swimmerShadow = sdCircle(uv - swimmerPos - vec2(0.005, -0.005), 0.018);
-  if (swimmerShadow < 0.0 && sdTriangleSea < 0.0 && swimmer > 0.0) {
-    color = mix(color, seaColor * 0.7, 0.5);
+  if (swimmerShoreDist < 0.0 && swimmerCenter.y < skyHeight) {
+    // Swimming person (side view, doing front crawl)
+    float swimHead = sdCircle(uv - swimmerCenter - vec2(0.0, 0.0), 0.010);
+    float swimBody = sdBox(uv - swimmerCenter - vec2(0.005, -0.008), vec2(0.012, 0.006));
+    
+    // Arm in swimming motion
+    float armAngle = sin(iTime * 3.0);
+    vec2 armOffset = vec2(0.015 * armAngle, 0.008 + 0.006 * abs(armAngle));
+    float swimArm = sdCircle(uv - swimmerCenter - armOffset, 0.005);
+    
+    float swimmer = opSmoothUnion(swimHead, swimBody, 0.004);
+    swimmer = opUnion(swimmer, swimArm);
+    
+    if (swimmer < 0.0) {
+      color = skinColor;
+    }
+    
+    // Add splash/wake around swimmer
+    float splash = smoothstep(0.03, 0.02, length(uv - swimmerCenter));
+    color = mix(color, whiteColor, splash * 0.3 * (sin(iTime * 5.0) * 0.5 + 0.5));
   }
 
 
