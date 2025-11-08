@@ -317,6 +317,9 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
   // ==================================================
   // =================== Parameters ===================
   // ==================================================
+  float aspectRatio = iResolution.x / iResolution.y;
+  vec2 vanishingPoint = vec2(aspectRatio * 0.2, 0.6); // Center horizontally, at horizon
+  float perspectiveStrength = 0.2;
   float animationSpeed = 1.0;
 
   float skyHeight = 0.6;
@@ -347,20 +350,17 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
   // ===================================================
 
   vec2 uv = fragCoord / iResolution.xy;
-  float aspectRatio = iResolution.x / iResolution.y;
   uv.x *= aspectRatio;
   vec3 p = vec3(uv, 0.0);
+
   vec2 uvOriginal = uv;
-  vec2 vanishingPoint = vec2(aspectRatio * 0.2, 0.6); // Center horizontally, at horizon
-  float perspectiveStrength = 0.2;
   vec2 uvPerspective = applyPerspective(uv, vanishingPoint, perspectiveStrength);
   
-  vec3 color = vec3(0.0);
-  
-  
+
   // ==============================================
   // =================== Colors ===================
   // ==============================================
+  vec3 color = vec3(0.0);
   vec3 whiteColor = rgb(255, 255, 255);
 
   vec3 skyColor = mix(rgb(96, 178, 197), rgb(35, 140, 181), uv.x + uv.y);
@@ -376,6 +376,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
 
   vec3 towelTone1 = whiteColor;
   vec3 towelTone2 = rgb(0, 105, 200);
+
 
   // ===========================================
   // =================== Sky ===================
@@ -398,7 +399,6 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
   }
 
   // Sun rays
-
   if (sunDist > 0.0 && sunDist < sunBlurSize) {
     color = mix(sunColor, color, sunDist / sunBlurSize);
   }
@@ -442,12 +442,9 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
   // =================== People ===================
   // ==============================================
   float towel = towelShape(uvPerspective, towelCenter, 0.1, towelWidth, towelHeight, towelSkew, numStripes, stripeOrientation);
-
   if (towel > 0.5 && towel < 1.5) {
-    // White stripes
     color = towelTone1;
   } else if (towel >= 1.5) {
-    // Blue stripes
     color = towelTone2;
   }
 
