@@ -328,7 +328,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
   float sunSize = 0.07;
   float sunBlurSize = 0.05;
 
-  float seaWidth = 0.7;
+  float seaWidth = 0.95; // Expanded to fill more screen
   vec2 shoreP0 = vec2(0.0, -0.04);
   vec2 shoreP1 = vec2(0.0, skyHeight);
   vec2 shoreP2 = vec2(seaWidth, skyHeight);
@@ -417,12 +417,12 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
   // Create curved shoreline using bezier curve
   vec2 shoreBezier[8] = vec2[8](
     shoreP0,
-    vec2(0.05, 0.1),
-    vec2(0.15, 0.25),
-    vec2(0.25, 0.35),
-    vec2(0.35, 0.42),
-    vec2(0.45, 0.48),
-    vec2(0.55, 0.53),
+    vec2(0.08, 0.12),
+    vec2(0.20, 0.28),
+    vec2(0.35, 0.38),
+    vec2(0.50, 0.45),
+    vec2(0.65, 0.50),
+    vec2(0.80, 0.54),
     shoreP2
   );
   
@@ -464,14 +464,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
   // =============================================
   // =================== Rocks ===================
   // =============================================
-  // Create calanque-style cliffs on the edges (like French Mediterranean)
-  
-  // Left side cliff formation
-  float leftCliff1 = sdBox(uv - vec2(0.05, 0.68), vec2(0.06, 0.18));
-  float leftCliff2 = sdCircle(uv - vec2(0.05, 0.86), 0.08);
-  float leftCliff3 = sdBox(uv - vec2(0.12, 0.72), vec2(0.05, 0.12));
-  float leftCliff = opSmoothUnion(leftCliff1, leftCliff2, 0.015);
-  leftCliff = opSmoothUnion(leftCliff, leftCliff3, 0.015);
+  // Keep only the right side cliff formation (calanque-style)
   
   // Right side cliff formation (larger, more prominent)
   float rightCliff1 = sdBox(uv - vec2(0.88, 0.65), vec2(0.12, 0.22));
@@ -482,16 +475,8 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
   rightCliff = opSmoothUnion(rightCliff, rightCliff3, 0.02);
   rightCliff = opSmoothUnion(rightCliff, rightCliff4, 0.015);
   
-  // Add small rocks on beach (not in water)
-  float beachRock1 = sdCircle(uv - vec2(0.75, 0.25), 0.035);
-  float beachRock2 = sdCircle(uv - vec2(0.78, 0.27), 0.025);
-  float beachRock3 = sdCircle(uv - vec2(0.73, 0.28), 0.020);
-  float beachRocks = opSmoothUnion(beachRock1, beachRock2, 0.008);
-  beachRocks = opSmoothUnion(beachRocks, beachRock3, 0.008);
-  
-  // Combine all rock formations
-  float allRocks = opUnion(leftCliff, rightCliff);
-  allRocks = opUnion(allRocks, beachRocks);
+  // Use only the right cliff
+  float allRocks = rightCliff;
   
   if (allRocks < 0.0) {
     // Add shading for depth - darker at edges, lighter on top
