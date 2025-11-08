@@ -421,11 +421,23 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
 
   // ============== Shoreline =========
   // shoreline (sea edge, combination of bezier curves)
+  vec2 shoreBezier[6] = vec2[6](shoreP0, shoreP0 + vec2(0.1, 0.1), 
+                                shoreP0 + vec2(0.2, 0.2), shoreP0 + vec2(0.4, 0.3),
+                                shoreP0 + vec2(0.6, 0.2), shoreP2);
+  float ShoreDist = 0.0;
+  for (int i = 0; i < shoreBezier.length() - 2; i++) {
+    float dist = sdBezier(uv, shoreBezier[i], shoreBezier[i + 1], shoreBezier[i + 2]);
+    ShoreDist = (i == 0) ? dist : min(ShoreDist, dist);
+  }
+  float shoreFeather = 0.02;
+  float shoreMask = 1.0 - smoothstep(0.0, shoreFeather, ShoreDist);
+  shoreMask = min(shoreMask, sdTriangleSea);
+  color = mix(color, seaColor, shoreMask);
 
   // ============== Foam ==============
-  float foam = shoreline(uv, shoreP0, shoreP2, iTime);
-  vec3 foamColorMix = mix(foamColor, whiteColor, foamIntensity);
-  color = mix(color, foamColorMix, foam * foamIntensity);
+  // float foam = shoreline(uv, shoreP0, shoreP2, iTime);
+  // vec3 foamColorMix = mix(foamColor, whiteColor, foamIntensity);
+  // color = mix(color, foamColorMix, foam * foamIntensity);
 
 
   // =============================================
