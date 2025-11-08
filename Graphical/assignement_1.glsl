@@ -142,7 +142,6 @@ float sdBezier( in vec2 pos, in vec2 A, in vec2 B, in vec2 C )
 
 
 
-
 // ===================================================================
 // ============================ Own Utils ============================
 // ===================================================================
@@ -165,6 +164,32 @@ vec2 removePerspective(vec2 uv, vec2 vanishingPoint, float strength) {
   return vanishingPoint + dir * factor;
 }
 
+float bezierSurface(vec2 uv, vec2 p0, vec2 p1, vec2 p2, float height) {
+  // Calculate the bezier point at uv.x
+  float t = uv.x;
+  vec2 bezierPoint = (1.0 - t) * (1.0 - t) * p0 + 2.0 * (1.0 - t) * t * p1 + t * t * p2;
+  
+  // Calculate vertical distance from bezier curve
+  return uv.y - (bezierPoint.y + height);
+}
+
+// Fixed-size count for shoreline Bezier control points
+const int BEZIER_COUNT = 8;
+
+float bezierS(vec2 uv, vec2 bezier[BEZIER_COUNT]) {
+  // Find closest bezier segment by absolute distance while preserving sign.
+  float bestAbs = 1e9;
+  float bestSigned = 1e9;
+  for(int i = 0; i < BEZIER_COUNT - 2; i++){
+    float sd = bezierSurface(uv, bezier[i], bezier[i + 1], bezier[i + 2], 0.0);
+    float a = abs(sd);
+    if(a < bestAbs){
+      bestAbs = a;
+      bestSigned = sd; // keep sign: negative = water side, positive = beach side
+    }
+  }
+  return bestSigned;
+}
 
 // ===================================================================
 // ============================ Shapes ===============================
@@ -426,32 +451,27 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
     shoreP2
   );
   
-  float shoreDist = 1000.0;
-  for (int i = 0; i < shoreBezier.length() - 2; i++) {
-    float dist = sdBezier(uv, shoreBezier[i], shoreBezier[i + 1], shoreBezier[i + 2]);
-    shoreDist = min(shoreDist, dist);
-  }
-  
-  // Use the curved shoreline to define the sea boundary
+
+  float shoreDist = bezierS(uv, shoreBezier);
+
   float seaFeather = 0.015;
   float seaMask = 1.0 - smoothstep(-seaFeather, seaFeather, shoreDist);
   
   // Only draw sea on the left side of the shoreline and below sky
   if (uv.y < skyHeight && shoreDist < 0.0) {
-    // Add visible wave pattern to the sea
     float wave1 = sin(uv.x * 30.0 - iTime * 3.0) * cos(uv.y * 25.0 + iTime * 2.0);
     float wave2 = sin(uv.x * 40.0 + iTime * 4.0) * sin(uv.y * 35.0 - iTime * 3.0);
     float wavePattern = (wave1 * 0.3 + wave2 * 0.2) * 0.5 + 0.5;
-    
-    // Add depth variation to sea color
+
+    // Depth gradient (darker further from shore)
     float depthFactor = smoothstep(0.0, skyHeight, uv.y);
     vec3 seaColorDark = rgb(0, 80, 120);
     vec3 seaColorBright = rgb(0, 180, 240);
     vec3 finalSeaColor = mix(seaColorDark, seaColorBright, depthFactor);
-    
+
     // Apply waves to color
     finalSeaColor = mix(finalSeaColor, finalSeaColor * 1.2, wavePattern * 0.4);
-    
+
     color = finalSeaColor;
   }
 
@@ -562,7 +582,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
   
   // Only draw if in water
   float swimmerShoreDist = 1000.0;
-  for (int i = 0; i < shoreBezier.length() - 2; i++) {
+  for (int i = 0; i < BEZIER_COUNT - 2; i++) {
     float dist = sdBezier(swimmerCenter, shoreBezier[i], shoreBezier[i + 1], shoreBezier[i + 2]);
     swimmerShoreDist = min(swimmerShoreDist, dist);
   }
