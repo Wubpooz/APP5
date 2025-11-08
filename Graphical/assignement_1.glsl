@@ -439,7 +439,14 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
   // ==========================================
   // =================== Sea ==================
   // ==========================================
-  // Create curved shoreline using bezier curve
+  // Use triangle for sea area (original approach)
+  float sdTriangleSea = sdTriangle(uv, shoreP0, shoreP1, shoreP2);
+  if (sdTriangleSea < 0.0) {
+    color = seaColor;
+  }
+
+  // ============== Shoreline with Bezier =========
+  // Create smooth curved edge on the beach using bezier curves
   vec2 shoreBezier[8] = vec2[8](
     shoreP0,
     vec2(0.08, 0.12),
@@ -451,29 +458,16 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
     shoreP2
   );
   
-
-  float shoreDist = bezierS(uv, shoreBezier);
-
-  float seaFeather = 0.015;
-  float seaMask = 1.0 - smoothstep(-seaFeather, seaFeather, shoreDist);
-  
-  // Only draw sea on the left side of the shoreline and below sky
-  if (uv.y < skyHeight && shoreDist < 0.0) {
-    float wave1 = sin(uv.x * 30.0 - iTime * 3.0) * cos(uv.y * 25.0 + iTime * 2.0);
-    float wave2 = sin(uv.x * 40.0 + iTime * 4.0) * sin(uv.y * 35.0 - iTime * 3.0);
-    float wavePattern = (wave1 * 0.3 + wave2 * 0.2) * 0.5 + 0.5;
-
-    // Depth gradient (darker further from shore)
-    float depthFactor = smoothstep(0.0, skyHeight, uv.y);
-    vec3 seaColorDark = rgb(0, 80, 120);
-    vec3 seaColorBright = rgb(0, 180, 240);
-    vec3 finalSeaColor = mix(seaColorDark, seaColorBright, depthFactor);
-
-    // Apply waves to color
-    finalSeaColor = mix(finalSeaColor, finalSeaColor * 1.2, wavePattern * 0.4);
-
-    color = finalSeaColor;
+  float shoreDist = 1000.0;
+  for (int i = 0; i < shoreBezier.length() - 2; i++) {
+    float dist = sdBezier(uv, shoreBezier[i], shoreBezier[i + 1], shoreBezier[i + 2]);
+    shoreDist = (i == 0) ? dist : min(shoreDist, dist);
   }
+  
+  float shoreFeather = 0.02;
+  float shoreMask = 1.0 - smoothstep(0.0, shoreFeather, shoreDist);
+  shoreMask = min(shoreMask, -sdTriangleSea);
+  color = mix(color, seaColor, shoreMask);
 
   // ============== Foam ==============
   float foam = shoreline(uv, shoreP0, shoreP2, iTime);
@@ -580,14 +574,10 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
   // Person swimming in the water - better figure
   vec2 swimmerCenter = vec2(0.28 + 0.04*sin(iTime*0.6), 0.38 + 0.015*cos(iTime*2.5));
   
-  // Only draw if in water
-  float swimmerShoreDist = 1000.0;
-  for (int i = 0; i < BEZIER_COUNT - 2; i++) {
-    float dist = sdBezier(swimmerCenter, shoreBezier[i], shoreBezier[i + 1], shoreBezier[i + 2]);
-    swimmerShoreDist = min(swimmerShoreDist, dist);
-  }
+  // Check if swimmer is in water using triangle
+  float swimmerInSea = sdTriangle(swimmerCenter, shoreP0, shoreP1, shoreP2);
   
-  if (swimmerShoreDist < 0.0 && swimmerCenter.y < skyHeight) {
+  if (swimmerInSea < 0.0 && swimmerCenter.y < skyHeight) {
     // Swimming person (side view, doing front crawl)
     float swimHead = sdCircle(uv - swimmerCenter - vec2(0.0, 0.0), 0.010);
     float swimBody = sdBox(uv - swimmerCenter - vec2(0.005, -0.008), vec2(0.012, 0.006));
