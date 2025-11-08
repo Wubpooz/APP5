@@ -433,6 +433,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
   float shoreMask = 1.0 - smoothstep(0.0, shoreFeather, ShoreDist);
   shoreMask = min(shoreMask, sdTriangleSea);
   color = mix(color, seaColor, shoreMask);
+//TODO make seacolor go to the shoreDist, add more points to fit the drawing
 
   // ============== Foam ==============
   // float foam = shoreline(uv, shoreP0, shoreP2, iTime);
