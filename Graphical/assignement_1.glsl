@@ -164,6 +164,36 @@ vec2 removePerspective(vec2 uv, vec2 vanishingPoint, float strength) {
   return vanishingPoint + dir * factor;
 }
 
+float rand(vec2 n) { 
+	return fract(sin(dot(n, vec2(12.9898, 4.1414))) * 43758.5453);
+}
+
+float noise(vec2 p) {
+    vec2 ip = floor(p);
+    vec2 u = fract(p);
+    u = u*u*(3.0-2.0*u); // Smoothstep
+    
+    float res = mix(
+        mix(rand(ip), rand(ip + vec2(1.0, 0.0)), u.x),
+        mix(rand(ip + vec2(0.0, 1.0)), rand(ip + vec2(1.0, 1.0)), u.x), u.y);
+    return res*res;
+}
+
+// Fractional Brownian Motion (for waves, rocks)
+float fbm(vec2 p, float time) {
+    float v = 0.0;
+    float a = 0.5;
+    mat2 m = mat2(1.6, 1.2, -1.2, 1.6); // Rotation matrix
+    
+    for (int i = 0; i < 4; ++i) {
+        v += a * noise(p + time * 0.05);
+        p = m * p * 2.0;
+        a *= 0.5;
+    }
+    return v;
+}
+
+
 float bezierSurface(vec2 uv, vec2 p0, vec2 p1, vec2 p2, float height) {
   // Calculate the bezier point at uv.x
   float t = uv.x;
@@ -309,10 +339,12 @@ float towelShape(vec2 uv, vec2 center, float size, float width, float height, fl
     stripeSize = height;
   }
   
-  float stripePattern = fract(stripeCoord * numStripes / stripeSize);
-  
+  // float stripePattern = fract(stripeCoord * numStripes / stripeSize);
+  float stripePattern = sin(stripeCoord * numStripes * 3.14159265 / stripeSize);
+
   // Alternate between white (1) and blue (2)
-  float stripeValue = step(0.5, stripePattern);
+  // float stripeValue = step(0.5, stripePattern);
+  float stripeValue = step(0.0, stripePattern);
   
   // Return 1 for white, 2 for blue (multiplied by mask)
   return mask * (1.0 + stripeValue);
@@ -379,8 +411,10 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
   vec3 p = vec3(uv, 0.0);
 
   vec2 uvOriginal = uv;
+  // Apply perspective to UVs for beach objects
   vec2 uvPerspective = applyPerspective(uv, vanishingPoint, perspectiveStrength);
   
+  float time = iTime * animationSpeed;
 
   // ==============================================
   // =================== Colors ===================
