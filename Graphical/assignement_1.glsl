@@ -165,6 +165,35 @@ vec2 removePerspective(vec2 uv, vec2 vanishingPoint, float strength) {
   return vanishingPoint + dir * factor;
 }
 
+float rand(vec2 n) { 
+	return fract(sin(dot(n, vec2(12.9898, 4.1414))) * 43758.5453);
+}
+
+float noise(vec2 p) {
+    vec2 ip = floor(p);
+    vec2 u = fract(p);
+    u = u*u*(3.0-2.0*u); // Smoothstep
+    
+    float res = mix(
+        mix(rand(ip), rand(ip + vec2(1.0, 0.0)), u.x),
+        mix(rand(ip + vec2(0.0, 1.0)), rand(ip + vec2(1.0, 1.0)), u.x), u.y);
+    return res*res;
+}
+
+// Fractional Brownian Motion (for waves, rocks)
+float fbm(vec2 p, float time) {
+    float v = 0.0;
+    float a = 0.5;
+    mat2 m = mat2(1.6, 1.2, -1.2, 1.6); // Rotation matrix
+    
+    for (int i = 0; i < 4; ++i) {
+        v += a * noise(p + time * 0.05);
+        p = m * p * 2.0;
+        a *= 0.5;
+    }
+    return v;
+}
+
 
 // ===================================================================
 // ============================ Shapes ===============================
@@ -284,10 +313,12 @@ float towelShape(vec2 uv, vec2 center, float size, float width, float height, fl
     stripeSize = height;
   }
   
-  float stripePattern = fract(stripeCoord * numStripes / stripeSize);
-  
+  // float stripePattern = fract(stripeCoord * numStripes / stripeSize);
+  float stripePattern = sin(stripeCoord * numStripes * 3.14159265 / stripeSize);
+
   // Alternate between white (1) and blue (2)
-  float stripeValue = step(0.5, stripePattern);
+  // float stripeValue = step(0.5, stripePattern);
+  float stripeValue = step(0.0, stripePattern);
   
   // Return 1 for white, 2 for blue (multiplied by mask)
   return mask * (1.0 + stripeValue);
@@ -354,8 +385,10 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
   vec3 p = vec3(uv, 0.0);
 
   vec2 uvOriginal = uv;
+  // Apply perspective to UVs for beach objects
   vec2 uvPerspective = applyPerspective(uv, vanishingPoint, perspectiveStrength);
   
+  float time = iTime * animationSpeed;
 
   // ==============================================
   // =================== Colors ===================
@@ -454,6 +487,14 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
   // ==============================================
   // =================== People ===================
   // ==============================================
+
+  // TODO FIX: (Towel Perspective, Shadows)
+  // Towel shadow (draw first)
+  vec2 shadowOffset = vec2(0.003, -0.003); // Simple offset shadow
+  float towelShadow = towelShape(uvPerspective, towelCenter + shadowOffset, 0.1, towelWidth, towelHeight, towelSkew, numStripes, stripeOrientation);
+  color = mix(color, shadowColor, towelShadow * 0.15); // Simple, soft shadow
+
+  // Towel
   float towel = towelShape(uvPerspective, towelCenter, 0.1, towelWidth, towelHeight, towelSkew, numStripes, stripeOrientation);
   if (towel > 0.5 && towel < 1.5) {
     color = towelTone1;
@@ -461,14 +502,26 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
     color = towelTone2;
   }
 
-  // person swimming
-  // float swimmer = sdCircle(uv - vec2(0.2, 0.35), 0.02);
-  // if (swimmer < 0.0) {
-  //   color = rgb(255, 200, 150);
-  // }
+  // TODO FIX: (People, Shadows)
+  // Person on towel
+  if (towel > 0.0) { // Only draw if on the towel
+      vec2 personCenter = towelCenter + vec2(0.0, 0.01);
+      
+      // Person Shadow (draw first)
+      vec2 shadowPos = (uvPerspective - (personCenter + shadowOffset * 1.5)) / vec2(1.0, 0.4);
+      float shadow = sdBox(shadowPos, vec2(0.015, 0.03));
+      shadow = opSmoothUnion(shadow, sdCircle(shadowPos - vec2(0.0, 0.025), 0.01), 0.01);
+      color = mix(color, shadowColor, (1.0 - smoothstep(0.0, 0.01, shadow)) * 0.2 * towel);
 
+      // Person Body (box)
+      float body = sdBox(uvPerspective - personCenter, vec2(0.01, 0.025));
+      color = mix(color, skinTone, (1.0 - smoothstep(0.0, 0.005, body)) * towel);
 
-
+      // Person Head (circle)
+      float head = sdCircle(uvPerspective - (personCenter + vec2(0.0, 0.025)), 0.01);
+      color = mix(color, skinTone, (1.0 - smoothstep(0.0, 0.005, head)) * towel);
+  }
+  
 
   // ===============================================================
   // =================== Paris 2025 grain filter ===================
