@@ -411,6 +411,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
   // ✓ add the rocks
   // ✓ add waves and color variations to the sea
   // ✓ Animations (waves, moving clouds, people swimming)
+  // - Make the canvas scale with the window size properly
 
 
   // ==================================================
