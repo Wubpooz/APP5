@@ -194,13 +194,55 @@ float fbm(vec2 p, float time) {
 }
 
 
-float bezierSurface(vec2 uv, vec2 p0, vec2 p1, vec2 p2, float height) {
-  // Calculate the bezier point at uv.x
-  float t = uv.x;
-  vec2 bezierPoint = (1.0 - t) * (1.0 - t) * p0 + 2.0 * (1.0 - t) * t * p1 + t * t * p2;
-  
-  // Calculate vertical distance from bezier curve
-  return uv.y - (bezierPoint.y + height);
+// Signed distance to a quadratic Bezier curve
+// Returns negative on the "left" side (determined by curve direction), positive on "right"
+float sdBezierSigned(vec2 pos, vec2 A, vec2 B, vec2 C) {
+    // Get unsigned distance
+    float dist = sdBezier(pos, A, B, C);
+    
+    // Find closest point on curve to determine sign
+    vec2 a = B - A;
+    vec2 b = A - 2.0*B + C;
+    vec2 c = a * 2.0;
+    vec2 d = A - pos;
+    
+    float kk = 1.0/dot(b,b);
+    float kx = kk * dot(a,b);
+    float ky = kk * (2.0*dot(a,a)+dot(d,b)) / 3.0;
+    float kz = kk * dot(d,a);
+    
+    float t = 0.5; // fallback
+    float p = ky - kx*kx;
+    float p3 = p*p*p;
+    float q = kx*(2.0*kx*kx-3.0*ky) + kz;
+    float h = q*q + 4.0*p3;
+    
+    if(h >= 0.0) { 
+        h = sqrt(h);
+        vec2 x = (vec2(h,-h)-q)/2.0;
+        vec2 uv = sign(x)*pow(abs(x), vec2(1.0/3.0));
+        t = clamp(uv.x+uv.y-kx, 0.0, 1.0);
+    } else {
+        float z = sqrt(-p);
+        float v = acos(q/(p*z*2.0)) / 3.0;
+        float m = cos(v);
+        float n = sin(v)*1.732050808;
+        vec3 tt = clamp(vec3(m+m,-n-m,n-m)*z-kx, 0.0, 1.0);
+        t = tt.x; // Use first root
+    }
+    
+    // Compute tangent at closest point
+    vec2 tangent = c + b * (2.0 * t);
+    vec2 normal = vec2(-tangent.y, tangent.x); // perpendicular (left-pointing)
+    
+    // Point on curve at parameter t
+    vec2 curvePoint = A + (c + b*t)*t;
+    vec2 toPos = pos - curvePoint;
+    
+    // Sign based on which side of curve (dot with normal)
+    float side = dot(toPos, normal);
+    
+    return sign(side) * dist;
 }
 
 // Fixed-size count for shoreline Bezier control points
@@ -211,11 +253,11 @@ float bezierS(vec2 uv, vec2 bezier[BEZIER_COUNT]) {
   float bestAbs = 1e9;
   float bestSigned = 1e9;
   for(int i = 0; i < BEZIER_COUNT - 2; i++){
-    float sd = bezierSurface(uv, bezier[i], bezier[i + 1], bezier[i + 2], 0.0);
+    float sd = sdBezierSigned(uv, bezier[i], bezier[i + 1], bezier[i + 2]);
     float a = abs(sd);
     if(a < bestAbs){
       bestAbs = a;
-      bestSigned = sd; // keep sign: negative = water side, positive = beach side
+      bestSigned = sd; // keep sign: negative = left/water side, positive = right/beach side
     }
   }
   return bestSigned;
@@ -476,34 +518,26 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
   // Create curved shoreline using bezier curve
   vec2 shoreBezier[8] = vec2[8](
     shoreP0,
-    vec2(0.08, 0.12),
-    vec2(0.20, 0.28),
-    vec2(0.35, 0.38),
-    vec2(0.50, 0.45),
-    vec2(0.65, 0.50),
-    vec2(0.80, 0.54),
+    shoreP0+vec2(0.08, 0.12),
+    shoreP0+vec2(0.20, 0.28),
+    shoreP0+vec2(0.35, 0.38),
+    shoreP0+vec2(0.50, 0.45),
+    shoreP0+vec2(0.65, 0.50),
+    shoreP0+vec2(0.80, 0.54),
     shoreP2
   );
   
-  // Calculate distance to bezier curve
-  float shoreDist = 1000.0;
-  for (int i = 0; i < shoreBezier.length() - 2; i++) {
-    float dist = sdBezier(uv, shoreBezier[i], shoreBezier[i + 1], shoreBezier[i + 2]);
-    shoreDist = (i == 0) ? dist : min(shoreDist, dist);
-  }
+  // Signed distance to bezier shoreline (negative = water side, positive = beach side)
+  float shoreDist = bezierS(uv, shoreBezier);
   
-  // Use triangle as bounds, but bezier defines the actual edge
-  float sdTriangleSea = sdTriangle(uv, shoreP0, shoreP1, shoreP2);
-  
-  // Sea is where we're inside the triangle AND on the water side of the bezier curve
-  if (sdTriangleSea < 0.0 && shoreDist < 0.0) {
+  if (uv.y < skyHeight && shoreDist > 0.0) {
     color = seaColor;
   }
   
   // Add smooth edge transition at the bezier curve
   float shoreFeather = 0.015;
   float shoreMask = smoothstep(shoreFeather, -shoreFeather, shoreDist);
-  if (sdTriangleSea < 0.0) {
+  if (uv.y < skyHeight && shoreDist > 0.0) {
     color = mix(color, seaColor, shoreMask);
   }
 
