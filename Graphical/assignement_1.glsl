@@ -200,6 +200,30 @@ vec2 removePerspective(vec2 uv, vec2 vanishingPoint, float strength) {
   return vanishingPoint + dir * factor;
 }
 
+// ===================================================================
+// =================== Perspective Projection Utils ==================
+// ===================================================================
+
+// Get depth from y-coordinate (maps screen y to world depth)
+float yToDepth(float screenY, float horizonY) {
+  // Objects at horizonY are farther; objects at screenY=0 are closest
+  float normalizedY = clamp(screenY / horizonY, 0.0, 1.0);
+  return mix(0.0, 15.0, pow(normalizedY, 1.5));
+}
+
+// Get scale factor for object at given depth
+float getDepthScale(float depth, float focalLength) {
+  // Perspective scaling: size = focalLength/(focalLength + depth)
+  return focalLength / (focalLength + depth);
+}
+
+// Apply perspective to horizontal position (converge toward center)
+float applyPerspectiveX(float x, float centerX, float depth, float focalLength) {
+  float offset = x - centerX;
+  float scale = getDepthScale(depth, focalLength);
+  return centerX + offset * scale;
+}
+
 float rand(vec2 n) { 
 	return fract(sin(dot(n, vec2(12.9898, 4.1414))) * 43758.5453);
 }
@@ -249,7 +273,7 @@ float waveNoise(vec2 uv, float time, float frequency, float amplitude) {
 }
 
 
-const int SHORE_POINT_COUNT = 7;
+const int SHORE_POINT_COUNT = 11;
 const int SHORELINE_STEPS = 32;
 
 struct ShoreSample {
@@ -545,6 +569,9 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
   float horizonY = 0.6; // Where the horizon/sky meets the beach
   float animationSpeed = 1.0;
 
+  float focalLength = 2.5; // Controls perspective strength
+  vec2 vanishingPointCenter = vec2(0.5 * aspectRatio, horizonY);
+
   float waveMergeDistance = 0.12; // How far into the sea waves blend back to base colour
   float waveBeachOverlap = 0.055; // How far waves overlap onto the sand
   float waveDepthFalloff = 3.0; // Controls how quickly waves shrink with depth
@@ -552,9 +579,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
 
   float skyHeight = 0.6;
   float cloudSpeed = 0.1;
-  vec2 sunPos = vec2(0.14, 0.84);
-  float sunSize = 0.03;
-  float sunBlurSize = 0.02;
+  // sun will be updated with perspective below
   float cloudSize = 0.12;
 
   vec2 towelCenter = vec2(0.5, 0.2);
@@ -605,13 +630,24 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
   vec3 towelTone2 = rgb(0, 105, 200);
 
   vec2 shorePoints[SHORE_POINT_COUNT];
-  shorePoints[0] = vec2(-0.25, -0.12);
-  shorePoints[1] = vec2(0.02, -0.02);
-  shorePoints[2] = vec2(0.06, 0.15);
-  shorePoints[3] = vec2(0.12, 0.30);
-  shorePoints[4] = vec2(0.22, 0.46);
-  shorePoints[5] = vec2(0.45, 0.57);
-  shorePoints[6] = vec2(0.82, 0.62);
+  shorePoints[0] = vec2(-0.32, -0.10);
+  shorePoints[1] = vec2(-0.12, -0.02);
+  shorePoints[2] = vec2(0.02, 0.04);
+  shorePoints[3] = vec2(0.11, 0.08);
+  shorePoints[4] = vec2(0.20, 0.16);
+  shorePoints[5] = vec2(0.27, 0.28);
+  shorePoints[6] = vec2(0.34, 0.40);
+  shorePoints[7] = vec2(0.44, 0.50);
+  shorePoints[8] = vec2(0.58, 0.58);
+  shorePoints[9] = vec2(0.74, 0.62);
+  shorePoints[10] = vec2(0.94, 0.64);
+
+  for (int i = 0; i < SHORE_POINT_COUNT; ++i) {
+    float depth = yToDepth(shorePoints[i].y, horizonY);
+    // We keep y the same (screen-space) and only converge x toward vanishing point
+    shorePoints[i].x = applyPerspectiveX(shorePoints[i].x, vanishingPointCenter.x, depth, focalLength);
+    shorePoints[i].y = shorePoints[i].y;
+  }
 
   ShoreSample shore = closestPointOnShoreline(uv, shorePoints);
   float seaDist = shore.distance * shore.sign;
@@ -626,16 +662,43 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
   // =================== Sky ===================
   // ===========================================
   float cloudMask = 0.0;
+
+  // Compute perspective-aware sun position/scale
+  float sunDepth = yToDepth(0.84, horizonY);
+  float sunScale = getDepthScale(sunDepth, focalLength);
+  vec2 sunPos = vec2(
+    applyPerspectiveX(-2.7, vanishingPointCenter.x, sunDepth, focalLength),
+    0.91
+  );
+  float sunSize = 0.18 * sunScale;
+  float sunBlurSize = 0.5 * sunSize * max(3.0 * abs(cos(iTime * 0.1)), 0.4);
   float sunDist = sdCircle(uv - sunPos, sunSize);
-  cloudMask = max(cloudMask, cloudBlob(uv, vec2(0.32 + 0.06*sin(iTime*0.4), 0.82), cloudSize));
-  cloudMask = max(cloudMask, cloudBlob(uv, vec2(0.62 + 0.05*cos(iTime*0.5), 0.72), cloudSize));
-  cloudMask = max(cloudMask, cloudBlob(uv, vec2(0.82 + 0.04*sin(iTime*0.3), 0.90), cloudSize));
+
+  // Clouds with perspective scaling
+  vec2 cloud1Pos = vec2(0.12 + 0.6*sin(iTime*0.04), 0.82);
+  float cloud1Depth = yToDepth(cloud1Pos.y, horizonY);
+  float cloud1Scale = 6.4*getDepthScale(cloud1Depth, focalLength);
+  cloud1Pos.x = applyPerspectiveX(cloud1Pos.x, vanishingPointCenter.x, cloud1Depth, focalLength);
+  cloudMask = max(cloudMask, cloudBlob(uv, cloud1Pos, cloudSize * cloud1Scale));
+
+  vec2 cloud2Pos = vec2(-2.0 + 0.5*cos(iTime*0.05), 0.72);
+  float cloud2Depth = yToDepth(cloud2Pos.y, horizonY);
+  float cloud2Scale = 5.0*getDepthScale(cloud2Depth, focalLength);
+  cloud2Pos.x = applyPerspectiveX(cloud2Pos.x, vanishingPointCenter.x, cloud2Depth, focalLength);
+  cloudMask = max(cloudMask, cloudBlob(uv, cloud2Pos, cloudSize * cloud2Scale));
+
+  vec2 cloud3Pos = vec2(3.82 + 0.7*sin(iTime*0.1), 0.90);
+  float cloud3Depth = yToDepth(cloud3Pos.y, horizonY);
+  float cloud3Scale = 3.4*getDepthScale(cloud3Depth, focalLength);
+  cloud3Pos.x = applyPerspectiveX(cloud3Pos.x, vanishingPointCenter.x, cloud3Depth, focalLength);
+  cloudMask = max(cloudMask, cloudBlob(uv, cloud3Pos, cloudSize * cloud3Scale));
+
   if (uv.y > skyHeight) {
     if (sunDist < 0.0) {
       color = sunColor;
     } else if (sunDist > 0.0 && sunDist < sunBlurSize) {
-        // Sun rays
-        color = mix(sunColor, skyColor, sunDist / sunBlurSize);
+      // Sun rays
+      color = mix(sunColor, skyColor, sunDist / sunBlurSize);
     } else {
       color = skyColor;
     }
@@ -684,17 +747,30 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
     // color = addDepthHaze(color, groundDepth, fogTarget, 1.5);
   }
 
-  // =============================================
-  // =================== Rocks ===================
-  // =============================================  
-  vec2 rockPoint = vec2(0.6, 0.56);
-  vec2 rockTop = vec2(2.0, 1.7);
-  vec2 rockBottom = vec2(2.0, 0.14);
+    // =============================================
+    // =================== Rocks ===================
+    // =============================================  
+    vec2 rockPointBase = vec2(0.6, 0.56);
+    float rockDepth = yToDepth(rockPointBase.y, horizonY);
+    float rockScale = getDepthScale(rockDepth, focalLength);
 
-  float rockDist = sdTriangle(uv, rockPoint, rockTop, rockBottom);
-  if (rockDist < 0.0) {
-    color = rockColor;
-  }
+    // Apply perspective to rock position and size
+    vec2 rockPoint = vec2(
+      applyPerspectiveX(rockPointBase.x, vanishingPointCenter.x, rockDepth, focalLength),
+      rockPointBase.y
+    );
+
+    // Scale rock triangle points with perspective
+    vec2 rockTop = rockPoint + vec2(2.0, 1.7) * rockScale;
+    vec2 rockBottom = rockPoint + vec2(2.0, 0.14) * rockScale;
+
+    float rockDist = sdTriangle(uv, rockPoint, rockTop, rockBottom);
+    if (rockDist < 0.0) {
+      color = rockColor;
+      // Add subtle depth-based shading
+      float shadeFactor = mix(0.85, 1.0, rockScale);
+      color *= shadeFactor;
+    }
   // // Shading for depth
   // float rockShading = smoothstep(-0.05, 0.0, rockDist);
   // color = mix(darkRockColor, lightRockColor, rockShading);
