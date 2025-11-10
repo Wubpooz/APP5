@@ -633,7 +633,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
   vec3 cloudColor = rgb(255, 255, 255);
   vec3 sunColor = rgb(240, 180, 27);
 
-  vec3 beachColor = rgb(234, 169, 61);
+  vec3 beachColor = rgb(237, 173, 62);
 
   vec3 seaColor = rgb(12, 129, 164);
   vec3 shallowSeaColor = rgb(58, 176, 161);
@@ -646,6 +646,9 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
 
   vec3 towelTone1 = whiteColor;
   vec3 towelTone2 = rgb(0, 105, 200);
+
+  vec3 skinColor = rgb(224, 116, 45);
+  vec3 swimsuitColor = rgb(220, 50, 80);
 
   vec2 shorePoints[SHORE_POINT_COUNT];
   shorePoints[0] = vec2(-0.32, -0.10);
@@ -979,8 +982,6 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
   person = opUnion(person, personLegL);
   person = opUnion(person, personLegR);
   
-  vec3 skinColor = rgb(255, 200, 150);
-  vec3 swimsuitColor = rgb(220, 50, 80);
   
   if (person < 0.0) {
     // Differentiate skin and swimsuit
@@ -992,54 +993,53 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
     }
   }
 
-  // Person swimming in the water - better figure
-  vec2 swimmerCenter = vec2(0.28 + 0.04*sin(iTime*0.6), 0.38 + 0.015*cos(iTime*2.5));
+  // Person swimming in the water - swimming horizontally (sideways)
+  vec2 swimmerCenter = vec2(0.28 + 0.08*sin(iTime*0.4), 0.38 + 0.01*cos(iTime*2.0));
   
-  // Check if swimmer is in water using triangle
-  float swimmerInSea = -1.0;sdTriangle(swimmerCenter, shore.position, shore.position + shoreNormal * 0.1, shore.position - shoreTangent * 0.1);
-  float swimmerSize = 0.01;
-  float swimmerScale = getPerspectiveScale(swimmerCenter.y, horizonY, perspectiveStrength) * swimmerSize;
+  float swimmerSize = 0.15;
+  float swimmerScale = getPerspectiveScale(swimmerCenter.y, horizonY, perspectiveStrength);
+  float swimmerFullScale = swimmerSize * swimmerScale;
+  
 
-  if (swimmerInSea < 0.0 && swimmerCenter.y < skyHeight) {
-    // Swimming person (side view, doing front crawl)
-    float swimHead = sdCircle(uv - swimmerCenter, swimmerSize);
-    float swimHair = sdBox(uv - swimmerCenter - vec2(0.0, swimmerSize), vec2(0.03, 0.015) * swimmerSize);
-    float swimBody = sdRoundedBox(uv - swimmerCenter - vec2(0.0, -3.8*swimmerSize), vec2(0.01*swimmerSize, 2.0*swimmerSize), 0.01);
-    
-    // Arm positions - attach to sides of body at shoulder
-    vec2 shoulderLeft = swimmerCenter + vec2(-0.8*swimmerSize, -1.5*swimmerSize);
-    vec2 shoulderRight = swimmerCenter + vec2(0.8*swimmerSize, -1.5*swimmerSize);
+  // Only render swimmer if pixel is within bounding circle
+  // float distToSwimmer = length(uv - swimmerCenter);
+  // float swimmerRadius = swimmerFullScale * 6.0; // Bounding circle for entire swimmer
+  
+  if (swimmerCenter.y < skyHeight) {
+    float swimHead = sdCircle(uv - swimmerCenter, swimmerFullScale);
+    float swimHair = sdBox(uv - swimmerCenter - vec2(-0.008, 0.0) * swimmerFullScale, vec2(0.006, 0.01) * swimmerFullScale);
 
-    // Arm swimming motion - rotate around shoulder junction
+    vec2 bodyOffset = vec2(-3.2, 0.0) * swimmerFullScale;
+    float swimBody = sdRoundedBox(uv - swimmerCenter - bodyOffset, vec2(2.3, 0.4) * swimmerFullScale, 0.003 * swimmerFullScale);
+
+    vec2 shoulderTop = swimmerCenter + vec2(-1.6, -0.009) * swimmerFullScale;
+    vec2 shoulderBottom = swimmerCenter + vec2(-1.6, 0.009) * swimmerFullScale;
     float armAngle = sin(iTime * 3.0);
-    float armLength = 0.025;
-    
-    // Left arm rotates forward (positive angle)
-    float angleL = armAngle * 1.5; // radians
-    vec2 armEndL = shoulderLeft - vec2(cos(angleL), sin(angleL)) * armLength;
-    float swimArmL = sdOrientedBox(uv, shoulderLeft, armEndL, 0.003);
-    
-    // Right arm rotates opposite direction
-    float angleR = -armAngle * 1.2;
-    vec2 armEndR = shoulderRight + vec2(cos(angleR), sin(angleR)) * armLength;
-    float swimArmR = sdOrientedBox(uv, shoulderRight, armEndR, 0.003);
-    
-    float swimmer = opUnion(swimHead, swimBody);
-    swimmer = opUnion(swimmer, swimArmL);
-    swimmer = opUnion(swimmer, swimArmR);
+    float armLength = 2.2 * swimmerFullScale;
+
+    float angleTop = armAngle * 1.8;
+    vec2 armEndTop = shoulderTop + vec2(cos(angleTop), sin(angleTop)) * armLength;
+    float swimArmTop = sdOrientedBox(uv, shoulderTop, armEndTop, 0.25 * swimmerFullScale);
+
+    float angleBottom = -armAngle * 1.8;
+    vec2 armEndBottom = shoulderBottom + vec2(cos(angleBottom), sin(angleBottom)) * armLength;
+    float swimArmBottom = sdOrientedBox(uv, shoulderBottom, armEndBottom, 0.25 * swimmerFullScale);
+
+    float swimmer = opSmoothUnion(swimHead, swimBody, 0.002 * swimmerFullScale);
+    swimmer = opUnion(swimmer, swimArmTop);
+    swimmer = opUnion(swimmer, swimArmBottom);
 
     if (swimmer < 0.0) {
       color = skinColor;
-      if(sdBox(uv - swimmerCenter - vec2(0.0, -0.05), vec2(0.015, 0.03)) < 0.0 && swimArmL > 0.0 && swimArmR > 0.0) {
+      if(sdBox(uv - swimmerCenter - bodyOffset, vec2(2.0, 1.0) * swimmerFullScale) < 0.0) {
         color = swimsuitColor;
       }
       if(swimHair < 0.0) {
         color = rgb(50, 20, 10);
       }
     }
-    
-    // Add splash/wake around swimmer
-    float splash = smoothstep(0.03, 0.02, length(uv - swimmerCenter));
+
+    float splash = smoothstep(0.025 * swimmerFullScale, 0.015 * swimmerFullScale, length(uv - swimmerCenter));
     color = mix(color, whiteColor, splash * 0.3 * (sin(iTime * 5.0) * 0.5 + 0.5));
   }
 
