@@ -193,81 +193,62 @@ float fbm(vec2 p, float time) {
     return v;
 }
 
-
-// Signed distance to a quadratic Bezier curve
-// Returns negative on the "left" side (determined by curve direction), positive on "right"
-float sdBezierSigned(vec2 pos, vec2 A, vec2 B, vec2 C) {
-    // Get unsigned distance
-    float dist = sdBezier(pos, A, B, C);
-    
-    // Find closest point on curve to determine sign
-    vec2 a = B - A;
-    vec2 b = A - 2.0*B + C;
-    vec2 c = a * 2.0;
-    vec2 d = A - pos;
-    
-    float kk = 1.0/dot(b,b);
-    float kx = kk * dot(a,b);
-    float ky = kk * (2.0*dot(a,a)+dot(d,b)) / 3.0;
-    float kz = kk * dot(d,a);
-    
-    float t = 0.5; // fallback
-    float p = ky - kx*kx;
-    float p3 = p*p*p;
-    float q = kx*(2.0*kx*kx-3.0*ky) + kz;
-    float h = q*q + 4.0*p3;
-    
-    if(h >= 0.0) { 
-        h = sqrt(h);
-        vec2 x = (vec2(h,-h)-q)/2.0;
-        vec2 uv = sign(x)*pow(abs(x), vec2(1.0/3.0));
-        t = clamp(uv.x+uv.y-kx, 0.0, 1.0);
-    } else {
-        float z = sqrt(-p);
-        float v = acos(q/(p*z*2.0)) / 3.0;
-        float m = cos(v);
-        float n = sin(v)*1.732050808;
-        vec3 tt = clamp(vec3(m+m,-n-m,n-m)*z-kx, 0.0, 1.0);
-        t = tt.x; // Use first root
-    }
-    
-    // Compute tangent at closest point
-    vec2 tangent = c + b * (2.0 * t);
-    vec2 normal = vec2(-tangent.y, tangent.x); // perpendicular (left-pointing)
-    
-    // Point on curve at parameter t
-    vec2 curvePoint = A + (c + b*t)*t;
-    vec2 toPos = pos - curvePoint;
-    
-    // Sign based on which side of curve (dot with normal)
-    float side = dot(toPos, normal);
-    
-    return sign(side) * dist;
-}
-
-// Fixed-size count for shoreline Bezier control points
-const int BEZIER_COUNT = 8;
-
-float bezierS(vec2 uv, vec2 bezier[BEZIER_COUNT]) {
-  // Find closest bezier segment by absolute distance while preserving sign.
-  float bestAbs = 1e9;
-  float bestSigned = 1e9;
-  for(int i = 0; i < BEZIER_COUNT - 2; i++){
-    float sd = sdBezierSigned(uv, bezier[i], bezier[i + 1], bezier[i + 2]);
-    float a = abs(sd);
-    if(a < bestAbs){
-      bestAbs = a;
-      bestSigned = sd; // keep sign: negative = left/water side, positive = right/beach side
-    }
+// Unsigned distance from point to segment
+float udSegment(vec2 pos, vec2 a, vec2 b) {
+  vec2 pa = pos - a;
+  vec2 ba = b - a;
+  float denom = dot(ba, ba);
+  if(denom < 1e-6) {
+    return length(pa);
   }
-  return bestSigned;
+  float h = clamp(dot(pa, ba) / denom, 0.0, 1.0);
+  vec2 closest = a + ba * h;
+  return length(pos - closest);
 }
+
 
 // ===================================================================
 // ============================ Shapes ===============================
 // ===================================================================
-// Generate wavy shoreline with foam effect
-float shoreline(vec2 uv, vec2 p0, vec2 p1, float time) {
+// Blobby cloud made from 3 circles (smooth union), returns mask 0..1
+float cloudBlob(vec2 uv, vec2 c, float size) {
+  // Scale UV relative to cloud center for size control
+  vec2 p = (uv - c) / size;
+
+  float radius_base = 0.13;
+  float radius_mid = 0.08;
+  float radius_small = 0.05;
+  float smoothness = 0.0018;
+
+  vec2 displ_base = p - vec2(0.0, 0.12);
+  vec2 displ_mid_left = p - vec2(-0.18, 0.08);
+  vec2 displ_mid_right = p - vec2(0.18, 0.08);
+  vec2 displ_small_left = p - vec2(-0.3, 0.03);
+  vec2 displ_small_right = p - vec2(0.3, 0.03);
+
+  vec2 p_shifted = p - vec2(0.0, 0.0);
+  float width = 0.30;
+  float height = 0.02;
+  float skew = -0.01;
+
+  float d = sdParallelogram(p_shifted, width, height, skew);
+
+  d = opSmoothUnion(d, sdCircle(displ_base, radius_base), smoothness);
+
+  d = opSmoothUnion(d, sdCircle(displ_mid_left, radius_mid), smoothness);
+  d = opSmoothUnion(d, sdCircle(displ_mid_right, radius_mid), smoothness);
+
+  d = opSmoothUnion(d, sdCircle(displ_small_left, radius_small), smoothness);
+  d = opSmoothUnion(d, sdCircle(displ_small_right, radius_small), smoothness);
+
+  float feather = 0.03;
+  return 1.0 - smoothstep(0.0, feather, d);
+}
+
+
+
+
+float foam(vec2 uv, vec2 p0, vec2 p1, float time) {
   // Calculate the line from p0 to p1
   vec2 lineDir = p1 - p0;
   float lineLength = length(lineDir) - 0.04;
@@ -306,39 +287,35 @@ float shoreline(vec2 uv, vec2 p0, vec2 p1, float time) {
   return foam;
 }
 
-// Blobby cloud made from 3 circles (smooth union), returns mask 0..1
-float cloudBlob(vec2 uv, vec2 c, float size) {
-  // Scale UV relative to cloud center for size control
-  vec2 p = (uv - c) / size;
+float sdSea(vec2 uv, vec2 p0, vec2 p1, vec2 p2) {
+    float triangleDist = sdTriangle(uv, p0, p1, p2);
 
-  float radius_base = 0.13;
-  float radius_mid = 0.08;
-  float radius_small = 0.05;
-  float smoothness = 0.0018;
+    const int numSegments = 100;
+    vec2 bezierPoints[numSegments + 1];
+    bezierPoints[0] = p0;
+    bezierPoints[numSegments] = p2;
 
-  vec2 displ_base = p - vec2(0.0, 0.12);
-  vec2 displ_mid_left = p - vec2(-0.18, 0.08);
-  vec2 displ_mid_right = p - vec2(0.18, 0.08);
-  vec2 displ_small_left = p - vec2(-0.3, 0.03);
-  vec2 displ_small_right = p - vec2(0.3, 0.03);
+    for(int i = 1; i < numSegments; i++) {
+        float t = float(i) / float(numSegments);
+        bezierPoints[i] = mix(p0, p2, t) + vec2(.1, 0.2 * sin(t * 3.14159265));
+        //mix(mix(p0, p1, t), mix(p1, p2, t), t);
+    }
 
-  vec2 p_shifted = p - vec2(0.0, 0.0);
-  float width = 0.30;
-  float height = 0.02;
-  float skew = -0.01;
+    float bezierDist = 1e6;
+    for (int i = 0; i < numSegments; i++) {
+        bezierDist = min(bezierDist, udSegment(uv, bezierPoints[i], bezierPoints[i+1]));
+    }
 
-  float d = sdParallelogram(p_shifted, width, height, skew);
+    // Determine if uv is "inside" or "outside" the curve using the triangle's winding order.
+    // This creates a signed distance from the curve.
+    vec2 e0 = p1 - p0;
+    vec2 e2 = p0 - p2;
+    float s = sign(e0.x * e2.y - e0.y * e2.x);
+    vec2 v0 = uv - p0;
+    float side = sign(v0.x * (p2.y - p0.y) - v0.y * (p2.x - p0.x));
 
-  d = opSmoothUnion(d, sdCircle(displ_base, radius_base), smoothness);
+    return opSmoothIntersection(triangleDist, bezierDist * side * s, 0.02);
 
-  d = opSmoothUnion(d, sdCircle(displ_mid_left, radius_mid), smoothness);
-  d = opSmoothUnion(d, sdCircle(displ_mid_right, radius_mid), smoothness);
-
-  d = opSmoothUnion(d, sdCircle(displ_small_left, radius_small), smoothness);
-  d = opSmoothUnion(d, sdCircle(displ_small_right, radius_small), smoothness);
-
-  float feather = 0.03;
-  return 1.0 - smoothstep(0.0, feather, d);
 }
 
 
@@ -516,36 +493,23 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
   // ==========================================
   // =================== Sea ==================
   // ==========================================
-  // Create curved shoreline using bezier curve
-  vec2 shoreBezier[8] = vec2[8](
-    shoreP0,
-    shoreP0+vec2(0.08, 0.12),
-    shoreP0+vec2(0.20, 0.28),
-    shoreP0+vec2(0.35, 0.38),
-    shoreP0+vec2(0.50, 0.45),
-    shoreP0+vec2(0.65, 0.50),
-    shoreP0+vec2(0.80, 0.54),
-    shoreP2
-  );
-  
-  // Signed distance to bezier shoreline (negative = water side, positive = beach side)
-  float shoreDist = bezierS(uv, shoreBezier);
-  
-  if (uv.y < skyHeight && shoreDist > 0.0) {
+  float seaDist = sdSea(uv, shoreP0, shoreP1, shoreP2);
+
+  if (uv.y < skyHeight && seaDist < 0.0) {
     color = seaColor;
   }
   
-  // Add smooth edge transition at the bezier curve
+  // Smooth edge transition
   float shoreFeather = 0.015;
-  float shoreMask = smoothstep(shoreFeather, -shoreFeather, shoreDist);
-  if (uv.y < skyHeight && shoreDist > 0.0) {
+  float shoreMask = smoothstep(shoreFeather, -shoreFeather, seaDist);
+  if (uv.y < skyHeight && seaDist > 0.0) {
     color = mix(color, seaColor, shoreMask);
   }
 
   // ============== Foam ==============
-  float foam = shoreline(uv, shoreP0, shoreP2, iTime);
+  float foamDist = foam(uv, shoreP0, shoreP2, iTime);
   vec3 foamColorMix = mix(foamColor, whiteColor, foamIntensity);
-  color = mix(color, foamColorMix, foam * foamIntensity);
+  color = mix(color, foamColorMix, foamDist * foamIntensity);
 
 
   // =============================================
