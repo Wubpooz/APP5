@@ -207,6 +207,12 @@ float udSegment(vec2 pos, vec2 a, vec2 b) {
 }
 
 
+float waveNoise(vec2 uv, float time, float frequency, float amplitude) {
+    float n = fbm(uv * frequency + vec2(time * 0.1, time * 0.1), time);
+    return n * amplitude;
+}
+
+
 // ===================================================================
 // ============================ Shapes ===============================
 // ===================================================================
@@ -248,128 +254,123 @@ float cloudBlob(vec2 uv, vec2 c, float size) {
 
 
 
-float foam(vec2 uv, vec2 p0, vec2 p1, float time) {
-  // Calculate the line from p0 to p1
-  vec2 lineDir = p1 - p0;
-  float lineLength = length(lineDir) - 0.04;
-  vec2 lineNormal = normalize(vec2(-lineDir.y, lineDir.x));
-  
-  // Calculate position along the line (0 at p0, lineLength at p1)
-  float lineT = dot(uv - p0, normalize(lineDir));
-  
-  // Limit foam to the segment between p0 and p1
-  float edgeFade = smoothstep(-0.05, 0.0, lineT) * smoothstep(lineLength + 0.05, lineLength, lineT);
-  
-  float baseDist = dot(uv - p0, lineNormal);
-  
-  // Add wavy offset along the line direction
-  float wave1 = sin(lineT * 15.0 + time * 1.2) * 0.008;
-  float wave2 = sin(lineT * 8.0 - time * 0.8) * 0.012;
-  float wave3 = sin(lineT * 25.0 + time * 2.0) * 0.004;
-  
-  float waveOffset = wave1 + wave2 + wave3;
-  float dist = baseDist - waveOffset;
 
-
-  float foam1 = smoothstep(0.04, -0.01, dist) * smoothstep(-0.02, 0.01, dist);
-  float foam2 = smoothstep(0.06, 0.02, dist) * smoothstep(0.0, 0.03, dist) * 0.5;
-  float foam3 = smoothstep(0.08, 0.04, dist) * smoothstep(0.02, 0.05, dist) * 0.25;
-  float foam = foam1 + foam2 * (1.0 - foam1) + foam3 * (1.0 - foam1 - foam2);
-
-  float foamNoise = fract(sin(dot(uv * 80.0, vec2(12.9898, 78.233))) * 43758.5453);
-  foamNoise = mix(0.7, 1.0, smoothstep(0.2, 0.8, foamNoise));
-  
-  foam *= foamNoise;
-  
-  // Apply edge fade to limit foam to the line segment
-  foam *= edgeFade;
-  
-  return foam;
-}
 
 float sdSea(vec2 uv, vec2 p0, vec2 p1, vec2 p2) {
-    float triangleDist = sdTriangle(uv, p0, p1, p2);
-
-    const int numSegments = 100;
-    vec2 bezierPoints[3*numSegments + 1];
-    bezierPoints[0] = p0;
-
-    // Define specific control points: (t_position, control_point_offset_from_line)
-    // t is from 0.0 (p0) to 1.0 (p2)
-    const int numSpecific = 9;
-    float specificT[numSpecific];
-    vec2 specificOffset[numSpecific];
-    
-    specificT[0] = 0.2;  specificOffset[0] = vec2(0.4, 0.1);
-    specificT[1] = 0.3;  specificOffset[1] = vec2(1.4, 0.25);
-    specificT[2] = 0.42; specificOffset[2] = vec2(0.2, 0.02);
-    specificT[3] = 0.5;  specificOffset[3] = vec2(0.1, 0.01);
-    specificT[4] = 0.6;  specificOffset[4] = vec2(0.05, 0.005);
-    specificT[5] = 0.62;  specificOffset[4] = vec2(0.05, 0.005);
-    specificT[6] = 0.65;  specificOffset[6] = vec2(0.05, 0.005);
-    specificT[7] = 0.67;  specificOffset[7] = vec2(0.05, 0.005);
-    specificT[8] = 0.7;  specificOffset[8] = vec2(0.05, 0.005);
-
-    // Build the bezier curve with quadratic segments
-    for(int i = 0; i < numSegments; i++) {
-        float t0 = float(i) / float(numSegments);
-        float t1 = float(i + 1) / float(numSegments);
-        
-        // Start point of segment
-        bezierPoints[3*i] = mix(p0, p2, t0);
-        
-        // Find if there's a specific control point near t0
-        vec2 controlOffset = vec2(0.0);
-        bool foundSpecific = false;
-        
-        for(int j = 0; j < numSpecific; j++) {
-            // Check if this segment contains the specific control point
-            if(t0 <= specificT[j] && specificT[j] <= t1) {
-                controlOffset = specificOffset[j];
-                foundSpecific = true;
-                break;
-            }
-        }
-        
-        // If no specific control point, use animated default
-        if(!foundSpecific) {
-            float tMid = (t0 + t1) * 0.5;
-            controlOffset = vec2(
-                abs(8.0 * sin(tMid * 3.14159265 + iTime * 0.5)),
-                abs(4.0 * cos(tMid * 3.14159265 + iTime * 0.5))
-            ) * 0.05;
-        }
-        
-        // Control point for this segment
-        float tControl = (t0 + t1) * 0.5;
-        bezierPoints[3*i + 1] = mix(p0, p2, tControl) + controlOffset;
-        
-        // End point of segment
-        bezierPoints[3*i + 2] = mix(p0, p2, t1);
-    }
-
-    // Calculate distance to the multi-segment bezier curve
-    float bezierDist = 1e6;
-    for (int i = 0; i < numSegments; i++) {
-        bezierDist = min(bezierDist, sdBezier(uv, bezierPoints[3*i], bezierPoints[3*i + 1], bezierPoints[3*i + 2]));
-    }
-
-    // Determine if uv is "inside" or "outside" the curve
-    vec2 e0 = p1 - p0;
-    vec2 e2 = p0 - p2;
-    float s = sign(e0.x * e2.y - e0.y * e2.x);
-    vec2 v0 = uv - p0;
-    float side = sign(v0.x * (p2.y - p0.y) - v0.y * (p2.x - p0.x));
-
-    return opSmoothIntersection(triangleDist, bezierDist * side * s, 0.02);
+  float triangleDist = sdTriangle(uv, p0, p1, p2);
+  return triangleDist;
 }
-
-
 
 
 float rockShape(vec2 uv, vec2 center, float size) {
   float d = length(uv - center);
   return smoothstep(size * 0.5, size, d);
+}
+// Hash functions for wave noise
+float hash1(float p) {
+    float h = dot(vec2(p), vec2(127.1, 311.7));
+    return fract(sin(h) * 43758.5453123);
+}
+
+// 1D noise
+float noise1d(float p) {
+    float i = floor(p);
+    float f = fract(p);
+    float u = f * f * f * (f * (f * 6.0 - 15.0) + 10.0);
+    return mix(hash1(i), hash1(i + 1.0), u);
+}
+
+// Layered noise for wave texture
+float noiseLayer(vec2 p, float ti) {
+    float e = 0.0;
+    for(float j = 1.0; j < 9.0; j += 1.0) {
+        e += noise(p * j + vec2(ti * 7.89541) + vec2(j * 159.78)) / (j / 2.0);
+    }
+    e /= 8.5;
+    return e;
+}
+
+
+vec3 generateBeachWaves(vec2 uv, vec2 lineStart, vec2 lineEnd, vec3 sandColor, vec3 seaBaseColor, float time) {
+    // Wave parameters
+    const int waveNumber = 8;
+    const float speed = 0.015;
+    const float waveCurve = 1.0; // Increased for more frequent waves
+    const float waveScale = 0.15; // Scale down the wave height
+    vec3 deepSeaColor = seaBaseColor * 0.3;
+    
+    float t = time * speed + 12.2;
+    vec4 col = vec4(sandColor, 0.0);
+    vec3 wetSand = sandColor * vec3(0.7, 0.6, 0.4);
+    float lastWaveAge = 10.0;
+    
+
+    for(int i = 0; i < waveNumber; i++) {
+        float ti = floor(t - 0.25) + float(i);
+        float waveAge = fract(t - 0.25);
+        float waveNoise = hash1(ti) / 3.0 + noise1d((uv.x + uv.y * 0.5 + ti) * waveCurve) * max(0.0, waveAge * 1.5 - 0.3);
+        
+        // Wave vertical offset with perspective
+        float offset = (uv.y + sin(t * (2.0 * 3.14159265)) / 2.2 - 0.3) + waveNoise;
+        
+        // Position in wave space
+        vec2 pos = vec2(uv.x + uv.y * 0.3, -offset / (0.2 + waveAge * 20.0) * 2.0);
+
+        float foam = noiseLayer(pos, ti);
+        offset -= foam / 10.0;
+        offset -= noiseLayer(uv / 10.0, 0.0) / 5.0;
+
+        // Max wave calculation (for wet sand)
+        float maxWaveNoise = hash1(ti) / 3.0 + noise1d((uv.x + uv.y * 0.5 + ti) * waveCurve) * max(0.0, 0.5 * 1.5 - 0.3);
+        float maxOffset = (uv.y + sin((ti + 0.5) * (2.0 * 3.14159265)) / 2.2 - 0.3) + maxWaveNoise;
+        vec2 maxPos = vec2(uv.x + uv.y * 0.3, -maxOffset / (0.2 + 0.5 * 20.0) * 2.0);
+        float maxFoam = noiseLayer(maxPos, ti);
+        maxOffset -= maxFoam / 20.0;
+        maxOffset -= noiseLayer(uv / 10.0, 0.0) / 10.0;
+        
+        if(offset < 0.0) { // In wave area
+            if(waveAge < lastWaveAge) { // Draw newer waves on top
+                vec3 n = vec3(
+                    foam - noiseLayer(pos + vec2(0.001, 0.0), ti),
+                    foam - noiseLayer(pos + vec2(0.0, 0.001), ti),
+                    0.5
+                );
+                // n = normalize(n);
+                foam = (foam + 0.8 - waveAge * waveAge + offset * offset * 0.5 + clamp(offset + 0.2, 0.0, 1.0));
+                float light = dot(n, vec3(1.0, 1.0, 1.0));
+
+                // Wave color with transparency fade
+                col.rgb = mix(sandColor, seaBaseColor, clamp(1.5 - waveAge * 3.0, 0.02, 1.0));
+                // Darken away from wave front
+                col.rgb = mix(col.rgb, deepSeaColor, -offset);
+
+                float denseFoam = clamp(foam * 20.0 - 20.0, 0.0, 1.0) * 0.8;
+                col.rgb = mix(col.rgb, vec3(light) * 1.5, denseFoam);
+
+                // Thin white line at wave front
+                col.rgb += max(0.0, floor(offset + 1.004) * n.r * 10.0);
+
+                // Specular highlights
+                col.rgb += max(0.0, dot(n, vec3(1.0, 0.3, 0.95)) * 10.0 - 5.0);
+
+                // Foam texture
+                col.rgb *= foam * foam * (1.0 - waveAge) + waveAge * 1.2;
+
+                col.a = 1.0;
+            }
+            lastWaveAge = waveAge;
+        } else {
+            // Wet sand effect
+            if(col.a == 0.0 && waveAge > 0.5) {
+                float dryness = 50.0 * (1.0 - waveAge);
+                col.rgb = mix(col.rgb, wetSand, clamp((dryness - 2.5 - maxOffset * dryness * 2.0), 0.0, 1.0) * (1.0 - waveAge));
+            }
+        }
+
+        t += 1.0 / float(waveNumber);
+    }
+    
+    return col.rgb;
 }
 
 
@@ -425,15 +426,6 @@ float towelShape(vec2 uv, vec2 center, float size, float width, float height, fl
 // "Paris 2025 JO style" beach with nice blue water (non transparent) and "orange" rocks on the side with failaises. Someone goes and swims in the water. The sun is shining bright. The sky is blue with some clouds. The scene is peaceful and relaxing.
 void mainImage(out vec4 fragColor, in vec2 fragCoord)
 {
-  // All TODOs have been completed:
-  // ✓ fix towel perspective
-  // ✓ make the towel start and finish with the same color
-  // ✓ fix sea
-  // ✓ add peoples
-  // ✓ add shadows
-  // ✓ add the rocks
-  // ✓ add waves and color variations to the sea
-  // ✓ Animations (waves, moving clouds, people swimming)
   // - Make the canvas scale with the window size properly
 
 
@@ -544,19 +536,18 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
   if (uv.y < skyHeight && seaDist < 0.0) {
     color = seaColor;
   }
-  
-  // Smooth edge transition
-  float shoreFeather = 0.015;
-  float shoreMask = smoothstep(shoreFeather, -shoreFeather, seaDist);
-  if (uv.y < skyHeight && seaDist > 0.0) {
-    color = mix(color, seaColor, shoreMask);
+
+  // Align beachUV with shoreline
+  vec2 lineDir = normalize(shoreP2 - shoreP0);
+  vec2 lineNormal = normalize(vec2(lineDir.y, -lineDir.x));
+  vec2 beachUV = vec2(dot(uv - shoreP0, lineDir), dot(uv - shoreP0, lineNormal));
+  beachUV *= 2.0; // Scale down for beach space
+  vec3 waveColor = generateBeachWaves(beachUV, shoreP0, shoreP1, beachColor, seaColor, iTime);
+  if (uv.y < skyHeight) {
+    float waveBlend = smoothstep(-0.02, 0.08, seaDist);
+    color = mix(color, waveColor, waveBlend);
   }
-
-  // ============== Foam ==============
-  float foamDist = foam(uv, shoreP0, shoreP2, iTime);
-  vec3 foamColorMix = mix(foamColor, whiteColor, foamIntensity);
-  color = mix(color, foamColorMix, foamDist * foamIntensity);
-
+  
 
   // =============================================
   // =================== Rocks ===================
