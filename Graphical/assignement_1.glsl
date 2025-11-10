@@ -52,6 +52,11 @@ float dot2( vec2 v ) { return dot(v,v); }
 float cro( vec2 a, vec2 b ) { return a.x*b.y-a.y*b.x; }
 float cos_acos_3( float x ) { x=sqrt(0.5+0.5*x); return x*(x*(x*(x*-0.008972+0.039071)-0.107074)+0.576975)+0.5; } // https://www.shadertoy.com/view/WltSD7
 
+float sdRoundedBox( in vec2 p, in vec2 b, float r )
+{
+    vec2 d = abs(p)-b;
+    return length(max(d,0.0)) - r + min(max(d.x,d.y),0.0);
+}
 
 // ===================================================================
 // ======================== CSG Shapes =========================
@@ -373,10 +378,6 @@ float cloudBlob(vec2 uv, vec2 c, float size) {
   float feather = 0.03;
   return 1.0 - smoothstep(0.0, feather, d);
 }
-
-
-
-
 
 
 float sdSea(vec2 uv, vec2 p0, vec2 p1, vec2 p2) {
@@ -948,7 +949,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
   vec2 personCenter = towelPerspectivePos + vec2(-0.005, 0.0) * towelScale;
   
   // Scale person with towel for proper proportions
-  float personScale = towelScale * 0.7;
+  float personScale = towelScale * 11.0;
   
   // Head
   float personHead = sdCircle(uv - personCenter - vec2(0.0, 0.022) * personScale, 0.012 * personScale);
@@ -995,23 +996,46 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
   vec2 swimmerCenter = vec2(0.28 + 0.04*sin(iTime*0.6), 0.38 + 0.015*cos(iTime*2.5));
   
   // Check if swimmer is in water using triangle
-  float swimmerInSea = sdTriangle(swimmerCenter, shore.position, shore.position + shoreNormal * 0.1, shore.position - shoreTangent * 0.1);
-  
+  float swimmerInSea = -1.0;sdTriangle(swimmerCenter, shore.position, shore.position + shoreNormal * 0.1, shore.position - shoreTangent * 0.1);
+  float swimmerSize = 0.01;
+  float swimmerScale = getPerspectiveScale(swimmerCenter.y, horizonY, perspectiveStrength) * swimmerSize;
+
   if (swimmerInSea < 0.0 && swimmerCenter.y < skyHeight) {
     // Swimming person (side view, doing front crawl)
-    float swimHead = sdCircle(uv - swimmerCenter - vec2(0.0, 0.0), 0.010);
-    float swimBody = sdBox(uv - swimmerCenter - vec2(0.005, -0.008), vec2(0.012, 0.006));
+    float swimHead = sdCircle(uv - swimmerCenter, swimmerSize);
+    float swimHair = sdBox(uv - swimmerCenter - vec2(0.0, swimmerSize), vec2(0.03, 0.015) * swimmerSize);
+    float swimBody = sdRoundedBox(uv - swimmerCenter - vec2(0.0, -3.8*swimmerSize), vec2(0.01*swimmerSize, 2.0*swimmerSize), 0.01);
     
-    // Arm in swimming motion
+    // Arm positions - attach to sides of body at shoulder
+    vec2 shoulderLeft = swimmerCenter + vec2(-0.8*swimmerSize, -1.5*swimmerSize);
+    vec2 shoulderRight = swimmerCenter + vec2(0.8*swimmerSize, -1.5*swimmerSize);
+
+    // Arm swimming motion - rotate around shoulder junction
     float armAngle = sin(iTime * 3.0);
-    vec2 armOffset = vec2(0.015 * armAngle, 0.008 + 0.006 * abs(armAngle));
-    float swimArm = sdCircle(uv - swimmerCenter - armOffset, 0.005);
+    float armLength = 0.025;
     
-    float swimmer = opSmoothUnion(swimHead, swimBody, 0.004);
-    swimmer = opUnion(swimmer, swimArm);
+    // Left arm rotates forward (positive angle)
+    float angleL = armAngle * 1.5; // radians
+    vec2 armEndL = shoulderLeft - vec2(cos(angleL), sin(angleL)) * armLength;
+    float swimArmL = sdOrientedBox(uv, shoulderLeft, armEndL, 0.003);
     
+    // Right arm rotates opposite direction
+    float angleR = -armAngle * 1.2;
+    vec2 armEndR = shoulderRight + vec2(cos(angleR), sin(angleR)) * armLength;
+    float swimArmR = sdOrientedBox(uv, shoulderRight, armEndR, 0.003);
+    
+    float swimmer = opUnion(swimHead, swimBody);
+    swimmer = opUnion(swimmer, swimArmL);
+    swimmer = opUnion(swimmer, swimArmR);
+
     if (swimmer < 0.0) {
       color = skinColor;
+      if(sdBox(uv - swimmerCenter - vec2(0.0, -0.05), vec2(0.015, 0.03)) < 0.0 && swimArmL > 0.0 && swimArmR > 0.0) {
+        color = swimsuitColor;
+      }
+      if(swimHair < 0.0) {
+        color = rgb(50, 20, 10);
+      }
     }
     
     // Add splash/wake around swimmer
