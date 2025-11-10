@@ -459,7 +459,8 @@ float towelShape(vec2 uv, vec2 center, float size, float width, float height, fl
 void mainImage(out vec4 fragColor, in vec2 fragCoord)
 {
   // - Make the canvas scale with the window size properly
-
+  // - Use bezier curve for shoreline
+  // - Better fuse waves and the sea
 
   // ==================================================
   // =================== Parameters ===================
@@ -521,9 +522,9 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
   vec3 seaColor = mix(rgb(0, 105, 148), rgb(0, 168, 232), uv.y * 2.0);
   vec3 foamColor = rgb(200, 230, 240);
 
-  vec3 rockColor = rgb(212, 81, 20);
-  vec3 darkRockColor = rockColor * 0.5;
-  vec3 lightRockColor = rockColor * 1.1;
+  vec3 rockColor = rgb(230, 122, 21);
+  vec3 darkRockColor = rgb(212, 81, 22);
+  vec3 darkerRockColor = rgb(144, 65, 37);
 
   vec3 towelTone1 = whiteColor;
   vec3 towelTone2 = rgb(0, 105, 200);
@@ -573,7 +574,9 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
     color = waveColor;mix(seaColor, waveColor, waveBlend);
   }
   if (uv.y < skyHeight && seaDist < 0.0) {
-    color = seaColor;
+    float depthFactor = smoothstep(0.0, -0.3, uv.y - skyHeight - uv.x * 0.02);
+    vec3 deepSeaColor = seaColor * 0.5;
+    color = mix(deepSeaColor, seaColor, depthFactor);
   }
 
   // =============================================
@@ -585,13 +588,11 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
 
   float rockDist = sdTriangle(uv, rockPoint, rockTop, rockBottom);
   if (rockDist < 0.0) {
-    // Shading for depth
-    float rockShading = smoothstep(-0.05, 0.0, rockDist);
-    color = mix(darkRockColor, lightRockColor, rockShading);
-    // Texture variation
-    float rockNoise = fract(sin(dot(uv * 200.0, vec2(12.9898, 78.233))) * 43758.5453);
-    color = mix(color, color * 0.9, rockNoise * 0.2);
+    color = rockColor;
   }
+  // // Shading for depth
+  // float rockShading = smoothstep(-0.05, 0.0, rockDist);
+  // color = mix(darkRockColor, lightRockColor, rockShading);
 
 
   // ==============================================
