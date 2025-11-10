@@ -9,3 +9,5 @@
 *.bmp
 
 **/venv/
+**/__pycache__/
+*.pyc
