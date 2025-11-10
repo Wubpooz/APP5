@@ -180,6 +180,18 @@ float getPerspectiveScale(float y, float horizonY, float strength) {
   return mix(0.1, 1.0, pow(depth, strength));
 }
 
+// Approximate depth from vertical position (0 near camera, 1 near horizon)
+float depthFromY(float y, float horizonY) {
+  float clampedY = clamp(y, 0.0, horizonY);
+  return smoothstep(0.0, horizonY, clampedY);
+}
+
+// Blend toward fogColor using depth-based exponential falloff
+vec3 addDepthHaze(vec3 color, float depth, vec3 fogColor, float strength) {
+  float fog = pow(depth, strength);
+  return mix(color, fogColor, fog);
+}
+
 // Reverse perspective transformation
 vec2 removePerspective(vec2 uv, vec2 vanishingPoint, float strength) {
   vec2 dir = uv - vanishingPoint;
@@ -234,6 +246,69 @@ float udSegment(vec2 pos, vec2 a, vec2 b) {
 float waveNoise(vec2 uv, float time, float frequency, float amplitude) {
     float n = fbm(uv * frequency + vec2(time * 0.1, time * 0.1), time);
     return n * amplitude;
+}
+
+
+const int SHORE_POINT_COUNT = 7;
+const int SHORELINE_STEPS = 32;
+
+struct ShoreSample {
+  vec2 position;
+  vec2 tangent;
+  float distance;
+  float sign;
+  float param;
+};
+
+vec2 catmullRom(vec2 p0, vec2 p1, vec2 p2, vec2 p3, float t) {
+  float t2 = t * t;
+  float t3 = t2 * t;
+  return 0.5 * ((2.0 * p1) +
+          (-p0 + p2) * t +
+          (2.0 * p0 - 5.0 * p1 + 4.0 * p2 - p3) * t2 +
+          (-p0 + 3.0 * p1 - 3.0 * p2 + p3) * t3);
+}
+
+vec2 catmullRomTangent(vec2 p0, vec2 p1, vec2 p2, vec2 p3, float t) {
+  float t2 = t * t;
+  return 0.5 * ((-p0 + p2) +
+          2.0 * (2.0 * p0 - 5.0 * p1 + 4.0 * p2 - p3) * t +
+          3.0 * (-p0 + 3.0 * p1 - 3.0 * p2 + p3) * t2);
+}
+
+ShoreSample closestPointOnShoreline(vec2 uv, vec2 points[SHORE_POINT_COUNT]) {
+  ShoreSample result;
+  result.distance = 1e10;
+  result.sign = 1.0;
+  result.param = 0.0;
+  result.position = vec2(0.0);
+  result.tangent = vec2(1.0, 0.0);
+
+  float globalParam = 0.0;
+  for (int i = 0; i < SHORE_POINT_COUNT - 3; ++i) {
+    for (int j = 0; j <= SHORELINE_STEPS; ++j) {
+      float t = float(j) / float(SHORELINE_STEPS);
+      vec2 pos = catmullRom(points[i], points[i + 1], points[i + 2], points[i + 3], t);
+      vec2 tangent = catmullRomTangent(points[i], points[i + 1], points[i + 2], points[i + 3], t);
+      if (length(tangent) > 0.0) {
+        tangent = normalize(tangent);
+      } else {
+        tangent = vec2(1.0, 0.0);
+      }
+      float dist = length(uv - pos);
+      if (dist < result.distance) {
+        float side = cro(tangent, uv - pos);
+        result.distance = dist;
+        result.position = pos;
+        result.tangent = tangent;
+        result.sign = (side >= 0.0) ? -1.0 : 1.0;
+        result.param = globalParam + t;
+      }
+    }
+    globalParam += 1.0;
+  }
+
+  return result;
 }
 
 
@@ -323,86 +398,85 @@ float noiseLayer(vec2 p, float ti){
 }
 
 
-vec3 generateBeachWaves(vec2 uv, vec2 lineStart, vec2 lineEnd, vec3 sandColor, vec3 seaBaseColor, float time) {
-    // Wave parameters
-    const int waveNumber = 16;
-    const float speed = 0.015;
-    const float waveCurve = 1.0; // Increased for more frequent waves
-    const float waveScale = 0.01; // Scale down the wave height
-    vec3 deepSeaColor = seaBaseColor * 0.3;
-    
-    float t = time * speed + 12.2;
-    vec4 col = vec4(sandColor, 0.0);
-    vec3 wetSand = sandColor * vec3(0.7, 0.6, 0.4);
-    float lastWaveAge = 10.0;
-    
+vec3 generateBeachWaves(vec2 uv, vec3 sandColor, vec3 seaBaseColor, float time, float depthScale) {
+  // Wave parameters
+  const int waveNumber = 16;
+  const float speed = 0.015;
+  const float waveCurve = 1.0;
+  vec3 deepSeaColor = seaBaseColor * 0.3;
 
-    for(int i = 0; i < waveNumber; i++) {
-        float ti = floor(t - 0.25) + float(i);
-        float waveAge = fract(t - 0.25);
-        float waveNoise = hash1(ti) / 3.0 + noise1d((uv.x + uv.y * 0.5 + ti) * waveCurve) * max(0.0, waveAge * 1.5 - 0.3);
-        
-        // Wave vertical offset with perspective
-        float offset = (uv.y + sin(t * (2.0 * 3.14159265)) / 2.2 - 0.3) + waveNoise;
-        
-        // Position in wave space
-        vec2 pos = vec2(uv.x + uv.y * 0.3, -offset / (0.2 + waveAge * 20.0) * 2.0);
+  depthScale = clamp(depthScale, 0.0, 1.0);
+  float sizeAttenuation = mix(0.35, 1.0, depthScale);
+  float foamAttenuation = mix(0.5, 1.0, depthScale);
+  float colourBlend = mix(0.25, 1.0, depthScale);
 
-        float foam = noiseLayer(pos, ti);
-        offset -= foam / 10.0;
-        offset -= noiseLayer(uv / 10.0, 0.0) / 5.0;
+  float t = time * speed + 12.2;
+  vec4 col = vec4(sandColor, 0.0);
+  vec3 wetSand = sandColor * vec3(0.7, 0.6, 0.4);
+  float lastWaveAge = 10.0;
 
-        // Max wave calculation (for wet sand)
-        float maxWaveNoise = hash1(ti) / 3.0 + noise1d((uv.x + uv.y * 0.5 + ti) * waveCurve) * max(0.0, 0.5 * 1.5 - 0.3);
-        float maxOffset = (uv.y + sin((ti + 0.5) * (2.0 * 3.14159265)) / 2.2 - 0.3) + maxWaveNoise;
-        vec2 maxPos = vec2(uv.x + uv.y * 0.3, -maxOffset / (0.2 + 0.5 * 20.0) * 2.0);
-        float maxFoam = noiseLayer(maxPos, ti);
-        maxOffset -= maxFoam / 20.0;
-        maxOffset -= noiseLayer(uv / 10.0, 0.0) / 10.0;
-        
-        if(offset < 0.0) { // In wave area
-            if(waveAge < lastWaveAge) { // Draw newer waves on top
-                vec3 n = vec3(
-                    foam - noiseLayer(pos + vec2(0.001, 0.0), ti),
-                    foam - noiseLayer(pos + vec2(0.0, 0.001), ti),
-                    0.5
-                );
-                // n = normalize(n);
-                foam = (foam + 0.8 - waveAge * waveAge + offset * offset * 0.5 + clamp(offset + 0.2, 0.0, 1.0));
-                float light = dot(n, vec3(1.0, 1.0, 1.0));
+  for(int i = 0; i < waveNumber; i++) {
+    float ti = floor(t - 0.25) + float(i);
+    float waveAge = fract(t - 0.25);
 
-                // Wave color with transparency fade
-                col.rgb = mix(sandColor, seaBaseColor, clamp(1.5 - waveAge * 3.0, 0.02, 1.0));
-                // Darken away from wave front
-                col.rgb = mix(col.rgb, deepSeaColor, -offset);
+    float noiseTerm = hash1(ti) / 3.0 + noise1d((uv.x + uv.y * 0.5 + ti) * waveCurve) * max(0.0, waveAge * 1.5 - 0.3);
+    float waveNoise = noiseTerm * sizeAttenuation;
 
-                float denseFoam = clamp(foam * 20.0 - 20.0, 0.0, 1.0) * 0.8;
-                col.rgb = mix(col.rgb, vec3(light) * 1.5, denseFoam);
+    float baseOffset = uv.y + sin(t * (2.0 * 3.14159265)) / 2.2 - 0.3;
+    float offset = mix(uv.y - 0.3, baseOffset, sizeAttenuation) + waveNoise;
 
-                // Thin white line at wave front
-                col.rgb += max(0.0, floor(offset + 1.004) * n.r * 10.0);
+    vec2 pos = vec2(uv.x + uv.y * 0.3, -offset / (0.2 + waveAge * 20.0) * 2.0);
 
-                // Specular highlights
-                col.rgb += max(0.0, dot(n, vec3(1.0, 0.3, 0.95)) * 10.0 - 5.0);
+    float foam = noiseLayer(pos, ti);
+    foam = mix(0.55, foam, foamAttenuation);
+    offset -= (foam / 10.0) * sizeAttenuation;
+    offset -= noiseLayer(uv / 10.0, 0.0) / 5.0 * sizeAttenuation;
 
-                // Foam texture
-                col.rgb *= foam * foam * (1.0 - waveAge) + waveAge * 1.2;
+    float maxNoiseTerm = hash1(ti) / 3.0 + noise1d((uv.x + uv.y * 0.5 + ti) * waveCurve) * max(0.0, 0.5 * 1.5 - 0.3);
+    float maxWaveNoise = maxNoiseTerm * sizeAttenuation;
+    float baseMaxOffset = uv.y + sin((ti + 0.5) * (2.0 * 3.14159265)) / 2.2 - 0.3;
+    float maxOffset = mix(uv.y - 0.3, baseMaxOffset, sizeAttenuation) + maxWaveNoise;
+    vec2 maxPos = vec2(uv.x + uv.y * 0.3, -maxOffset / (0.2 + 0.5 * 20.0) * 2.0);
+    float maxFoam = noiseLayer(maxPos, ti);
+    maxFoam = mix(0.7, maxFoam, foamAttenuation);
+    maxOffset -= (maxFoam / 20.0) * sizeAttenuation;
+    maxOffset -= noiseLayer(uv / 10.0, 0.0) / 10.0 * sizeAttenuation;
 
-                col.a = 1.0;
-            }
-            lastWaveAge = waveAge;
-        } else {
-            // Wet sand effect
-            if(col.a == 0.0 && waveAge > 0.5) {
-                float dryness = 50.0 * (1.0 - waveAge);
-                col.rgb = mix(col.rgb, wetSand, clamp((dryness - 2.5 - maxOffset * dryness * 2.0), 0.0, 1.0) * (1.0 - waveAge));
-            }
-        }
+    if(offset < 0.0) {
+      if(waveAge < lastWaveAge) {
+        vec3 n = vec3(
+          foam - noiseLayer(pos + vec2(0.001, 0.0), ti),
+          foam - noiseLayer(pos + vec2(0.0, 0.001), ti),
+          0.5
+        );
+        foam = (foam + 0.8 - waveAge * waveAge + offset * offset * 0.5 + clamp(offset + 0.2, 0.0, 1.0));
+        float light = dot(n, vec3(1.0, 1.0, 1.0));
 
-        t += 1.0 / float(waveNumber);
+        col.rgb = mix(sandColor, seaBaseColor, clamp(1.5 - waveAge * 3.0, 0.02, 1.0));
+        col.rgb = mix(col.rgb, deepSeaColor, -offset * sizeAttenuation);
+
+        float denseFoam = clamp(foam * 20.0 - 20.0, 0.0, 1.0) * 0.8 * foamAttenuation;
+        col.rgb = mix(col.rgb, vec3(light) * 1.5, denseFoam);
+
+        col.rgb += max(0.0, floor(offset + 1.004) * n.r * 10.0) * foamAttenuation;
+        col.rgb += max(0.0, dot(n, vec3(1.0, 0.3, 0.95)) * 10.0 - 5.0) * foamAttenuation;
+        col.rgb *= foam * foam * (1.0 - waveAge) + waveAge * 1.2;
+
+        col.a = 1.0;
+      }
+      lastWaveAge = waveAge;
+    } else {
+      if(col.a == 0.0 && waveAge > 0.5) {
+        float dryness = 50.0 * (1.0 - waveAge);
+        float wetMix = clamp((dryness - 2.5 - maxOffset * dryness * 2.0), 0.0, 1.0) * (1.0 - waveAge);
+        col.rgb = mix(col.rgb, wetSand, wetMix * colourBlend);
+      }
     }
-    
-    return col.rgb;
+
+    t += 1.0 / float(waveNumber);
+  }
+
+  return mix(seaBaseColor, col.rgb, colourBlend);
 }
 
 
@@ -471,18 +545,17 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
   float horizonY = 0.6; // Where the horizon/sky meets the beach
   float animationSpeed = 1.0;
 
+  float waveMergeDistance = 0.12; // How far into the sea waves blend back to base colour
+  float waveBeachOverlap = 0.055; // How far waves overlap onto the sand
+  float waveDepthFalloff = 3.0; // Controls how quickly waves shrink with depth
+  float waveOverlayStrength = 0.85; // Overall contribution of the waves
+
   float skyHeight = 0.6;
   float cloudSpeed = 0.1;
   vec2 sunPos = vec2(0.14, 0.84);
   float sunSize = 0.03;
   float sunBlurSize = 0.02;
   float cloudSize = 0.12;
-
-  float seaWidth = 0.8; // Expanded to fill more screen
-  vec2 shoreP0 = vec2(0.0, -0.04);
-  vec2 shoreP1 = vec2(0.0, skyHeight);
-  vec2 shoreP2 = vec2(seaWidth, skyHeight);
-  float foamIntensity = 0.9;
 
   vec2 towelCenter = vec2(0.5, 0.2);
   float towelWidth = 0.8;
@@ -513,13 +586,15 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
   vec3 color = vec3(0.0);
   vec3 whiteColor = rgb(255, 255, 255);
 
-  vec3 skyColor = mix(rgb(96, 178, 197), rgb(35, 140, 181), uv.x + uv.y);
+  vec3 skyColor = mix(rgb(95, 178, 197), rgb(30, 135, 178), 0.4*uv.x + 0.3*uv.y);
   vec3 cloudColor = rgb(255, 255, 255);
   vec3 sunColor = rgb(240, 180, 27);
 
   vec3 beachColor = rgb(234, 169, 61);
 
-  vec3 seaColor = mix(rgb(0, 105, 148), rgb(0, 168, 232), uv.y * 2.0);
+  vec3 seaColor = rgb(12, 129, 164);
+  vec3 shallowSeaColor = rgb(58, 176, 161);
+  vec3 deepSeaColor = rgb(10, 103, 150);
   vec3 foamColor = rgb(200, 230, 240);
 
   vec3 rockColor = rgb(230, 122, 21);
@@ -529,6 +604,23 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
   vec3 towelTone1 = whiteColor;
   vec3 towelTone2 = rgb(0, 105, 200);
 
+  vec2 shorePoints[SHORE_POINT_COUNT];
+  shorePoints[0] = vec2(-0.25, -0.12);
+  shorePoints[1] = vec2(0.02, -0.02);
+  shorePoints[2] = vec2(0.06, 0.15);
+  shorePoints[3] = vec2(0.12, 0.30);
+  shorePoints[4] = vec2(0.22, 0.46);
+  shorePoints[5] = vec2(0.45, 0.57);
+  shorePoints[6] = vec2(0.82, 0.62);
+
+  ShoreSample shore = closestPointOnShoreline(uv, shorePoints);
+  float seaDist = shore.distance * shore.sign;
+  float alongNorm = shore.param / float(SHORE_POINT_COUNT - 3);
+  alongNorm = clamp(alongNorm, 0.0, 1.0);
+  vec2 shoreTangent = shore.tangent;
+  vec2 shoreNormal = vec2(-shoreTangent.y, shoreTangent.x);
+  vec2 localCoord = vec2(dot(uv - shore.position, shoreTangent), dot(uv - shore.position, shoreNormal));
+  vec2 beachUV = vec2(alongNorm * 6.0 + localCoord.x * 4.0, localCoord.y * 6.0);
 
   // ===========================================
   // =================== Sky ===================
@@ -557,26 +649,39 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
   if (uv.y <= skyHeight) {
     color = beachColor;
   }
-
   // ==========================================
   // =================== Sea ==================
   // ==========================================
-  float seaDist = sdSea(uv, shoreP0, shoreP1, shoreP2);
+  if (uv.y <= skyHeight) {
+    float seaMask = smoothstep(0.04, -0.015, seaDist);
+    vec3 baseSea = seaColor;
+    vec3 baseBeach = beachColor;
 
-  // Align beachUV with shoreline
-  vec2 lineDir = normalize(shoreP2 - shoreP0);
-  vec2 lineNormal = normalize(vec2(lineDir.y, -lineDir.x));
-  vec2 beachUV = vec2(dot(uv - shoreP0, lineDir), dot(uv - shoreP0, lineNormal));
-  beachUV *= 6.0; // Scale down for beach space
-  vec3 waveColor = generateBeachWaves(beachUV, shoreP0, shoreP1, beachColor, seaColor, iTime);
-  if (uv.y < skyHeight) {
-    float waveBlend = smoothstep(-0.02, 0.01, seaDist);
-    color = waveColor;mix(seaColor, waveColor, waveBlend);
-  }
-  if (uv.y < skyHeight && seaDist < 0.0) {
-    float depthFactor = smoothstep(0.0, -0.3, uv.y - skyHeight - uv.x * 0.02);
-    vec3 deepSeaColor = seaColor * 0.5;
-    color = mix(deepSeaColor, seaColor, depthFactor);
+    color = mix(baseBeach, baseSea, seaMask);
+
+    float depthIntoWater = max(-seaDist, 0.0);
+    float waveDepthFactor = clamp(exp(-waveDepthFalloff * depthIntoWater), 0.0, 1.0);
+    float uvDepthScale = mix(0.6, 1.0, waveDepthFactor);
+    vec2 wavesUV = vec2(-beachUV.x, -beachUV.y) * uvDepthScale;
+
+    float waveSeaBlend = 1.0 - smoothstep(0.0, waveMergeDistance, depthIntoWater);
+    float distWavesToShore = 1.4;
+    float waveBeachFactor = 1.0 - smoothstep(0.0, waveBeachOverlap, max(seaDist, distWavesToShore));
+    float waveMask = clamp(max(waveSeaBlend, waveBeachFactor), 0.0, 1.0) * waveOverlayStrength;
+
+    vec3 waveColor = generateBeachWaves(wavesUV, beachColor, seaColor, iTime, waveDepthFactor);
+    float maskIntensity = waveMask * mix(0.35, 1.0, waveDepthFactor);
+    color = mix(color, waveColor, maskIntensity);
+
+    float depthGradient = clamp(-seaDist * 4.0, 0.0, 1.0);
+    vec3 deepSeaColor = mix(baseSea * 0.45, baseSea, depthGradient);
+    color = mix(color, deepSeaColor, seaMask * 0.6);
+
+    // float groundDepth = depthFromY(uv.y, horizonY);
+    // vec3 beachFog = mix(baseBeach, skyColor, 0.35);
+    // vec3 seaFog = mix(baseSea, skyColor, 0.55);
+    // vec3 fogTarget = mix(beachFog, seaFog, seaMask);
+    // color = addDepthHaze(color, groundDepth, fogTarget, 1.5);
   }
 
   // =============================================
@@ -668,7 +773,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
   // vec2 swimmerCenter = vec2(0.28 + 0.04*sin(iTime*0.6), 0.38 + 0.015*cos(iTime*2.5));
   
   // // Check if swimmer is in water using triangle
-  // float swimmerInSea = sdTriangle(swimmerCenter, shoreP0, shoreP1, shoreP2);
+  // float swimmerInSea = sdTriangle(swimmerCenter, shore.position, shore.position + shoreNormal * 0.1, shore.position - shoreTangent * 0.1);
   
   // if (swimmerInSea < 0.0 && swimmerCenter.y < skyHeight) {
   //   // Swimming person (side view, doing front crawl)

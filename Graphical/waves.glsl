@@ -104,12 +104,12 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
   vec2 lineNormal = normalize(vec2(lineDir.y, -lineDir.x));
 
 
-  float seaDist = sdTriangle(uv, shoreP0, shoreP1, shoreP2);
+  // float seaDist = sdTriangle(uv, shoreP0, shoreP1, shoreP2);
 
-    if(seaDist < 0.) {
-      fragColor = vec4(sandColor, 0.0);
-      return;
-    }
+  //   if(seaDist < 0.) {
+  //     fragColor = vec4(sandColor, 0.0);
+  //     return;
+  //   }
     uv = vec2(dot(uv - shoreP0, lineDir), dot(uv - shoreP0, lineNormal));
     uv *= 4.0; // Scale down for beach space
 
