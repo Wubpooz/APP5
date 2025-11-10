@@ -157,6 +157,29 @@ vec2 applyPerspective(vec2 uv, vec2 vanishingPoint, float strength) {
   return vanishingPoint + dir * factor;
 }
 
+// Apply vertical perspective: objects higher up (further away) get scaled down
+vec2 applyVerticalPerspective(vec2 uv, float horizonY, float strength) {
+  // Distance from horizon (0 at horizon, 1 at bottom)
+  float depth = (uv.y - horizonY) / (1.0 - horizonY);
+  depth = clamp(depth, 0.0, 1.0);
+  
+  // Scale factor: 0.0 (small) at horizon, 1.0 (full size) at bottom
+  float scale = mix(0.1, 1.0, pow(depth, strength));
+  
+  // Apply horizontal compression for perspective
+  float xFromCenter = uv.x - 0.5;
+  float perspectiveX = 0.5 + xFromCenter * scale;
+  
+  return vec2(perspectiveX, uv.y);
+}
+
+// Get scale factor for objects based on their y position
+float getPerspectiveScale(float y, float horizonY, float strength) {
+  float depth = (y - horizonY) / (1.0 - horizonY);
+  depth = clamp(depth, 0.0, 1.0);
+  return mix(0.1, 1.0, pow(depth, strength));
+}
+
 // Reverse perspective transformation
 vec2 removePerspective(vec2 uv, vec2 vanishingPoint, float strength) {
   vec2 dir = uv - vanishingPoint;
@@ -442,15 +465,17 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
   // =================== Parameters ===================
   // ==================================================
   float aspectRatio = iResolution.x / iResolution.y;
-  vec2 vanishingPoint = vec2(-0.12, .21);
-  float perspectiveStrength = 0.02;
+  vec2 vanishingPoint = vec2(0.1, 0.6); // Centered at horizon
+  float perspectiveStrength = 20.0; // Higher = more perspective
+  float horizonY = 0.6; // Where the horizon/sky meets the beach
   float animationSpeed = 1.0;
 
   float skyHeight = 0.6;
   float cloudSpeed = 0.1;
   vec2 sunPos = vec2(0.14, 0.84);
-  float sunSize = 0.07;
-  float sunBlurSize = 0.05;
+  float sunSize = 0.03;
+  float sunBlurSize = 0.02;
+  float cloudSize = 0.12;
 
   float seaWidth = 0.6; // Expanded to fill more screen
   vec2 shoreP0 = vec2(0.0, -0.04);
@@ -478,8 +503,6 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
   vec3 p = vec3(uv, 0.0);
 
   vec2 uvOriginal = uv;
-  // Apply perspective to UVs for beach objects
-  vec2 uvPerspective = applyPerspective(uv, vanishingPoint, perspectiveStrength);
   
   float time = iTime * animationSpeed;
 
@@ -504,32 +527,25 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
   vec3 towelTone2 = rgb(0, 105, 200);
 
 
-  uv = applyPerspective(uv, vanishingPoint, perspectiveStrength);
   // ===========================================
   // =================== Sky ===================
   // ===========================================
   float cloudMask = 0.0;
-  cloudMask = max(cloudMask, cloudBlob(uv, vec2(0.32 + 0.06*sin(iTime*0.4), 0.82), 0.2));
-  cloudMask = max(cloudMask, cloudBlob(uv, vec2(0.62 + 0.05*cos(iTime*0.5), 0.72), 0.2));
-  cloudMask = max(cloudMask, cloudBlob(uv, vec2(0.82 + 0.04*sin(iTime*0.3), 0.90), 0.2));
+  float sunDist = sdCircle(uv - sunPos, sunSize);
+  cloudMask = max(cloudMask, cloudBlob(uv, vec2(0.32 + 0.06*sin(iTime*0.4), 0.82), cloudSize));
+  cloudMask = max(cloudMask, cloudBlob(uv, vec2(0.62 + 0.05*cos(iTime*0.5), 0.72), cloudSize));
+  cloudMask = max(cloudMask, cloudBlob(uv, vec2(0.82 + 0.04*sin(iTime*0.3), 0.90), cloudSize));
   if (uv.y > skyHeight) {
-    color = skyColor;
+    if (sunDist < 0.0) {
+      color = sunColor;
+    } else if (sunDist > 0.0 && sunDist < sunBlurSize) {
+        // Sun rays
+        color = mix(sunColor, skyColor, sunDist / sunBlurSize);
+    } else {
+      color = skyColor;
+    }
     color = mix(color, cloudColor, cloudMask);
   }
-
-  // ===========================================
-  // =================== Sun ===================
-  // ===========================================
-  float sunDist = sdCircle(uv - sunPos, sunSize);
-  if (sunDist < 0.0) {
-    color = sunColor;
-  }
-
-  // Sun rays
-  if (sunDist > 0.0 && sunDist < sunBlurSize) {
-    color = mix(sunColor, color, sunDist / sunBlurSize);
-  }
-
 
 
   // =============================================
@@ -592,14 +608,18 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
   // ==============================================
   // =================== People ===================
   // ==============================================
-  // Towel with improved perspective - make it smaller and closer to beach
-  vec2 towelCenterAdj = vec2(0.42, 0.15);
-  float towelSizeAdj = 0.08; // Smaller for better perspective
+  // Towel with vertical perspective - appears smaller when higher (further away)
+  vec2 towelCenterAdj = vec2(0.5 * aspectRatio, 0.25); // Position on beach
+  float towelBaseSize = 0.15; // Base size
+  
+  // Calculate perspective scale based on y position
+  float towelScale = getPerspectiveScale(towelCenterAdj.y, horizonY, perspectiveStrength);
+  float towelSizeAdj = towelBaseSize * towelScale;
+  
   float towelWidthAdj = 0.6;
   float towelHeightAdj = 0.3;
   float towelSkewAdj = 0.15;
   
-  // Apply perspective to towel position for depth effect
   vec2 towelPerspectivePos = vec2(towelCenterAdj.x, towelCenterAdj.y);
   float towel = towelShape(uv, towelPerspectivePos, towelSizeAdj, towelWidthAdj, towelHeightAdj, towelSkewAdj, numStripes, stripeOrientation);
   
