@@ -291,23 +291,70 @@ float sdSea(vec2 uv, vec2 p0, vec2 p1, vec2 p2) {
     float triangleDist = sdTriangle(uv, p0, p1, p2);
 
     const int numSegments = 100;
-    vec2 bezierPoints[numSegments + 1];
+    vec2 bezierPoints[3*numSegments + 1];
     bezierPoints[0] = p0;
-    bezierPoints[numSegments] = p2;
 
-    for(int i = 1; i < numSegments; i++) {
-        float t = float(i) / float(numSegments);
-        bezierPoints[i] = mix(p0, p2, t) + vec2(.1, 0.2 * sin(t * 3.14159265));
-        //mix(mix(p0, p1, t), mix(p1, p2, t), t);
+    // Define specific control points: (t_position, control_point_offset_from_line)
+    // t is from 0.0 (p0) to 1.0 (p2)
+    const int numSpecific = 9;
+    float specificT[numSpecific];
+    vec2 specificOffset[numSpecific];
+    
+    specificT[0] = 0.2;  specificOffset[0] = vec2(0.4, 0.1);
+    specificT[1] = 0.3;  specificOffset[1] = vec2(1.4, 0.25);
+    specificT[2] = 0.42; specificOffset[2] = vec2(0.2, 0.02);
+    specificT[3] = 0.5;  specificOffset[3] = vec2(0.1, 0.01);
+    specificT[4] = 0.6;  specificOffset[4] = vec2(0.05, 0.005);
+    specificT[5] = 0.62;  specificOffset[4] = vec2(0.05, 0.005);
+    specificT[6] = 0.65;  specificOffset[6] = vec2(0.05, 0.005);
+    specificT[7] = 0.67;  specificOffset[7] = vec2(0.05, 0.005);
+    specificT[8] = 0.7;  specificOffset[8] = vec2(0.05, 0.005);
+
+    // Build the bezier curve with quadratic segments
+    for(int i = 0; i < numSegments; i++) {
+        float t0 = float(i) / float(numSegments);
+        float t1 = float(i + 1) / float(numSegments);
+        
+        // Start point of segment
+        bezierPoints[3*i] = mix(p0, p2, t0);
+        
+        // Find if there's a specific control point near t0
+        vec2 controlOffset = vec2(0.0);
+        bool foundSpecific = false;
+        
+        for(int j = 0; j < numSpecific; j++) {
+            // Check if this segment contains the specific control point
+            if(t0 <= specificT[j] && specificT[j] <= t1) {
+                controlOffset = specificOffset[j];
+                foundSpecific = true;
+                break;
+            }
+        }
+        
+        // If no specific control point, use animated default
+        if(!foundSpecific) {
+            float tMid = (t0 + t1) * 0.5;
+            controlOffset = vec2(
+                abs(8.0 * sin(tMid * 3.14159265 + iTime * 0.5)),
+                abs(4.0 * cos(tMid * 3.14159265 + iTime * 0.5))
+            ) * 0.05;
+        }
+        
+        // Control point for this segment
+        float tControl = (t0 + t1) * 0.5;
+        bezierPoints[3*i + 1] = mix(p0, p2, tControl) + controlOffset;
+        
+        // End point of segment
+        bezierPoints[3*i + 2] = mix(p0, p2, t1);
     }
 
+    // Calculate distance to the multi-segment bezier curve
     float bezierDist = 1e6;
     for (int i = 0; i < numSegments; i++) {
-        bezierDist = min(bezierDist, udSegment(uv, bezierPoints[i], bezierPoints[i+1]));
+        bezierDist = min(bezierDist, sdBezier(uv, bezierPoints[3*i], bezierPoints[3*i + 1], bezierPoints[3*i + 2]));
     }
 
-    // Determine if uv is "inside" or "outside" the curve using the triangle's winding order.
-    // This creates a signed distance from the curve.
+    // Determine if uv is "inside" or "outside" the curve
     vec2 e0 = p1 - p0;
     vec2 e2 = p0 - p2;
     float s = sign(e0.x * e2.y - e0.y * e2.x);
@@ -315,7 +362,6 @@ float sdSea(vec2 uv, vec2 p0, vec2 p1, vec2 p2) {
     float side = sign(v0.x * (p2.y - p0.y) - v0.y * (p2.x - p0.x));
 
     return opSmoothIntersection(triangleDist, bezierDist * side * s, 0.02);
-
 }
 
 
