@@ -1,3 +1,4 @@
+#iChannel0 'file://noise_2.png'
 // ===================================================================
 // ======================== CSG Operations ============================
 // ===================================================================
@@ -281,10 +282,18 @@ float noise1d(float p) {
 }
 
 // Layered noise for wave texture
-float noiseLayer(vec2 p, float ti) {
-    float e = 0.0;
-    for(float j = 1.0; j < 9.0; j += 1.0) {
-        e += noise(p * j + vec2(ti * 7.89541) + vec2(j * 159.78)) / (j / 2.0);
+// float noiseLayer(vec2 p, float ti) {
+//     float e = 0.0;
+//     for(float j = 1.0; j < 9.0; j += 1.0) {
+//         e += noise(p * j + vec2(ti * 7.89541) + vec2(j * 159.78)) / (j / 2.0);
+//     }
+//     e /= 8.5;
+//     return e;
+// }
+float noiseLayer(vec2 p, float ti){
+    float e =0.;
+    for(float j=1.; j<9.; j++){
+        e += texture(iChannel0, p * float(j) + vec2(ti*7.89541) + vec2(j*159.78) ).r / (j/2.);
     }
     e /= 8.5;
     return e;
@@ -293,10 +302,10 @@ float noiseLayer(vec2 p, float ti) {
 
 vec3 generateBeachWaves(vec2 uv, vec2 lineStart, vec2 lineEnd, vec3 sandColor, vec3 seaBaseColor, float time) {
     // Wave parameters
-    const int waveNumber = 8;
+    const int waveNumber = 16;
     const float speed = 0.015;
     const float waveCurve = 1.0; // Increased for more frequent waves
-    const float waveScale = 0.15; // Scale down the wave height
+    const float waveScale = 0.01; // Scale down the wave height
     vec3 deepSeaColor = seaBaseColor * 0.3;
     
     float t = time * speed + 12.2;
@@ -433,8 +442,8 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
   // =================== Parameters ===================
   // ==================================================
   float aspectRatio = iResolution.x / iResolution.y;
-  vec2 vanishingPoint = vec2(aspectRatio * 0.2, 0.6); // Center horizontally, at horizon
-  float perspectiveStrength = 0.2;
+  vec2 vanishingPoint = vec2(-0.12, .21);
+  float perspectiveStrength = 0.02;
   float animationSpeed = 1.0;
 
   float skyHeight = 0.6;
@@ -443,7 +452,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
   float sunSize = 0.07;
   float sunBlurSize = 0.05;
 
-  float seaWidth = 0.95; // Expanded to fill more screen
+  float seaWidth = 0.6; // Expanded to fill more screen
   vec2 shoreP0 = vec2(0.0, -0.04);
   vec2 shoreP1 = vec2(0.0, skyHeight);
   vec2 shoreP2 = vec2(seaWidth, skyHeight);
@@ -495,6 +504,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
   vec3 towelTone2 = rgb(0, 105, 200);
 
 
+  uv = applyPerspective(uv, vanishingPoint, perspectiveStrength);
   // ===========================================
   // =================== Sky ===================
   // ===========================================
@@ -521,6 +531,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
   }
 
 
+
   // =============================================
   // =================== Beach ===================
   // =============================================
@@ -533,21 +544,19 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
   // ==========================================
   float seaDist = sdSea(uv, shoreP0, shoreP1, shoreP2);
 
-  if (uv.y < skyHeight && seaDist < 0.0) {
-    color = seaColor;
-  }
-
   // Align beachUV with shoreline
   vec2 lineDir = normalize(shoreP2 - shoreP0);
   vec2 lineNormal = normalize(vec2(lineDir.y, -lineDir.x));
   vec2 beachUV = vec2(dot(uv - shoreP0, lineDir), dot(uv - shoreP0, lineNormal));
-  beachUV *= 2.0; // Scale down for beach space
+  beachUV *= 6.0; // Scale down for beach space
   vec3 waveColor = generateBeachWaves(beachUV, shoreP0, shoreP1, beachColor, seaColor, iTime);
   if (uv.y < skyHeight) {
-    float waveBlend = smoothstep(-0.02, 0.08, seaDist);
-    color = mix(color, waveColor, waveBlend);
+    float waveBlend = smoothstep(-0.02, 0.01, seaDist);
+    color = waveColor;mix(seaColor, waveColor, waveBlend);
   }
-  
+  if (uv.y < skyHeight && seaDist < 0.0) {
+    color = seaColor;
+  }
 
   // =============================================
   // =================== Rocks ===================
@@ -591,7 +600,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
   float towelSkewAdj = 0.15;
   
   // Apply perspective to towel position for depth effect
-  vec2 towelPerspectivePos = applyPerspective(towelCenterAdj, vanishingPoint, perspectiveStrength);
+  vec2 towelPerspectivePos = vec2(towelCenterAdj.x, towelCenterAdj.y);
   float towel = towelShape(uv, towelPerspectivePos, towelSizeAdj, towelWidthAdj, towelHeightAdj, towelSkewAdj, numStripes, stripeOrientation);
   
   // Add shadow for towel (simple offset shadow)
