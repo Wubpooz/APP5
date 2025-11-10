@@ -504,6 +504,23 @@ vec3 generateBeachWaves(vec2 uv, vec3 sandColor, vec3 seaBaseColor, float time, 
 }
 
 
+
+vec3 randomRockShape(vec2 uv, vec2 center, float size, float noiseIntensity) {
+  vec2 p = (uv - center) / size;
+
+  float baseShape = sdCircle(p, 0.5);
+
+  // Add noise to the shape
+  float n = fbm(p * 3.0, 0.0);
+  float noisyShape = baseShape + (n - 0.5) * noiseIntensity;
+
+  float feather = 0.02;
+  float mask = 1.0 - smoothstep(0.0, feather, noisyShape);
+
+  return vec3(mask);
+}
+
+
 // parallelogram towel with white and blue stripes
 // Returns 0 for outside, 1 for white stripes, 2 for blue stripes
 // orientation: 0.0 = horizontal stripes, 1.0 = vertical stripes
@@ -739,18 +756,12 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
     float depthGradient = clamp(-seaDist * 4.0, 0.0, 1.0);
     vec3 deepSeaColor = mix(baseSea * 0.45, baseSea, depthGradient);
     color = mix(color, deepSeaColor, seaMask * 0.6);
-
-    // float groundDepth = depthFromY(uv.y, horizonY);
-    // vec3 beachFog = mix(baseBeach, skyColor, 0.35);
-    // vec3 seaFog = mix(baseSea, skyColor, 0.55);
-    // vec3 fogTarget = mix(beachFog, seaFog, seaMask);
-    // color = addDepthHaze(color, groundDepth, fogTarget, 1.5);
   }
 
     // =============================================
     // =================== Rocks ===================
     // =============================================  
-    vec2 rockPointBase = vec2(0.6, 0.56);
+    vec2 rockPointBase = vec2(-0.3, 0.56);
     float rockDepth = yToDepth(rockPointBase.y, horizonY);
     float rockScale = getDepthScale(rockDepth, focalLength);
 
@@ -761,21 +772,137 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
     );
 
     // Scale rock triangle points with perspective
-    vec2 rockTop = rockPoint + vec2(2.0, 1.7) * rockScale;
-    vec2 rockBottom = rockPoint + vec2(2.0, 0.14) * rockScale;
+    vec2 rockTop = rockPoint + vec2(8.0, 3.7) * rockScale;
+    vec2 rockBottom = rockPoint + vec2(8.0, -1.14) * rockScale;
 
     float rockDist = sdTriangle(uv, rockPoint, rockTop, rockBottom);
-    if (rockDist < 0.0) {
-      color = rockColor;
-      // Add subtle depth-based shading
-      float shadeFactor = mix(0.85, 1.0, rockScale);
-      color *= shadeFactor;
+    // Fractal cliff fill: use layered ridged fbm for height & apply threshold
+    float cliffUVScale = 3.0 * rockScale;
+    vec2 cliffUV = (uv - rockPoint) / (rockScale * 1.0);
+    
+    // Rotate/scale cliffUV to stretch along triangle edges
+    vec2 e1n = normalize(rockTop - rockPoint);
+    vec2 e2n = normalize(rockBottom - rockPoint);
+    mat2 align = mat2(e1n.x, e2n.x, e1n.y, e2n.y);
+    cliffUV = align * cliffUV * cliffUVScale;
+
+    // Ridged fbm
+    float ridge = 0.0;
+    float amp = 1.0;
+    vec2 pR = cliffUV;
+    for(int i=0;i<5;i++) {
+      float n = noise(pR);
+      n = 1.0 - abs(2.0*n - 1.0); // ridged
+      ridge += n * amp;
+      pR = mat2(1.7, -1.2, 1.2, 1.7) * pR * 1.85;
+      amp *= 0.55;
     }
-  // // Shading for depth
-  // float rockShading = smoothstep(-0.05, 0.0, rockDist);
-  // color = mix(darkRockColor, lightRockColor, rockShading);
+    ridge /= 1.0 + 0.55 + 0.3025 + 0.166375 + 0.0915; // approximate normalization
 
+    // Height mask: allow spill (slightly outside triangle) using rockDist + ridge
+    float spillMargin = 0.04 * (0.7 + 0.3 * ridge);
+    float insideMask = smoothstep(spillMargin, -spillMargin, rockDist);
+    
+    if (insideMask > 0.0) {
+      // Build local coordinates (barycentric-like) within triangle
+      vec2 A = rockPoint;
+      vec2 E1 = rockTop - rockPoint;
+      vec2 E2 = rockBottom - rockPoint;
+      vec2 V = uv - A;
+      float denom = cro(E1, E2);
+      // Guard against degenerate triangle
+      if (abs(denom) > 1e-6) {
+        float u = cro(V, E2) / denom;
+        float v = cro(E1, V) / denom;
+        vec2 q = vec2(u, v); // Triangle local space, valid if u>=0,v>=0,u+v<=1
 
+        // Use ridge height to modulate density for stratification
+        float baseDensity = mix(30.0, 110.0, ridge);
+        float density = max(8.0, baseDensity * rockScale);
+
+  // Cellular (Voronoi) pattern in q-space for rock fragments
+        vec2 p = q * density;
+        vec2 pi = floor(p);
+        vec2 pf = fract(p);
+
+        float da = 1e9; // nearest
+        float db = 1e9; // second nearest
+        vec2 bestCell = vec2(0.0);
+        vec2 bestDelta = vec2(0.0);
+
+        for (int oy = -1; oy <= 1; ++oy) {
+          for (int ox = -1; ox <= 1; ++ox) {
+            vec2 o = vec2(float(ox), float(oy));
+            vec2 cell = pi + o;
+            // Jittered seed inside the cell
+            float jx = rand(cell + vec2(0.123, 0.457));
+            float jy = rand(cell + vec2(7.321, 3.113));
+            vec2 r = vec2(jx, jy);
+            vec2 g = o + r; // seed position in the 1x1 neighborhood cell
+
+            // Allow limited spill using ridge-based expansion
+            vec2 seedQ = (cell + r) / density;
+            if (seedQ.x + seedQ.y > 1.15 + 0.1 * ridge || seedQ.x < -0.1 || seedQ.y < -0.1) {
+              continue; // outside expanded domain
+            }
+
+            vec2 d = pf - g;
+            float dist = dot(d, d);
+            if (dist < da) {
+              db = da;
+              da = dist;
+              bestCell = cell;
+              bestDelta = d;
+            } else if (dist < db) {
+              db = dist;
+            }
+          }
+        }
+
+  // Convert squared distances to actual distances
+        da = sqrt(da);
+        db = sqrt(db);
+
+  // Fractal cliff fragment shading with pseudo-3D lighting
+  float idNoise = rand(bestCell + vec2(3.71, 1.91));
+  float striation = ridge * (0.6 + 0.4 * idNoise);
+  vec3 layerColor = mix(darkerRockColor, rockColor, clamp(0.25 + striation, 0.0, 1.0));
+  // Add subtle vertical gradient to mimic erosion
+  float erosion = smoothstep(0.0, 1.0, u + v);
+  layerColor = mix(layerColor, darkRockColor, 0.25 * erosion * (0.5 + 0.5 * idNoise));
+
+  // Sphere-cap normal from distance to seed center (bestDelta)
+  vec2 dlocal = bestDelta;                   // in cell space
+  float radius = 0.33 + 0.12 * idNoise;      // stone radius in cell space
+  float r = length(dlocal);
+  float rN = clamp(r / max(radius, 1e-4), 0.0, 1.0);
+  float heightScale = 0.9;                   // thickness of stones
+  float z = sqrt(max(0.0, 1.0 - rN * rN)) * heightScale;
+  vec3 N = normalize(vec3(dlocal / max(radius, 1e-4), z));
+
+  // Lighting
+  vec3 L = normalize(vec3(0.6, 0.35, 0.7));  // sun-ish direction
+  vec3 V = vec3(0.0, 0.0, 1.0);              // view direction
+  vec3 H = normalize(L + V);
+  float ndotl = clamp(dot(N, L), 0.0, 1.0);
+  float spec = pow(max(dot(N, H), 0.0), 32.0) * 0.25;
+
+  // Edge darkening (AO) using F2-F1 distance
+  float edgeAO = smoothstep(0.02, 0.15, db - da);
+
+  vec3 fragColorRock = layerColor;
+  fragColorRock *= mix(0.35, 1.05, ndotl);      // diffuse lighting
+  fragColorRock += spec * (0.4 + 0.6 * idNoise);
+  fragColorRock *= 0.85 + 0.15 * edgeAO;        // crevice darkening
+  // Accent ridge height
+  fragColorRock += 0.12 * ridge * vec3(1.0, 0.6, 0.3);
+  color = fragColorRock;
+      } else {
+        color = rockColor;
+      }
+    }
+
+    
   // ==============================================
   // =================== People ===================
   // ==============================================
