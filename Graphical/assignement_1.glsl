@@ -522,6 +522,170 @@ vec3 randomRockShape(vec2 uv, vec2 center, float size, float noiseIntensity) {
 }
 
 
+// ===================================================================
+// ================== Procedural Rock Shape with Shading =============
+// ===================================================================
+
+// Helper: 2D rotation matrix
+mat2 rotate2D(float a) {
+  float s = sin(a), c = cos(a);
+  return mat2(c, -s, s, c);
+}
+
+// Generate a pseudo-random number based on vec2
+float hash(vec2 p) {
+  return fract(sin(dot(p, vec2(41.23, 289.13))) * 43758.5453);
+}
+
+// Procedural irregular polygon rock shape with noise
+float sdProceduralRock(vec2 uv, vec2 center, float radius, float irregularity, float seed) {
+  vec2 p = uv - center;
+  
+  // Number of facets (random between 6 and 10 based on seed)
+  int facets = 6 + int(floor(hash(vec2(seed, seed * 1.3)) * 5.0));
+  
+  float angleStep = 6.28318 / float(facets);
+  
+  // Build vertices array
+  vec2 vertices[10];
+  for(int i = 0; i < 10; i++) {
+    if(i >= facets) break;
+    float angle = float(i) * angleStep;
+    float r = radius * (0.6 + hash(vec2(seed + float(i) * 0.1, seed * 2.0)) * irregularity);
+    vertices[i] = r * vec2(cos(angle), sin(angle));
+  }
+  
+  // Signed distance to polygon using winding number
+  float d = dot(p - vertices[0], p - vertices[0]);
+  float s = 1.0;
+  
+  for(int i = 0, j = facets - 1; i < facets; j = i, i++) {
+    if(i >= 10 || j >= 10) break;
+    
+    vec2 e = vertices[j] - vertices[i];
+    vec2 w = p - vertices[i];
+    vec2 b = w - e * clamp(dot(w, e) / dot(e, e), 0.0, 1.0);
+    d = min(d, dot(b, b));
+    
+    bvec3 c = bvec3(p.y >= vertices[i].y, p.y < vertices[j].y, e.x * w.y > e.y * w.x);
+    if(all(c) || all(not(c))) s *= -1.0;
+  }
+  
+  // Add organic noise perturbation
+  float n = fbm(p * 3.0 + vec2(seed), 0.0) * 0.015;
+  
+  // Return signed distance (negative inside)
+  return s * sqrt(d) + n;
+}
+
+// Rock with 3-tone shading (light on left, shadow on right)
+// Returns: 0 = outside, 1 = shadow, 2 = mid, 3 = light
+float proceduralRockWithShading(vec2 uv, vec2 center, float radius, float irregularity, float seed) {
+  float dist = sdProceduralRock(uv, center, radius, irregularity, seed);
+
+  if(dist > 0.0) return 0.0; // Outside rock
+
+  // Calculate position relative to rock center
+  vec2 localPos = (uv - center) / radius;
+  float horizontalOffset = localPos.x;
+
+  // Light from left, shadow on right
+  if(horizontalOffset < -0.1) {
+    return 3.0; // Light (left side)
+  }
+
+  // Gradient shadow from left to right
+  float shadowIntensity = smoothstep(-0.1, 0.4, horizontalOffset);
+
+  // Add noise to break up uniform bands
+  float noiseBreakup = fbm((uv - center) * 8.0, 0.0) * 0.2;
+  shadowIntensity += noiseBreakup;
+
+  // Edge darkening for depth
+  float edgeDist = -dist;
+  float edgeDarkening = smoothstep(0.0, 0.05, edgeDist);
+
+  // Combine effects
+  float shadeFactor = edgeDarkening * (1.0 - shadowIntensity * 0.75);
+
+  // Return 3-tone shading
+  if(shadeFactor > 0.85) return 3.0;  // Light
+  if(shadeFactor > 0.55) return 2.0;  // Mid
+  return 1.0;                          // Shadow
+}
+
+// ===================================================================
+// =================== Cliff Wall Generator ==========================
+// ===================================================================
+
+// Generate a cliff wall with layered rocks
+vec3 cliffWall(vec2 uv, vec2 origin, vec2 endTop, vec2 endBottom, float seed, vec3 rockLight, vec3 rockMid, vec3 rockDark, vec3 bgColor) {
+
+  int rockNumber = 5;
+
+  float vertical_step = 0.04;
+  float horizontal_step = 0.15;
+  float horizontal_position_variation = 0.008;
+  float vertical_position_variation = 0.006;
+
+  float slope = 2.0;
+
+  float main_radius = 0.05;
+  float radius_variation = 0.08;
+
+  vec3 col = bgColor;
+  
+  // Transform UV to cliff-local coordinates
+  vec2 cliffOrigin = origin;
+  vec2 localUV = uv - cliffOrigin;
+
+  // Layered rock clusters (5 vertical tiers, 5 horizontal positions)
+  for (int i = 0; i < rockNumber; i++) {
+    float yi = float(i) * vertical_step;
+    
+    for (int j = 0; j < rockNumber; j++) {
+      float xj = float(j) * horizontal_step;
+      
+      // Randomize position slightly
+      vec2 center = cliffOrigin + vec2(
+        xj + horizontal_position_variation * hash(vec2(float(i), float(j))),
+        yi + vertical_position_variation * hash(vec2(float(j), float(i)))
+      );
+
+      center.x += slope * yi;
+
+      // Randomized size and irregularity
+      float radius = main_radius + radius_variation * hash(vec2(float(j), float(i) + 1.0));
+      float irregularity = 0.4 + 0.3 * hash(center * 5.0);
+      float rockSeed = seed + float(i * 5 + j);
+      
+      float rockResult = proceduralRockWithShading(uv, center, radius, irregularity, rockSeed);
+      
+      if (rockResult > 0.0) {
+        vec3 rockColor;
+        if (rockResult == 3.0) {
+          rockColor = rockLight;
+        } else if (rockResult == 2.0) {
+          rockColor = rockMid;
+        } else {
+          rockColor = rockDark;
+        }
+        
+        // Add per-rock color variation
+        float colorVar = 0.9 + 0.2 * hash(center * 10.0);
+        rockColor *= colorVar;
+        
+        // Blend based on distance
+        float dist = sdProceduralRock(uv, center, radius, irregularity, rockSeed);
+        float blend = smoothstep(0.25, 0.1, dist);
+        col = mix(col, rockColor, blend);
+      }
+    }
+  }
+  
+  return col;
+}
+
 // parallelogram towel with white and blue stripes
 // Returns 0 for outside, 1 for white stripes, 2 for blue stripes
 // orientation: 0.0 = horizontal stripes, 1.0 = vertical stripes
@@ -648,7 +812,8 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
   vec3 towelTone2 = rgb(0, 105, 200);
 
   vec3 skinColor = rgb(224, 116, 45);
-  vec3 swimsuitColor = rgb(220, 50, 80);
+  vec3 swimsuitColor1 = rgb(200, 49, 41);
+  vec3 swimsuitColor2 = rgb(24, 56, 84);
 
   vec2 shorePoints[SHORE_POINT_COUNT];
   shorePoints[0] = vec2(-0.32, -0.10);
@@ -733,6 +898,8 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
   if (uv.y <= skyHeight) {
     color = beachColor;
   }
+
+
   // ==========================================
   // =================== Sea ==================
   // ==========================================
@@ -762,180 +929,60 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
     color = mix(color, deepSeaColor, seaMask * 0.6);
   }
 
-    // =============================================
-    // =================== Rocks ===================
-    // =============================================  
-    vec2 rockPointBase = vec2(-0.3, 0.56);
-    float rockDepth = yToDepth(rockPointBase.y, horizonY);
-    float rockScale = getDepthScale(rockDepth, focalLength);
+  // =============================================
+  // =================== Rocks ===================
+  // =============================================  
+  float rockDepth = yToDepth(0.56, horizonY);
+  float rockScale = getDepthScale(rockDepth, focalLength);
+  // Apply perspective to rock position and size
+  vec2 rockPointBase = vec2(
+    applyPerspectiveX(-0.3, vanishingPointCenter.x, rockDepth, focalLength),
+    0.56
+  );
+  vec2 rockPointTop = vec2(
+    applyPerspectiveX(0.9, vanishingPointCenter.x, rockDepth, focalLength),
+    0.72
+  );
+  vec2 rockPointBottom = vec2(
+    applyPerspectiveX(0.5, vanishingPointCenter.x, rockDepth, focalLength),
+    0.40
+  );
 
-    // Apply perspective to rock position and size
-    vec2 rockPoint = vec2(
-      applyPerspectiveX(rockPointBase.x, vanishingPointCenter.x, rockDepth, focalLength),
-      rockPointBase.y
-    );
+  vec2 rockTop = rockPointBase + vec2(2.0, 1.7) * rockScale;
+  vec2 rockBottom = rockPointBase + vec2(2.0, 0.14) * rockScale;
 
-    // Scale rock triangle points with perspective
-    vec2 rockTop = rockPoint + vec2(8.0, 3.7) * rockScale;
-    vec2 rockBottom = rockPoint + vec2(8.0, -1.14) * rockScale;
+  // float rockDist = sdTriangle(uv, rockPoint, rockTop, rockBottom);
+  // if (rockDist < 0.0) {
+  //   color = rockColor;
+  //   // Add subtle depth-based shading
+  //   float shadeFactor = mix(0.85, 1.0, rockScale);
+  //   color *= shadeFactor;
+  // }
 
-    float rockDist = sdTriangle(uv, rockPoint, rockTop, rockBottom);
-    // Fractal cliff fill: use layered ridged fbm for height & apply threshold
-    float cliffUVScale = 3.0 * rockScale;
-    vec2 cliffUV = (uv - rockPoint) / (rockScale * 1.0);
-    
-    // Rotate/scale cliffUV to stretch along triangle edges
-    vec2 e1n = normalize(rockTop - rockPoint);
-    vec2 e2n = normalize(rockBottom - rockPoint);
-    mat2 align = mat2(e1n.x, e2n.x, e1n.y, e2n.y);
-    cliffUV = align * cliffUV * cliffUVScale;
-
-    // Ridged fbm
-    float ridge = 0.0;
-    float amp = 1.0;
-    vec2 pR = cliffUV;
-    for(int i=0;i<5;i++) {
-      float n = noise(pR);
-      n = 1.0 - abs(2.0*n - 1.0); // ridged
-      ridge += n * amp;
-      pR = mat2(1.7, -1.2, 1.2, 1.7) * pR * 1.85;
-      amp *= 0.55;
-    }
-    ridge /= 1.0 + 0.55 + 0.3025 + 0.166375 + 0.0915; // approximate normalization
-
-    // Height mask: allow spill (slightly outside triangle) using rockDist + ridge
-    float spillMargin = 0.04 * (0.7 + 0.3 * ridge);
-    float insideMask = smoothstep(spillMargin, -spillMargin, rockDist);
-    
-    if (insideMask > 0.0) {
-      // Build local coordinates (barycentric-like) within triangle
-      vec2 A = rockPoint;
-      vec2 E1 = rockTop - rockPoint;
-      vec2 E2 = rockBottom - rockPoint;
-      vec2 V = uv - A;
-      float denom = cro(E1, E2);
-      // Guard against degenerate triangle
-      if (abs(denom) > 1e-6) {
-        float u = cro(V, E2) / denom;
-        float v = cro(E1, V) / denom;
-        vec2 q = vec2(u, v); // Triangle local space, valid if u>=0,v>=0,u+v<=1
-
-        // Use ridge height to modulate density for stratification
-        float baseDensity = mix(30.0, 110.0, ridge);
-        float density = max(8.0, baseDensity * rockScale);
-
-  // Cellular (Voronoi) pattern in q-space for rock fragments
-        vec2 p = q * density;
-        vec2 pi = floor(p);
-        vec2 pf = fract(p);
-
-        float da = 1e9; // nearest
-        float db = 1e9; // second nearest
-        vec2 bestCell = vec2(0.0);
-        vec2 bestDelta = vec2(0.0);
-
-        for (int oy = -1; oy <= 1; ++oy) {
-          for (int ox = -1; ox <= 1; ++ox) {
-            vec2 o = vec2(float(ox), float(oy));
-            vec2 cell = pi + o;
-            // Jittered seed inside the cell
-            float jx = rand(cell + vec2(0.123, 0.457));
-            float jy = rand(cell + vec2(7.321, 3.113));
-            vec2 r = vec2(jx, jy);
-            vec2 g = o + r; // seed position in the 1x1 neighborhood cell
-
-            // Allow limited spill using ridge-based expansion
-            vec2 seedQ = (cell + r) / density;
-            if (seedQ.x + seedQ.y > 1.15 + 0.1 * ridge || seedQ.x < -0.1 || seedQ.y < -0.1) {
-              continue; // outside expanded domain
-            }
-
-            vec2 d = pf - g;
-            float dist = dot(d, d);
-            if (dist < da) {
-              db = da;
-              da = dist;
-              bestCell = cell;
-              bestDelta = d;
-            } else if (dist < db) {
-              db = dist;
-            }
-          }
-        }
-
-  // Convert squared distances to actual distances
-        da = sqrt(da);
-        db = sqrt(db);
-
-  // Fractal cliff fragment shading with pseudo-3D lighting
-  float idNoise = rand(bestCell + vec2(3.71, 1.91));
-  float striation = ridge * (0.6 + 0.4 * idNoise);
-  vec3 layerColor = mix(darkerRockColor, rockColor, clamp(0.25 + striation, 0.0, 1.0));
-  // Add subtle vertical gradient to mimic erosion
-  float erosion = smoothstep(0.0, 1.0, u + v);
-  layerColor = mix(layerColor, darkRockColor, 0.25 * erosion * (0.5 + 0.5 * idNoise));
-
-  // Sphere-cap normal from distance to seed center (bestDelta)
-  vec2 dlocal = bestDelta;                   // in cell space
-  float radius = 0.33 + 0.12 * idNoise;      // stone radius in cell space
-  float r = length(dlocal);
-  float rN = clamp(r / max(radius, 1e-4), 0.0, 1.0);
-  float heightScale = 0.9;                   // thickness of stones
-  float z = sqrt(max(0.0, 1.0 - rN * rN)) * heightScale;
-  vec3 N = normalize(vec3(dlocal / max(radius, 1e-4), z));
-
-  // Lighting
-  vec3 L = normalize(vec3(0.6, 0.35, 0.7));  // sun-ish direction
-  vec3 V = vec3(0.0, 0.0, 1.0);              // view direction
-  vec3 H = normalize(L + V);
-  float ndotl = clamp(dot(N, L), 0.0, 1.0);
-  float spec = pow(max(dot(N, H), 0.0), 32.0) * 0.25;
-
-  // Edge darkening (AO) using F2-F1 distance
-  float edgeAO = smoothstep(0.02, 0.15, db - da);
-
-  vec3 fragColorRock = layerColor;
-  fragColorRock *= mix(0.35, 1.05, ndotl);      // diffuse lighting
-  fragColorRock += spec * (0.4 + 0.6 * idNoise);
-  fragColorRock *= 0.85 + 0.15 * edgeAO;        // crevice darkening
-  // Accent ridge height
-  fragColorRock += 0.12 * ridge * vec3(1.0, 0.6, 0.3);
-  color = fragColorRock;
-      } else {
-        color = rockColor;
-      }
-    }
-
+  vec3 cliffColor = cliffWall(uv, rockPointBase, rockTop, rockBottom, 1.23, rockColor, darkRockColor, darkerRockColor, color);
+  color = cliffColor;
     
   // ==============================================
   // =================== People ===================
   // ==============================================
-  // Towel with vertical perspective - appears smaller when higher (further away)
-  // Position towel safely on dry beach, away from where waves reach
-  
-  // Find a safe position on the beach (using shoreline information)
   // Place towel at a distance from the shore where waves don't reach
-  float safeDistanceFromShore = 10.0; // Distance inland from shoreline
+  float safeDistanceFromShore = 10.0;
   vec2 towelShoreRef = shore.position - shoreNormal * safeDistanceFromShore;
-  
-  // Use a fixed position along the shore (around middle of visible beach)
-  float towelAlongShore = 0.35; // Position along shoreline (0-1)
-  vec2 towelCenterAdj = vec2(0.7 * aspectRatio, 0.17); // Adjusted position
-  
-  float towelBaseSize = 1.2; // Smaller, more realistic size
+  float towelAlongShore = 0.35;
+  vec2 towelCenterAdj = vec2(0.7 * aspectRatio, 0.17);
+  float towelBaseSize = 1.2;
+  float towelWidthAdj = 0.55;
+  float towelHeightAdj = 0.34;
+  float towelSkewAdj = 0.05;
   
   // Calculate perspective scale based on y position
   float towelScale = getPerspectiveScale(towelCenterAdj.y, horizonY, perspectiveStrength);
   float towelSizeAdj = towelBaseSize * towelScale;
-  
-  float towelWidthAdj = 0.55; // Narrower towel
-  float towelHeightAdj = 0.34; // Longer towel (typical beach towel proportions)
-  float towelSkewAdj = 0.05; // Less skew for more natural look
-  
+
   vec2 towelPerspectivePos = vec2(towelCenterAdj.x, towelCenterAdj.y);
   float towel = towelShape(uv, towelPerspectivePos, towelSizeAdj, towelWidthAdj, towelHeightAdj, towelSkewAdj, numStripes, stripeOrientation);
   
-  // Add shadow for towel (simple offset shadow)
+  // Add shadow for towel
   vec2 shadowOffset = vec2(0.1, -0.08) * towelScale; // Scale shadow with towel
   float towelShadow = towelShape(uv, towelPerspectivePos + shadowOffset, towelSizeAdj, towelWidthAdj, towelHeightAdj, towelSkewAdj, numStripes, stripeOrientation);
   if (towelShadow > 0.5) {
@@ -950,17 +997,11 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
 
   // Person on towel - better proportioned figure
   vec2 personCenter = towelPerspectivePos + vec2(-0.005, 0.0) * towelScale;
-  
-  // Scale person with towel for proper proportions
   float personScale = towelScale * 11.0;
-  
-  // Head
+
   float personHead = sdCircle(uv - personCenter - vec2(0.0, 0.022) * personScale, 0.012 * personScale);
-  
-  // Body (torso)
   float personBody = sdBox(uv - personCenter - vec2(0.0, 0.005) * personScale, vec2(0.010, 0.018) * personScale);
   
-  // Arms (lying down position)
   float armThickness = 0.004 * personScale;
   float personArmL = sdOrientedBox(uv, 
     personCenter + vec2(-0.012, 0.008) * personScale, 
@@ -970,28 +1011,25 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
     personCenter + vec2(0.012, 0.008) * personScale, 
     personCenter + vec2(0.025, 0.005) * personScale, 
     armThickness);
-  
-  // Legs
+
   float personLegL = sdBox(uv - personCenter - vec2(-0.005, -0.015) * personScale, vec2(0.004, 0.015) * personScale);
   float personLegR = sdBox(uv - personCenter - vec2(0.005, -0.015) * personScale, vec2(0.004, 0.015) * personScale);
   
-  // Combine person parts
   float person = opSmoothUnion(personHead, personBody, 0.003 * personScale);
   person = opUnion(person, personArmL);
   person = opUnion(person, personArmR);
   person = opUnion(person, personLegL);
   person = opUnion(person, personLegR);
   
-  
   if (person < 0.0) {
-    // Differentiate skin and swimsuit
     float swimsuitArea = sdBox(uv - personCenter - vec2(0.0, 0.0), vec2(0.012, 0.012) * personScale);
     if (swimsuitArea < 0.0) {
-      color = swimsuitColor;
+      color = swimsuitColor1;
     } else {
       color = skinColor;
     }
   }
+
 
   // Person swimming in the water - swimming horizontally (sideways)
   vec2 swimmerCenter = vec2(0.28 + 0.08*sin(iTime*0.4), 0.38 + 0.01*cos(iTime*2.0));
@@ -999,7 +1037,6 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
   float swimmerSize = 0.15;
   float swimmerScale = getPerspectiveScale(swimmerCenter.y, horizonY, perspectiveStrength);
   float swimmerFullScale = swimmerSize * swimmerScale;
-  
 
   // Only render swimmer if pixel is within bounding circle
   // float distToSwimmer = length(uv - swimmerCenter);
@@ -1032,7 +1069,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
     if (swimmer < 0.0) {
       color = skinColor;
       if(sdBox(uv - swimmerCenter - bodyOffset, vec2(2.0, 1.0) * swimmerFullScale) < 0.0) {
-        color = swimsuitColor;
+        color = swimsuitColor2;
       }
       if(swimHair < 0.0) {
         color = rgb(50, 20, 10);
@@ -1042,8 +1079,6 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
     float splash = smoothstep(0.025 * swimmerFullScale, 0.015 * swimmerFullScale, length(uv - swimmerCenter));
     color = mix(color, whiteColor, splash * 0.3 * (sin(iTime * 5.0) * 0.5 + 0.5));
   }
-
-
 
 
   // ===============================================================
