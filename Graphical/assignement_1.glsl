@@ -579,7 +579,7 @@ vec3 cliffWall(vec2 uv, vec2 origin, vec2 endTop, vec2 endBottom, float seed, ve
   
   // LAYER 1: Background elongated rocks spanning full height
   // These rocks go from top to bottom of the triangle
-  int bgRockCount = 12;  // Fewer, wider rocks to match reference image
+  int bgRockCount = 12;
 
   for (int i = 0; i < bgRockCount; i++) {
     // Interpolation parameter: 0 at origin, 1 at far end
@@ -608,7 +608,7 @@ vec3 cliffWall(vec2 uv, vec2 origin, vec2 endTop, vec2 endBottom, float seed, ve
     float radius = 0.08 + hash(vec2(float(i), seed * 2.0)) * 0.015; // Rock width (0.08-0.095)
     float irregularity = 0.5 + 0.3 * hash(center * 3.0); // More irregular for natural cliff look
     float rockSeed = seed + float(i) * 10.0;
-    int facets = 5; // Fewer facets for angular cliff appearance
+    int facets = 9;
     
     float lightAngle = 0.3; // Consistent lighting for background
     float rockResult = proceduralRockWithShading(uv, center, radius, irregularity, rockSeed, facets, verticalStretch, lightAngle);
