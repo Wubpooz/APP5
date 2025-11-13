@@ -580,7 +580,7 @@ vec3 cliffWall(vec2 uv, vec2 origin, vec2 endTop, vec2 endBottom, float seed, ve
   // LAYER 1: Background elongated rocks spanning full height
   // These rocks go from top to bottom of the triangle
   int bgRockCount = 12;  // Fewer, wider rocks to match reference image
-  
+
   for (int i = 0; i < bgRockCount; i++) {
     // Interpolation parameter: 0 at origin, 1 at far end
     float t = (float(i) + 0.5) / float(bgRockCount);
@@ -589,17 +589,23 @@ vec3 cliffWall(vec2 uv, vec2 origin, vec2 endTop, vec2 endBottom, float seed, ve
     float xPos = mix(origin.x, endBottom.x, t);
     float yAtBottom = mix(origin.y, endBottom.y, t);
     float yAtTop = mix(origin.y, endTop.y, t);
-    float yCenter = (yAtBottom + yAtTop) * 0.5; // Center between top and bottom
+    
+    // Calculate rock height based on triangle slope at this x position
+    // Height grows as we move along x-axis with the triangle
+    float triangleHeight = yAtTop - yAtBottom;
+    float heightVariation = hash(vec2(seed * 3.0, float(i))) * 0.15; // Random variation (±15%)
+    float actualHeight = triangleHeight * (0.85 + heightVariation); // Keep it within triangle bounds
+    
+    // Center the rock vertically within the triangle bounds
+    float yCenter = yAtBottom + actualHeight * 0.5;
     
     vec2 center = vec2(xPos, yCenter);
     
-    // Check if center is in triangle (should always be true now)
-    float centerInCliff = sdTriangle(center, origin, endTop, endBottom);
-    // if (centerInCliff > 0.0) continue;
-    
-    // Very elongated rocks spanning full height - WIDE to fill triangle
-    float verticalStretch = 10.0 + hash(vec2(seed, float(i))) * 4.0; // 10-14x stretch (vertical elongation)
-    float radius = 0.045 + hash(vec2(float(i), seed * 2.0)) * 0.015; // Much wider rocks (0.045-0.06)
+    // Very elongated rocks spanning height - WIDE to fill triangle
+    // Vertical stretch is proportional to the triangle height at this position
+    float baseStretch = actualHeight / 0.08; // Normalize to radius scale
+    float verticalStretch = baseStretch * (0.9 + hash(vec2(seed, float(i))) * 0.2); // 90-110% of height
+    float radius = 0.08 + hash(vec2(float(i), seed * 2.0)) * 0.015; // Rock width (0.08-0.095)
     float irregularity = 0.5 + 0.3 * hash(center * 3.0); // More irregular for natural cliff look
     float rockSeed = seed + float(i) * 10.0;
     int facets = 5; // Fewer facets for angular cliff appearance
@@ -610,7 +616,7 @@ vec3 cliffWall(vec2 uv, vec2 origin, vec2 endTop, vec2 endBottom, float seed, ve
     if (rockResult > 0.0) {
       vec3 rockColor;
       if (rockResult == 3.0) {
-        rockColor = rockLight * 0.9; // Brighter to match reference
+        rockColor = rockLight * 0.95; // Brighter to match reference
       } else if (rockResult == 2.0) {
         rockColor = rockMid * 0.9;
       } else {
@@ -682,7 +688,7 @@ vec3 cliffWall(vec2 uv, vec2 origin, vec2 endTop, vec2 endBottom, float seed, ve
     // Rounded rocks
     float verticalStretch = 0.9 + hash(vec2(seed * 6.0, float(i))) * 0.4;
     float radius = 0.03 + hash(vec2(float(i), seed * 7.0)) * 0.02;
-    float irregularity = 0.5 + 0.2 * hash(center * 5.0);
+    float irregularity = 0.3 + 0.2 * hash(center * 5.0);
     float rockSeed = seed + 400.0 + float(i);
     int facets = 12;
     
