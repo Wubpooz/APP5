@@ -608,15 +608,15 @@ vec3 cliffWall(vec2 uv, vec2 origin, vec2 endTop, vec2 endBottom, float seed, ve
     float radius = 0.08 + hash(vec2(float(i), seed * 2.0)) * 0.015; // Rock width (0.08-0.095)
     float irregularity = 0.5 + 0.3 * hash(center * 3.0); // More irregular for natural cliff look
     float rockSeed = seed + float(i) * 10.0;
-    int facets = 9;
+    int facets = 10;
     
     float lightAngle = 0.3; // Consistent lighting for background
     float rockResult = proceduralRockWithShading(uv, center, radius, irregularity, rockSeed, facets, verticalStretch, lightAngle);
-    
+
     if (rockResult > 0.0) {
       vec3 rockColor;
       if (rockResult == 3.0) {
-        rockColor = rockLight * 0.95; // Brighter to match reference
+        rockColor = rockLight * 0.98; // Brighter to match reference
       } else if (rockResult == 2.0) {
         rockColor = rockMid * 0.9;
       } else {
@@ -628,68 +628,26 @@ vec3 cliffWall(vec2 uv, vec2 origin, vec2 endTop, vec2 endBottom, float seed, ve
       col = mix(col, rockColor, blend);
     }
   }
+
   
-  // LAYER 2: Rounded rocks at tip (origin, in sea) and bottom edge
-  // Tip rocks (near origin point in the sea)
-  // int tipRockCount = 3;
-  // for (int i = 0; i < tipRockCount; i++) {
-  //   float angle = float(i) * 1.57 / float(tipRockCount - 1); // 0 to PI/2 radians
-  //   float dist = 0.06 + hash(vec2(seed + 100.0, float(i))) * 0.03;
-    
-  //   vec2 center = origin + vec2(cos(angle), 0.0) * dist;
-    
-  //   // Check if center is in triangle
-  //   float centerInCliff = sdTriangle(center, origin, endTop, endBottom);
-  //   // if (centerInCliff > 0.0) continue;
-    
-  //   // Rounded rocks: low vertical stretch
-  //   float verticalStretch = 0.8 + hash(vec2(float(i), seed * 3.0)) * 0.3;
-  //   float radius = 0.025 + hash(vec2(seed * 4.0, float(i))) * 0.015;
-  //   float irregularity = 0.5 + 0.2 * hash(center * 5.0);
-  //   float rockSeed = seed + 200.0 + float(i);
-  //   int facets = 12; // More facets for rounded appearance
-    
-  //   float lightAngle = 1.5;
-  //   float rockResult = proceduralRockWithShading(uv, center, radius, irregularity, rockSeed, facets, verticalStretch, lightAngle);
-    
-  //   if (rockResult > 0.0) {
-  //     vec3 rockColor;
-  //     if (rockResult == 3.0) {
-  //       rockColor = rockLight;
-  //     } else if (rockResult == 2.0) {
-  //       rockColor = rockMid;
-  //     } else {
-  //       rockColor = rockDark;
-  //     }
-      
-  //     float colorVar = 0.9 + 0.2 * hash(center * 10.0);
-  //     rockColor *= colorVar;
-      
-  //     float dist = sdProceduralRock(uv, center, radius, irregularity, rockSeed, facets, verticalStretch);
-  //     float blend = smoothstep(0.25, 0.1, dist);
-  //     col = mix(col, rockColor, blend);
-  //   }
-  // }
-  
-  // Bottom edge rocks (along bottom of triangle)
-  int bottomRockCount = 34;
+  // Bottom edge rocks (along bottom of triangle) - densely packed for variation
+  int bottomRockCount = 70; // Increased for better coverage
   for (int i = 0; i < bottomRockCount; i++) {
-    float t = (float(i) + 0.5) / float(bottomRockCount); // Start at 0.5/count to avoid origin
+    // Use (i + 0.5) / count to center rocks in their segments and fill full range
+    float t = (float(i) + 0.5) / float(bottomRockCount);
     
     // Interpolate along bottom edge from origin to endBottom
     vec2 center = mix(origin, endBottom, t);
-    center.y += hash(vec2(seed + 300.0, float(i))) * 0.015; // Slightly above actual bottom
-    center.x += (hash(vec2(float(i), seed * 5.0)) - 0.5) * 0.03; // Small horizontal variation
+    center.y -= hash(vec2(seed + 300.0, float(i))) * 0.02; // Slightly below bottom line
+    center.x += (hash(vec2(float(i), seed * 5.0)) - 0.5) * 0.025; // Add horizontal variation back
+
     
-    // Check if center is in triangle
-    float centerInCliff = sdTriangle(center, origin, endTop, endBottom);
-    if (centerInCliff > 0.0) continue;
-    
-    // Rounded rocks
-    float verticalStretch = 0.9 + hash(vec2(seed * 6.0, float(i))) * 0.4;
-    float radius = 0.03 + hash(vec2(float(i), seed * 7.0)) * 0.02;
-    float irregularity = 0.3 + 0.2 * hash(center * 5.0);
-    float rockSeed = seed + 400.0 + float(i);
+    // Rounded rocks with size variation
+    float verticalStretch = 0.9 + hash(vec2(seed * 6.0, float(i))) * 0.5;
+    // Larger rocks toward the end for perspective
+    float radius = 0.04 + 0.04 * t + hash(vec2(float(i), seed * 7.0)) * 0.02;
+    float irregularity = 0.4 + 0.3 * hash(center * 5.0);
+    float rockSeed = seed + 310.0 + float(i);
     int facets = 12;
     
     float lightAngle = 1.0;
@@ -705,7 +663,7 @@ vec3 cliffWall(vec2 uv, vec2 origin, vec2 endTop, vec2 endBottom, float seed, ve
         rockColor = rockDark;
       }
       
-      float colorVar = 0.9 + 0.2 * hash(center * 10.0);
+      float colorVar = 0.9 + 0.2 * hash(center * 11.3);
       rockColor *= colorVar;
       
       float dist = sdProceduralRock(uv, center, radius, irregularity, rockSeed, facets, verticalStretch);
@@ -809,8 +767,7 @@ float towelShape(vec2 uv, vec2 center, float size, float width, float height, fl
 // The scene is peaceful and relaxing.
 void mainImage(out vec4 fragColor, in vec2 fragCoord)
 {
-  // - fix hairs
-  // - put people shapes in functions
+  // - put people shapes in functions and fix hairs
   // - splash swimmer end of arms when they hit the water (foam, depends on the angle of the arm)
   // - add grass on the cliff at certain positions
 
