@@ -540,9 +540,9 @@ float hash(vec2 p) {
 // Procedural irregular polygon rock shape with noise
 float sdProceduralRock(vec2 uv, vec2 center, float radius, float irregularity, float seed) {
   vec2 p = uv - center;
-  
-  // Number of facets (random between 6 and 10 based on seed)
-  int facets = 6 + int(floor(hash(vec2(seed, seed * 1.3)) * 5.0));
+
+  // Number of facets (random between 8 and 12 based on seed)
+  int facets = 8 + int(floor(hash(vec2(seed, seed * 1.3)) * 5.0));
   
   float angleStep = 6.28318 / float(facets);
   
@@ -735,12 +735,15 @@ float towelShape(vec2 uv, vec2 center, float size, float width, float height, fl
 // ====================================================================
 // ============================ Main Image ============================
 // ====================================================================
-// "Paris 2025 JO style" beach with nice blue water (non transparent) and "orange" rocks on the side with failaises. Someone goes and swims in the water. The sun is shining bright. The sky is blue with some clouds. The scene is peaceful and relaxing.
+// "Paris 2025 JO style" beach with nice blue water (non transparent) and "orange" cliff.
+// Someone goes and swims in the water. The sun is shining bright. The sky is blue with some clouds.
+// The scene is peaceful and relaxing.
 void mainImage(out vec4 fragColor, in vec2 fragCoord)
 {
-  // - Make the canvas scale with the window size properly
-  // - Use bezier curve for shoreline
-  // - Better fuse waves and the sea
+  // - splash nageurs end of arms when they hit the water (foam, depends on the angle of the arm)
+  // - finir falaise
+  // - add noise to sand
+  // - put people shapes in functions
 
   // ==================================================
   // =================== Parameters ===================
@@ -760,9 +763,10 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
   float waveOverlayStrength = 0.85; // Overall contribution of the waves
 
   float skyHeight = 0.6;
-  float cloudSpeed = 0.1;
-  // sun will be updated with perspective below
+  float cloudSpeed = 2.0;
   float cloudSize = 0.12;
+  float sunGlowSpeed = 5.0;
+  float sunGlowSpread = 0.5;
 
   vec2 towelCenter = vec2(0.5, 0.2);
   float towelWidth = 0.8;
@@ -770,8 +774,6 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
   float towelSkew = 0.2;
   float numStripes = 4.0; // Number of stripe pairs (white+blue) - even number to start/end with same color
   float stripeOrientation = 1.0; // 0.0 = horizontal, 1.0 = vertical
-
-  float rockSize = 0.2;
 
   float noise_intensity = 0.3;
 
@@ -857,23 +859,23 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
     0.91
   );
   float sunSize = 0.18 * sunScale;
-  float sunBlurSize = 0.5 * sunSize * max(3.0 * abs(cos(iTime * 0.1)), 0.4);
+  float sunBlurSize = sunGlowSpread * sunSize * max(sunGlowSpeed * abs(cos(time * 0.1)), 0.4);
   float sunDist = sdCircle(uv - sunPos, sunSize);
 
   // Clouds with perspective scaling
-  vec2 cloud1Pos = vec2(0.12 + 0.6*sin(iTime*0.04), 0.82);
+  vec2 cloud1Pos = vec2(0.12 + cloudSpeed * 0.6 * sin(time * 0.04), 0.82);
   float cloud1Depth = yToDepth(cloud1Pos.y, horizonY);
   float cloud1Scale = 6.4*getDepthScale(cloud1Depth, focalLength);
   cloud1Pos.x = applyPerspectiveX(cloud1Pos.x, vanishingPointCenter.x, cloud1Depth, focalLength);
   cloudMask = max(cloudMask, cloudBlob(uv, cloud1Pos, cloudSize * cloud1Scale));
 
-  vec2 cloud2Pos = vec2(-2.0 + 0.5*cos(iTime*0.05), 0.72);
+  vec2 cloud2Pos = vec2(-2.0 + cloudSpeed * 0.5 * cos(time * 0.05), 0.72);
   float cloud2Depth = yToDepth(cloud2Pos.y, horizonY);
   float cloud2Scale = 5.0*getDepthScale(cloud2Depth, focalLength);
   cloud2Pos.x = applyPerspectiveX(cloud2Pos.x, vanishingPointCenter.x, cloud2Depth, focalLength);
   cloudMask = max(cloudMask, cloudBlob(uv, cloud2Pos, cloudSize * cloud2Scale));
 
-  vec2 cloud3Pos = vec2(3.82 + 0.7*sin(iTime*0.1), 0.90);
+  vec2 cloud3Pos = vec2(3.82 + cloudSpeed * 0.7 * sin(time * 0.1), 0.90);
   float cloud3Depth = yToDepth(cloud3Pos.y, horizonY);
   float cloud3Scale = 3.4*getDepthScale(cloud3Depth, focalLength);
   cloud3Pos.x = applyPerspectiveX(cloud3Pos.x, vanishingPointCenter.x, cloud3Depth, focalLength);
@@ -920,7 +922,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
     float waveBeachFactor = 1.0 - smoothstep(0.0, waveBeachOverlap, max(seaDist, distWavesToShore));
     float waveMask = clamp(max(waveSeaBlend, waveBeachFactor), 0.0, 1.0) * waveOverlayStrength;
 
-    vec3 waveColor = generateBeachWaves(wavesUV, beachColor, seaColor, iTime, waveDepthFactor);
+    vec3 waveColor = generateBeachWaves(wavesUV, beachColor, seaColor, time, waveDepthFactor);
     float maskIntensity = waveMask * mix(0.35, 1.0, waveDepthFactor);
     color = mix(color, waveColor, maskIntensity);
 
@@ -1032,7 +1034,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
 
 
   // Person swimming in the water - swimming horizontally (sideways)
-  vec2 swimmerCenter = vec2(0.28 + 0.08*sin(iTime*0.4), 0.38 + 0.01*cos(iTime*2.0));
+  vec2 swimmerCenter = vec2(0.28 + 0.08*sin(time*0.4), 0.38 + 0.01*cos(time*2.0));
   
   float swimmerSize = 0.15;
   float swimmerScale = getPerspectiveScale(swimmerCenter.y, horizonY, perspectiveStrength);
@@ -1051,7 +1053,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
 
     vec2 shoulderTop = swimmerCenter + vec2(-1.6, -0.009) * swimmerFullScale;
     vec2 shoulderBottom = swimmerCenter + vec2(-1.6, 0.009) * swimmerFullScale;
-    float armAngle = sin(iTime * 3.0);
+    float armAngle = sin(time * 3.0);
     float armLength = 2.2 * swimmerFullScale;
 
     float angleTop = armAngle * 1.8;
@@ -1077,7 +1079,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
     }
 
     float splash = smoothstep(0.025 * swimmerFullScale, 0.015 * swimmerFullScale, length(uv - swimmerCenter));
-    color = mix(color, whiteColor, splash * 0.3 * (sin(iTime * 5.0) * 0.5 + 0.5));
+    color = mix(color, whiteColor, splash * 0.3 * (sin(time * 5.0) * 0.5 + 0.5));
   }
 
 
