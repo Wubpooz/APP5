@@ -577,9 +577,8 @@ vec3 cliffWall(vec2 uv, vec2 origin, vec2 endTop, vec2 endBottom, float seed, ve
   float cliffWidth = endBottom.x - origin.x;
   float slope = cliffWidth / cliffHeight;
   
-  // LAYER 1: Background elongated rocks spanning full height
-  // These rocks go from top to bottom of the triangle
-  int bgRockCount = 12;
+  // Background elongated rocks spanning full height
+  int bgRockCount = 12; // EXTREMELY WEIRD BEHAVIOR, 12 is the only value that works on chromium browsers (16 failes) on firefox tho, none is shown but it works for 2
 
   for (int i = 0; i < bgRockCount; i++) {
     // Interpolation parameter: 0 at origin, 1 at far end
@@ -593,7 +592,7 @@ vec3 cliffWall(vec2 uv, vec2 origin, vec2 endTop, vec2 endBottom, float seed, ve
     // Calculate rock height based on triangle slope at this x position
     // Height grows as we move along x-axis with the triangle
     float triangleHeight = yAtTop - yAtBottom;
-    float heightVariation = hash(vec2(seed * 3.0, float(i))) * 0.15; // Random variation (±15%)
+    float heightVariation = hash(vec2(seed * 3.0, float(i))) * 0.15; // Random variation
     float actualHeight = triangleHeight * (0.85 + heightVariation); // Keep it within triangle bounds
     
     // Center the rock vertically within the triangle bounds
@@ -601,11 +600,11 @@ vec3 cliffWall(vec2 uv, vec2 origin, vec2 endTop, vec2 endBottom, float seed, ve
     
     vec2 center = vec2(xPos, yCenter);
     
-    // Very elongated rocks spanning height - WIDE to fill triangle
+    // Very elongated rocks spanning height
     // Vertical stretch is proportional to the triangle height at this position
     float baseStretch = actualHeight / 0.08; // Normalize to radius scale
-    float verticalStretch = baseStretch * (0.9 + hash(vec2(seed, float(i))) * 0.2); // 90-110% of height
-    float radius = 0.08 + hash(vec2(float(i), seed * 2.0)) * 0.015; // Rock width (0.08-0.095)
+    float verticalStretch = baseStretch * (0.9 + hash(vec2(seed, float(i))) * 0.2);
+    float radius = 0.08 + hash(vec2(float(i), seed * 2.0)) * 0.015;
     float irregularity = 0.5 + 0.3 * hash(center * 3.0); // More irregular for natural cliff look
     float rockSeed = seed + float(i) * 10.0;
     int facets = 10;
@@ -631,9 +630,8 @@ vec3 cliffWall(vec2 uv, vec2 origin, vec2 endTop, vec2 endBottom, float seed, ve
 
   
   // Bottom edge rocks (along bottom of triangle) - densely packed for variation
-  int bottomRockCount = 70; // Increased for better coverage
+  int bottomRockCount = 70;
   for (int i = 0; i < bottomRockCount; i++) {
-    // Use (i + 0.5) / count to center rocks in their segments and fill full range
     float t = (float(i) + 0.5) / float(bottomRockCount);
     
     // Interpolate along bottom edge from origin to endBottom
@@ -718,43 +716,119 @@ float towelShape(vec2 uv, vec2 center, float size, float width, float height, fl
 }
 
 // Returns 1.0 for swimmer, 2.0 for hair, 3.0 for swimsuit, 4.0 for splash, 0.0 for background
-// float swimmer(vec2 uv, float time, vec2 center) {
-//   float swimHead = sdCircle(uv - swimmerCenter, swimmerFullScale);
-//   float swimHair = sdBox(uv - swimmerCenter - vec2(-0.008, 0.0) * swimmerFullScale, vec2(0.006, 0.01) * swimmerFullScale);
+// Render a person lying on a towel (sunbathing)
+// Returns color to apply
+vec3 renderPersonOnTowel(vec2 uv, vec2 center, float scale, vec3 skinColor, vec3 swimsuitColor, vec3 bgColor) {
+  vec3 color = bgColor;
+  
+  // Body parts
+  float personHead = sdCircle(uv - center - vec2(0.0, 0.022) * scale, 0.012 * scale);
+  float personBody = sdBox(uv - center - vec2(0.0, 0.005) * scale, vec2(0.010, 0.018) * scale);
+  
+  // Hair on top of head
+  float personHair = sdBox(uv - center - vec2(0.0, 0.028) * scale, vec2(0.010, 0.008) * scale);
+  
+  float armThickness = 0.004 * scale;
+  float personArmL = sdOrientedBox(uv, 
+    center + vec2(-0.012, 0.008) * scale, 
+    center + vec2(-0.025, 0.005) * scale, 
+    armThickness);
+  float personArmR = sdOrientedBox(uv, 
+    center + vec2(0.012, 0.008) * scale, 
+    center + vec2(0.025, 0.005) * scale, 
+    armThickness);
 
-//   vec2 bodyOffset = vec2(-3.2, 0.0) * swimmerFullScale;
-//   float swimBody = sdRoundedBox(uv - swimmerCenter - bodyOffset, vec2(2.3, 0.4) * swimmerFullScale, 0.003 * swimmerFullScale);
+  float personLegL = sdBox(uv - center - vec2(-0.005, -0.015) * scale, vec2(0.004, 0.015) * scale);
+  float personLegR = sdBox(uv - center - vec2(0.005, -0.015) * scale, vec2(0.004, 0.015) * scale);
+  
+  float person = opSmoothUnion(personHead, personBody, 0.003 * scale);
+  person = opUnion(person, personArmL);
+  person = opUnion(person, personArmR);
+  person = opUnion(person, personLegL);
+  person = opUnion(person, personLegR);
+  
+  if (person < 0.0) {
+    float swimsuitArea = sdBox(uv - center - vec2(0.0, 0.0), vec2(0.012, 0.012) * scale);
+    if (swimsuitArea < 0.0) {
+      color = swimsuitColor;
+    } else {
+      color = skinColor;
+    }
+    
+    // Hair rendered on top
+    if (personHair < 0.0) {
+      color = rgb(50, 20, 10); // Dark brown hair
+    }
+  }
+  
+  return color;
+}
 
-//   vec2 shoulderTop = swimmerCenter + vec2(-1.6, -0.009) * swimmerFullScale;
-//   vec2 shoulderBottom = swimmerCenter + vec2(-1.6, 0.009) * swimmerFullScale;
-//   float armAngle = sin(time * 3.0);
-//   float armLength = 2.2 * swimmerFullScale;
+// Render a person swimming in the water
+// Returns color to apply
+vec3 renderSwimmer(vec2 uv, vec2 center, float scale, float time, vec3 skinColor, vec3 swimsuitColor, vec3 splashColor, vec3 bgColor) {
+  vec3 color = bgColor;
+  
+  float swimHead = sdCircle(uv - center, scale);
+  float swimHair = sdBox(uv - center - vec2(-0.008, 0.0) * scale, vec2(0.006, 0.01) * scale);
 
-//   float angleTop = armAngle * 1.8;
-//   vec2 armEndTop = shoulderTop + vec2(cos(angleTop), sin(angleTop)) * armLength;
-//   float swimArmTop = sdOrientedBox(uv, shoulderTop, armEndTop, 0.25 * swimmerFullScale);
+  vec2 bodyOffset = vec2(-3.2, 0.0) * scale;
+  float swimBody = sdRoundedBox(uv - center - bodyOffset, vec2(2.3, 0.4) * scale, 0.003 * scale);
 
-//   float angleBottom = -armAngle * 1.8;
-//   vec2 armEndBottom = shoulderBottom + vec2(cos(angleBottom), sin(angleBottom)) * armLength;
-//   float swimArmBottom = sdOrientedBox(uv, shoulderBottom, armEndBottom, 0.25 * swimmerFullScale);
+  // Animated arms
+  vec2 shoulderTop = center + vec2(-1.6, -0.009) * scale;
+  vec2 shoulderBottom = center + vec2(-1.6, 0.009) * scale;
+  float armAngle = sin(time * 3.0);
+  float armLength = 2.2 * scale;
 
-//   float splash = smoothstep(0.025 * swimmerFullScale, 0.015 * swimmerFullScale, length(uv - swimmerCenter));
-//   color = mix(color, whiteColor, splash * 0.3 * (sin(time * 5.0) * 0.5 + 0.5));
+  float angleTop = armAngle * 1.8;
+  vec2 armEndTop = shoulderTop + vec2(cos(angleTop), sin(angleTop)) * armLength;
+  float swimArmTop = sdOrientedBox(uv, shoulderTop, armEndTop, 0.25 * scale);
 
-//   float swimmer = opSmoothUnion(swimHead, swimBody, 0.002 * swimmerFullScale);
-//   swimmer = opUnion(swimmer, swimArmTop);
-//   swimmer = opUnion(swimmer, swimArmBottom);
+  float angleBottom = -armAngle * 1.8;
+  vec2 armEndBottom = shoulderBottom + vec2(cos(angleBottom), sin(angleBottom)) * armLength;
+  float swimArmBottom = sdOrientedBox(uv, shoulderBottom, armEndBottom, 0.25 * scale);
 
-//   if (swimmer < 0.0) {
-//     color = skinColor;
-//     if(sdBox(uv - swimmerCenter - bodyOffset, vec2(2.0, 1.0) * swimmerFullScale) < 0.0) {
-//       color = swimsuitColor2;
-//     }
-//     if(swimHair < 0.0) {
-//       color = rgb(50, 20, 10);
-//     }
-//   }
-// }
+  float swimmer = opSmoothUnion(swimHead, swimBody, 0.002 * scale);
+  swimmer = opUnion(swimmer, swimArmTop);
+  swimmer = opUnion(swimmer, swimArmBottom);
+
+  if (swimmer < 0.0) {
+    color = skinColor;
+    if(sdBox(uv - center - bodyOffset, vec2(2.0, 1.0) * scale) < 0.0) {
+      color = swimsuitColor;
+    }
+    // Hair rendered on top
+    if(swimHair < 0.0) {
+      color = rgb(50, 20, 10); // Dark brown hair
+    }
+  }
+  
+  // Animated splash around head - much more visible
+  float headSplash = smoothstep(0.04 * scale, 0.02 * scale, length(uv - center));
+  color = mix(color, splashColor, headSplash * 0.6);
+
+  // Arm splash effects - simplified and more visible
+  // Always show splash at arm ends regardless of velocity
+  float armSplashTop = 0.0;
+  float distToArmEndTop = length(uv - armEndTop);
+  if (distToArmEndTop < 0.05 * scale) {
+    float noiseVal = noise((uv - armEndTop) * 15.0 + time * 3.0);
+    armSplashTop = smoothstep(0.05 * scale, 0.01 * scale, distToArmEndTop) * noiseVal;
+  }
+  
+  float armSplashBottom = 0.0;
+  float distToArmEndBottom = length(uv - armEndBottom);
+  if (distToArmEndBottom < 0.05 * scale) {
+    float noiseVal = noise((uv - armEndBottom) * 15.0 + time * 3.0);
+    armSplashBottom = smoothstep(0.05 * scale, 0.01 * scale, distToArmEndBottom) * noiseVal;
+  }
+  
+  float totalArmSplash = clamp(armSplashTop + armSplashBottom, 0.0, 1.0);
+  color = mix(color, splashColor, totalArmSplash * 0.8);
+  
+  return color;
+}
 
 
 
@@ -767,10 +841,6 @@ float towelShape(vec2 uv, vec2 center, float size, float width, float height, fl
 // The scene is peaceful and relaxing.
 void mainImage(out vec4 fragColor, in vec2 fragCoord)
 {
-  // - put people shapes in functions and fix hairs
-  // - splash swimmer end of arms when they hit the water (foam, depends on the angle of the arm)
-  // - add grass on the cliff at certain positions
-
 
   // ==================================================
   // =================== Parameters ===================
@@ -840,7 +910,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
   vec3 towelTone1 = whiteColor;
   vec3 towelTone2 = rgb(0, 105, 200);
 
-  vec3 skinColor = rgb(224, 116, 45);
+  vec3 skinColor = rgb(224, 116, 45); rgb(231, 128, 44);
   vec3 swimsuitColor1 = rgb(200, 49, 41);
   vec3 swimsuitColor2 = rgb(24, 56, 84);
 
@@ -1028,37 +1098,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
   // Person on towel - better proportioned figure
   vec2 personCenter = towelPerspectivePos + vec2(-0.005, 0.0) * towelScale;
   float personScale = towelScale * 11.0;
-
-  float personHead = sdCircle(uv - personCenter - vec2(0.0, 0.022) * personScale, 0.012 * personScale);
-  float personBody = sdBox(uv - personCenter - vec2(0.0, 0.005) * personScale, vec2(0.010, 0.018) * personScale);
-  
-  float armThickness = 0.004 * personScale;
-  float personArmL = sdOrientedBox(uv, 
-    personCenter + vec2(-0.012, 0.008) * personScale, 
-    personCenter + vec2(-0.025, 0.005) * personScale, 
-    armThickness);
-  float personArmR = sdOrientedBox(uv, 
-    personCenter + vec2(0.012, 0.008) * personScale, 
-    personCenter + vec2(0.025, 0.005) * personScale, 
-    armThickness);
-
-  float personLegL = sdBox(uv - personCenter - vec2(-0.005, -0.015) * personScale, vec2(0.004, 0.015) * personScale);
-  float personLegR = sdBox(uv - personCenter - vec2(0.005, -0.015) * personScale, vec2(0.004, 0.015) * personScale);
-  
-  float person = opSmoothUnion(personHead, personBody, 0.003 * personScale);
-  person = opUnion(person, personArmL);
-  person = opUnion(person, personArmR);
-  person = opUnion(person, personLegL);
-  person = opUnion(person, personLegR);
-  
-  if (person < 0.0) {
-    float swimsuitArea = sdBox(uv - personCenter - vec2(0.0, 0.0), vec2(0.012, 0.012) * personScale);
-    if (swimsuitArea < 0.0) {
-      color = swimsuitColor1;
-    } else {
-      color = skinColor;
-    }
-  }
+  color = renderPersonOnTowel(uv, personCenter, personScale, skinColor, swimsuitColor1, color);
 
 
   // Person swimming in the water - swimming horizontally (sideways)
@@ -1067,43 +1107,8 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
   float swimmerSize = 0.15;
   float swimmerScale = getPerspectiveScale(swimmerCenter.y, horizonY, perspectiveStrength);
   float swimmerFullScale = swimmerSize * swimmerScale;
-
-  // float swimmer = swimmerShape(uv, swimmerCenter, swimmerFullScale);
-
-    float swimHead = sdCircle(uv - swimmerCenter, swimmerFullScale);
-    float swimHair = sdBox(uv - swimmerCenter - vec2(-0.008, 0.0) * swimmerFullScale, vec2(0.006, 0.01) * swimmerFullScale);
-
-    vec2 bodyOffset = vec2(-3.2, 0.0) * swimmerFullScale;
-    float swimBody = sdRoundedBox(uv - swimmerCenter - bodyOffset, vec2(2.3, 0.4) * swimmerFullScale, 0.003 * swimmerFullScale);
-
-    vec2 shoulderTop = swimmerCenter + vec2(-1.6, -0.009) * swimmerFullScale;
-    vec2 shoulderBottom = swimmerCenter + vec2(-1.6, 0.009) * swimmerFullScale;
-    float armAngle = sin(time * 3.0);
-    float armLength = 2.2 * swimmerFullScale;
-
-    float angleTop = armAngle * 1.8;
-    vec2 armEndTop = shoulderTop + vec2(cos(angleTop), sin(angleTop)) * armLength;
-    float swimArmTop = sdOrientedBox(uv, shoulderTop, armEndTop, 0.25 * swimmerFullScale);
-
-    float angleBottom = -armAngle * 1.8;
-    vec2 armEndBottom = shoulderBottom + vec2(cos(angleBottom), sin(angleBottom)) * armLength;
-    float swimArmBottom = sdOrientedBox(uv, shoulderBottom, armEndBottom, 0.25 * swimmerFullScale);
-
-    float swimmer = opSmoothUnion(swimHead, swimBody, 0.002 * swimmerFullScale);
-    swimmer = opUnion(swimmer, swimArmTop);
-    swimmer = opUnion(swimmer, swimArmBottom);
-
-    if (swimmer < 0.0) {
-      color = skinColor;
-      if(sdBox(uv - swimmerCenter - bodyOffset, vec2(2.0, 1.0) * swimmerFullScale) < 0.0) {
-        color = swimsuitColor2;
-      }
-      if(swimHair < 0.0) {
-        color = rgb(50, 20, 10);
-      }
-    }
-  float splash = smoothstep(0.025 * swimmerFullScale, 0.015 * swimmerFullScale, length(uv - swimmerCenter));
-  color = mix(color, whiteColor, splash * 0.3 * (sin(time * 5.0) * 0.5 + 0.5));
+  
+  color = renderSwimmer(uv, swimmerCenter, swimmerFullScale, time, skinColor, swimsuitColor2, whiteColor, color);
 
 
   // ===============================================================
