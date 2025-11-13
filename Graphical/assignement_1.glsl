@@ -191,12 +191,6 @@ float depthFromY(float y, float horizonY) {
   return smoothstep(0.0, horizonY, clampedY);
 }
 
-// Blend toward fogColor using depth-based exponential falloff
-vec3 addDepthHaze(vec3 color, float depth, vec3 fogColor, float strength) {
-  float fog = pow(depth, strength);
-  return mix(color, fogColor, fog);
-}
-
 // Reverse perspective transformation
 vec2 removePerspective(vec2 uv, vec2 vanishingPoint, float strength) {
   vec2 dir = uv - vanishingPoint;
@@ -205,9 +199,15 @@ vec2 removePerspective(vec2 uv, vec2 vanishingPoint, float strength) {
   return vanishingPoint + dir * factor;
 }
 
-// ===================================================================
-// =================== Perspective Projection Utils ==================
-// ===================================================================
+mat2 rotate2D(float a) {
+  float s = sin(a), c = cos(a);
+  return mat2(c, -s, s, c);
+}
+
+// Generate a pseudo-random number based on vec2
+float hash(vec2 p) {
+  return fract(sin(dot(p, vec2(41.23, 289.13))) * 43758.5453);
+}
 
 // Get depth from y-coordinate (maps screen y to world depth)
 float yToDepth(float screenY, float horizonY) {
@@ -244,6 +244,30 @@ float noise(vec2 p) {
     return res*res;
 }
 
+// Hash functions for wave noise
+float hash1(float p) {
+    float h = dot(vec2(p), vec2(127.1, 311.7));
+    return fract(sin(h) * 43758.5453123);
+}
+
+// 1D noise
+float noise1d(float p) {
+    float i = floor(p);
+    float f = fract(p);
+    float u = f * f * f * (f * (f * 6.0 - 15.0) + 10.0);
+    return mix(hash1(i), hash1(i + 1.0), u);
+}
+
+
+float noiseLayer(vec2 p, float ti){
+    float e =0.;
+    for(float j=1.; j<9.; j++){
+        e += texture(iChannel0, p * float(j) + vec2(ti*7.89541) + vec2(j*159.78) ).r / (j/2.);
+    }
+    e /= 8.5;
+    return e;
+}
+
 // Fractional Brownian Motion (for waves, rocks)
 float fbm(vec2 p, float time) {
     float v = 0.0;
@@ -272,12 +296,7 @@ float udSegment(vec2 pos, vec2 a, vec2 b) {
 }
 
 
-float waveNoise(vec2 uv, float time, float frequency, float amplitude) {
-    float n = fbm(uv * frequency + vec2(time * 0.1, time * 0.1), time);
-    return n * amplitude;
-}
-
-
+// Utils for shoreline
 const int SHORE_POINT_COUNT = 11;
 const int SHORELINE_STEPS = 32;
 
@@ -288,6 +307,11 @@ struct ShoreSample {
   float sign;
   float param;
 };
+
+float waveNoise(vec2 uv, float time, float frequency, float amplitude) {
+    float n = fbm(uv * frequency + vec2(time * 0.1, time * 0.1), time);
+    return n * amplitude;
+}
 
 vec2 catmullRom(vec2 p0, vec2 p1, vec2 p2, vec2 p3, float t) {
   float t2 = t * t;
@@ -344,7 +368,7 @@ ShoreSample closestPointOnShoreline(vec2 uv, vec2 points[SHORE_POINT_COUNT]) {
 // ===================================================================
 // ============================ Shapes ===============================
 // ===================================================================
-// Blobby cloud made from 3 circles (smooth union), returns mask 0..1
+// Blobby cloud made from 3 circles (smooth union), returns mask
 float cloudBlob(vec2 uv, vec2 c, float size) {
   // Scale UV relative to cloud center for size control
   vec2 p = (uv - c) / size;
@@ -379,49 +403,10 @@ float cloudBlob(vec2 uv, vec2 c, float size) {
   return 1.0 - smoothstep(0.0, feather, d);
 }
 
-
 float sdSea(vec2 uv, vec2 p0, vec2 p1, vec2 p2) {
   float triangleDist = sdTriangle(uv, p0, p1, p2);
   return triangleDist;
 }
-
-
-float rockShape(vec2 uv, vec2 center, float size) {
-  float d = length(uv - center);
-  return smoothstep(size * 0.5, size, d);
-}
-// Hash functions for wave noise
-float hash1(float p) {
-    float h = dot(vec2(p), vec2(127.1, 311.7));
-    return fract(sin(h) * 43758.5453123);
-}
-
-// 1D noise
-float noise1d(float p) {
-    float i = floor(p);
-    float f = fract(p);
-    float u = f * f * f * (f * (f * 6.0 - 15.0) + 10.0);
-    return mix(hash1(i), hash1(i + 1.0), u);
-}
-
-// Layered noise for wave texture
-// float noiseLayer(vec2 p, float ti) {
-//     float e = 0.0;
-//     for(float j = 1.0; j < 9.0; j += 1.0) {
-//         e += noise(p * j + vec2(ti * 7.89541) + vec2(j * 159.78)) / (j / 2.0);
-//     }
-//     e /= 8.5;
-//     return e;
-// }
-float noiseLayer(vec2 p, float ti){
-    float e =0.;
-    for(float j=1.; j<9.; j++){
-        e += texture(iChannel0, p * float(j) + vec2(ti*7.89541) + vec2(j*159.78) ).r / (j/2.);
-    }
-    e /= 8.5;
-    return e;
-}
-
 
 vec3 generateBeachWaves(vec2 uv, vec3 sandColor, vec3 seaBaseColor, float time, float depthScale) {
   // Wave parameters
@@ -504,47 +489,13 @@ vec3 generateBeachWaves(vec2 uv, vec3 sandColor, vec3 seaBaseColor, float time, 
   return mix(seaBaseColor, col.rgb, colourBlend);
 }
 
-
-
-vec3 randomRockShape(vec2 uv, vec2 center, float size, float noiseIntensity) {
-  vec2 p = (uv - center) / size;
-
-  float baseShape = sdCircle(p, 0.5);
-
-  // Add noise to the shape
-  float n = fbm(p * 3.0, 0.0);
-  float noisyShape = baseShape + (n - 0.5) * noiseIntensity;
-
-  float feather = 0.02;
-  float mask = 1.0 - smoothstep(0.0, feather, noisyShape);
-
-  return vec3(mask);
-}
-
-
-// ===================================================================
-// ================== Procedural Rock Shape with Shading =============
-// ===================================================================
-
-// Helper: 2D rotation matrix
-mat2 rotate2D(float a) {
-  float s = sin(a), c = cos(a);
-  return mat2(c, -s, s, c);
-}
-
-// Generate a pseudo-random number based on vec2
-float hash(vec2 p) {
-  return fract(sin(dot(p, vec2(41.23, 289.13))) * 43758.5453);
-}
-
 // Procedural irregular polygon rock shape with noise
-float sdProceduralRock(vec2 uv, vec2 center, float radius, float irregularity, float seed) {
+float sdProceduralRock(vec2 uv, vec2 center, float radius, float irregularity, float seed, int facetsCount) {
   vec2 p = uv - center;
 
-  // Number of facets (random between 8 and 12 based on seed)
-  int facets = 8 + int(floor(hash(vec2(seed, seed * 1.3)) * 5.0));
+  int facets = facetsCount + int(floor(hash(vec2(seed, seed * 1.3)) * 5.0));
   
-  float angleStep = 6.28318 / float(facets);
+  float angleStep = 6.28318 / float(facets); // 2pi / facets
   
   // Build vertices array
   vec2 vertices[10];
@@ -561,7 +512,7 @@ float sdProceduralRock(vec2 uv, vec2 center, float radius, float irregularity, f
   
   for(int i = 0, j = facets - 1; i < facets; j = i, i++) {
     if(i >= 10 || j >= 10) break;
-    
+
     vec2 e = vertices[j] - vertices[i];
     vec2 w = p - vertices[i];
     vec2 b = w - e * clamp(dot(w, e) / dot(e, e), 0.0, 1.0);
@@ -570,32 +521,38 @@ float sdProceduralRock(vec2 uv, vec2 center, float radius, float irregularity, f
     bvec3 c = bvec3(p.y >= vertices[i].y, p.y < vertices[j].y, e.x * w.y > e.y * w.x);
     if(all(c) || all(not(c))) s *= -1.0;
   }
-  
-  // Add organic noise perturbation
-  float n = fbm(p * 3.0 + vec2(seed), 0.0) * 0.015;
-  
+
+
+  // displacement, based on https://iquilezles.org/articles/distfunctions/
+  float disp = 0.1 * sin(-1.0*p.x)*sin(20.0*p.y);
+
   // Return signed distance (negative inside)
-  return s * sqrt(d) + n;
+  return s * sqrt(d) + disp * irregularity;
 }
 
 // Rock with 3-tone shading (light on left, shadow on right)
 // Returns: 0 = outside, 1 = shadow, 2 = mid, 3 = light
-float proceduralRockWithShading(vec2 uv, vec2 center, float radius, float irregularity, float seed) {
-  float dist = sdProceduralRock(uv, center, radius, irregularity, seed);
+float proceduralRockWithShading(vec2 uv, vec2 center, float radius, float irregularity, float seed, int facetsCount) {
+  float dist = sdProceduralRock(uv, center, radius, irregularity, seed, facetsCount);
+
+
+  float midShadowThreshold = 0.05;
+  float darkEdgeThreshold = 0.005;
 
   if(dist > 0.0) return 0.0; // Outside rock
 
   // Calculate position relative to rock center
   vec2 localPos = (uv - center) / radius;
-  float horizontalOffset = localPos.x;
+  float horizontalOffset = localPos.x - localPos.y * 0.5; // Slight tilt for lighting
 
+  horizontalOffset = fbm(localPos * 5.0 + seed, 0.0) * 0.7 + horizontalOffset;
   // Light from left, shadow on right
-  if(horizontalOffset < -0.1) {
+  if(horizontalOffset < -midShadowThreshold) {
     return 3.0; // Light (left side)
   }
 
   // Gradient shadow from left to right
-  float shadowIntensity = smoothstep(-0.1, 0.4, horizontalOffset);
+  float shadowIntensity = smoothstep(-0.1, 1.4, horizontalOffset);
 
   // Add noise to break up uniform bands
   float noiseBreakup = fbm((uv - center) * 8.0, 0.0) * 0.2;
@@ -603,7 +560,7 @@ float proceduralRockWithShading(vec2 uv, vec2 center, float radius, float irregu
 
   // Edge darkening for depth
   float edgeDist = -dist;
-  float edgeDarkening = smoothstep(0.0, 0.05, edgeDist);
+  float edgeDarkening = smoothstep(0.0, darkEdgeThreshold, edgeDist);
 
   // Combine effects
   float shadeFactor = edgeDarkening * (1.0 - shadowIntensity * 0.75);
@@ -613,10 +570,6 @@ float proceduralRockWithShading(vec2 uv, vec2 center, float radius, float irregu
   if(shadeFactor > 0.55) return 2.0;  // Mid
   return 1.0;                          // Shadow
 }
-
-// ===================================================================
-// =================== Cliff Wall Generator ==========================
-// ===================================================================
 
 // Generate a cliff wall with layered rocks
 vec3 cliffWall(vec2 uv, vec2 origin, vec2 endTop, vec2 endBottom, float seed, vec3 rockLight, vec3 rockMid, vec3 rockDark, vec3 bgColor) {
@@ -659,7 +612,7 @@ vec3 cliffWall(vec2 uv, vec2 origin, vec2 endTop, vec2 endBottom, float seed, ve
       float irregularity = 0.4 + 0.3 * hash(center * 5.0);
       float rockSeed = seed + float(i * 5 + j);
       
-      float rockResult = proceduralRockWithShading(uv, center, radius, irregularity, rockSeed);
+      float rockResult = proceduralRockWithShading(uv, center, radius, irregularity, rockSeed, 8);
       
       if (rockResult > 0.0) {
         vec3 rockColor;
@@ -676,7 +629,7 @@ vec3 cliffWall(vec2 uv, vec2 origin, vec2 endTop, vec2 endBottom, float seed, ve
         rockColor *= colorVar;
         
         // Blend based on distance
-        float dist = sdProceduralRock(uv, center, radius, irregularity, rockSeed);
+        float dist = sdProceduralRock(uv, center, radius, irregularity, rockSeed, 8);
         float blend = smoothstep(0.25, 0.1, dist);
         col = mix(col, rockColor, blend);
       }
@@ -728,6 +681,44 @@ float towelShape(vec2 uv, vec2 center, float size, float width, float height, fl
   return mask * (1.0 + stripeValue);
 }
 
+// Returns 1.0 for swimmer, 2.0 for hair, 3.0 for swimsuit, 4.0 for splash, 0.0 for background
+// float swimmer(vec2 uv, float time, vec2 center) {
+//   float swimHead = sdCircle(uv - swimmerCenter, swimmerFullScale);
+//   float swimHair = sdBox(uv - swimmerCenter - vec2(-0.008, 0.0) * swimmerFullScale, vec2(0.006, 0.01) * swimmerFullScale);
+
+//   vec2 bodyOffset = vec2(-3.2, 0.0) * swimmerFullScale;
+//   float swimBody = sdRoundedBox(uv - swimmerCenter - bodyOffset, vec2(2.3, 0.4) * swimmerFullScale, 0.003 * swimmerFullScale);
+
+//   vec2 shoulderTop = swimmerCenter + vec2(-1.6, -0.009) * swimmerFullScale;
+//   vec2 shoulderBottom = swimmerCenter + vec2(-1.6, 0.009) * swimmerFullScale;
+//   float armAngle = sin(time * 3.0);
+//   float armLength = 2.2 * swimmerFullScale;
+
+//   float angleTop = armAngle * 1.8;
+//   vec2 armEndTop = shoulderTop + vec2(cos(angleTop), sin(angleTop)) * armLength;
+//   float swimArmTop = sdOrientedBox(uv, shoulderTop, armEndTop, 0.25 * swimmerFullScale);
+
+//   float angleBottom = -armAngle * 1.8;
+//   vec2 armEndBottom = shoulderBottom + vec2(cos(angleBottom), sin(angleBottom)) * armLength;
+//   float swimArmBottom = sdOrientedBox(uv, shoulderBottom, armEndBottom, 0.25 * swimmerFullScale);
+
+//   float splash = smoothstep(0.025 * swimmerFullScale, 0.015 * swimmerFullScale, length(uv - swimmerCenter));
+//   color = mix(color, whiteColor, splash * 0.3 * (sin(time * 5.0) * 0.5 + 0.5));
+
+//   float swimmer = opSmoothUnion(swimHead, swimBody, 0.002 * swimmerFullScale);
+//   swimmer = opUnion(swimmer, swimArmTop);
+//   swimmer = opUnion(swimmer, swimArmBottom);
+
+//   if (swimmer < 0.0) {
+//     color = skinColor;
+//     if(sdBox(uv - swimmerCenter - bodyOffset, vec2(2.0, 1.0) * swimmerFullScale) < 0.0) {
+//       color = swimsuitColor2;
+//     }
+//     if(swimHair < 0.0) {
+//       color = rgb(50, 20, 10);
+//     }
+//   }
+// }
 
 
 
@@ -741,8 +732,10 @@ float towelShape(vec2 uv, vec2 center, float size, float width, float height, fl
 void mainImage(out vec4 fragColor, in vec2 fragCoord)
 {
   // - improve cliff
-  // - splash nageurs end of arms when they hit the water (foam, depends on the angle of the arm)
+  // - splash swimmer end of arms when they hit the water (foam, depends on the angle of the arm)
   // - put people shapes in functions
+  // - fix hairs
+
 
   // ==================================================
   // =================== Parameters ===================
@@ -964,14 +957,6 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
   vec2 rockTop = rockPointBase + vec2(2.0, 1.7) * rockScale;
   vec2 rockBottom = rockPointBase + vec2(2.0, 0.14) * rockScale;
 
-  // float rockDist = sdTriangle(uv, rockPoint, rockTop, rockBottom);
-  // if (rockDist < 0.0) {
-  //   color = rockColor;
-  //   // Add subtle depth-based shading
-  //   float shadeFactor = mix(0.85, 1.0, rockScale);
-  //   color *= shadeFactor;
-  // }
-
   vec3 cliffColor = cliffWall(uv, rockPointBase, rockTop, rockBottom, 1.23, rockColor, darkRockColor, darkerRockColor, color);
   color = cliffColor;
     
@@ -1051,11 +1036,8 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
   float swimmerScale = getPerspectiveScale(swimmerCenter.y, horizonY, perspectiveStrength);
   float swimmerFullScale = swimmerSize * swimmerScale;
 
-  // Only render swimmer if pixel is within bounding circle
-  // float distToSwimmer = length(uv - swimmerCenter);
-  // float swimmerRadius = swimmerFullScale * 6.0; // Bounding circle for entire swimmer
-  
-  if (swimmerCenter.y < skyHeight) {
+  // float swimmer = swimmerShape(uv, swimmerCenter, swimmerFullScale);
+
     float swimHead = sdCircle(uv - swimmerCenter, swimmerFullScale);
     float swimHair = sdBox(uv - swimmerCenter - vec2(-0.008, 0.0) * swimmerFullScale, vec2(0.006, 0.01) * swimmerFullScale);
 
@@ -1088,10 +1070,8 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
         color = rgb(50, 20, 10);
       }
     }
-
-    float splash = smoothstep(0.025 * swimmerFullScale, 0.015 * swimmerFullScale, length(uv - swimmerCenter));
-    color = mix(color, whiteColor, splash * 0.3 * (sin(time * 5.0) * 0.5 + 0.5));
-  }
+  float splash = smoothstep(0.025 * swimmerFullScale, 0.015 * swimmerFullScale, length(uv - swimmerCenter));
+  color = mix(color, whiteColor, splash * 0.3 * (sin(time * 5.0) * 0.5 + 0.5));
 
 
   // ===============================================================
