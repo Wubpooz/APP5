@@ -490,19 +490,23 @@ vec3 generateBeachWaves(vec2 uv, vec3 sandColor, vec3 seaBaseColor, float time, 
 }
 
 // Procedural irregular polygon rock shape with noise
-float sdProceduralRock(vec2 uv, vec2 center, float radius, float irregularity, float seed, int facetsCount) {
+// verticalStretch: 1.0 = round, >1.0 = vertically elongated (cliff rocks)
+float sdProceduralRock(vec2 uv, vec2 center, float radius, float irregularity, float seed, int facetsCount, float verticalStretch) {
   vec2 p = uv - center;
+  
+  // Apply vertical stretch to make rocks more elongated
+  p.y /= verticalStretch;
 
   int facets = facetsCount + int(floor(hash(vec2(seed, seed * 1.3)) * 5.0));
   
   float angleStep = 6.28318 / float(facets); // 2pi / facets
   
   // Build vertices array
-  vec2 vertices[10];
-  for(int i = 0; i < 10; i++) {
+  vec2 vertices[25];
+  for(int i = 0; i < facetsCount; i++) {
     if(i >= facets) break;
     float angle = float(i) * angleStep;
-    float r = radius * (0.6 + hash(vec2(seed + float(i) * 0.1, seed * 2.0)) * irregularity);
+    float r = radius * (0.5 + hash(vec2(seed + float(i) * 0.1, seed * 2.0)) * irregularity);
     vertices[i] = r * vec2(cos(angle), sin(angle));
   }
   
@@ -511,7 +515,7 @@ float sdProceduralRock(vec2 uv, vec2 center, float radius, float irregularity, f
   float s = 1.0;
   
   for(int i = 0, j = facets - 1; i < facets; j = i, i++) {
-    if(i >= 10 || j >= 10) break;
+    if(i >= facetsCount || j >= facetsCount) break;
 
     vec2 e = vertices[j] - vertices[i];
     vec2 w = p - vertices[i];
@@ -524,26 +528,29 @@ float sdProceduralRock(vec2 uv, vec2 center, float radius, float irregularity, f
 
 
   // displacement, based on https://iquilezles.org/articles/distfunctions/
-  float disp = 0.1 * sin(-1.0*p.x)*sin(20.0*p.y);
+  // Adjust displacement intensity based on vertical stretch
+  float dispIntensity = mix(0.15, 0.05, (verticalStretch - 1.0) / 2.0);
+  float disp = dispIntensity * sin(-1.0*p.x)*sin(20.0*p.y);
 
-  // Return signed distance (negative inside)
-  return s * sqrt(d) + disp * irregularity;
+  // Return signed distance (negative inside), compensate for vertical stretch
+  return s * sqrt(d) * verticalStretch + disp * irregularity;
 }
 
 // Rock with 3-tone shading (light on left, shadow on right)
 // Returns: 0 = outside, 1 = shadow, 2 = mid, 3 = light
-float proceduralRockWithShading(vec2 uv, vec2 center, float radius, float irregularity, float seed, int facetsCount) {
-  float dist = sdProceduralRock(uv, center, radius, irregularity, seed, facetsCount);
+// verticalStretch: 1.0 = round, >1.0 = vertically elongated (cliff rocks)
+float proceduralRockWithShading(vec2 uv, vec2 center, float radius, float irregularity, float seed, int facetsCount, float verticalStretch, float lightAngle) {
+  float dist = sdProceduralRock(uv, center, radius, irregularity, seed, facetsCount, verticalStretch);
 
 
-  float midShadowThreshold = 0.05;
+  float midShadowThreshold = 0.01;
   float darkEdgeThreshold = 0.005;
 
   if(dist > 0.0) return 0.0; // Outside rock
 
   // Calculate position relative to rock center
   vec2 localPos = (uv - center) / radius;
-  float horizontalOffset = localPos.x - localPos.y * 0.5; // Slight tilt for lighting
+  float horizontalOffset = localPos.x - localPos.y * lightAngle; // Slight tilt for lighting
 
   horizontalOffset = fbm(localPos * 5.0 + seed, 0.0) * 0.7 + horizontalOffset;
   // Light from left, shadow on right
@@ -596,6 +603,12 @@ vec3 cliffWall(vec2 uv, vec2 origin, vec2 endTop, vec2 endBottom, float seed, ve
   for (int i = 0; i < rockNumber; i++) {
     float yi = float(i) * vertical_step;
     
+    // Height-based rock type: bottom rocks are rounded, top rocks are vertical
+    float heightRatio = float(i) / float(rockNumber - 1); // 0.0 at bottom, 1.0 at top
+    float verticalStretch = mix(0.7, 2.5, heightRatio); // 0.7 = rounded at bottom, 2.5 = tall cliff rocks at top
+    int facets = int(mix(12.0, 8.0, heightRatio)); // More facets for rounded rocks, fewer for cliff faces
+
+
     for (int j = 0; j < rockNumber; j++) {
       float xj = float(j) * horizontal_step;
       
@@ -609,10 +622,14 @@ vec3 cliffWall(vec2 uv, vec2 origin, vec2 endTop, vec2 endBottom, float seed, ve
 
       // Randomized size and irregularity
       float radius = main_radius + radius_variation * hash(vec2(float(j), float(i) + 1.0));
-      float irregularity = 0.4 + 0.3 * hash(center * 5.0);
+      float irregularity = 0.8 + 0.3 * hash(center * 5.0);
       float rockSeed = seed + float(i * 5 + j);
       
-      float rockResult = proceduralRockWithShading(uv, center, radius, irregularity, rockSeed, 8);
+      // Light angle varies by horizontal position: left rocks (j=0) have top-down light, right rocks (j=4) have left-right light
+      float horizontalRatio = float(j) / float(rockNumber - 1); // 0.0 at left, 1.0 at right
+      float lightAngle = mix(2.0, 0.3, horizontalRatio); // 2.0 = top-down on left, 0.3 = left-right on right
+      
+      float rockResult = proceduralRockWithShading(uv, center, radius, irregularity, rockSeed, facets, verticalStretch, lightAngle);
       
       if (rockResult > 0.0) {
         vec3 rockColor;
@@ -624,12 +641,15 @@ vec3 cliffWall(vec2 uv, vec2 origin, vec2 endTop, vec2 endBottom, float seed, ve
           rockColor = rockDark;
         }
         
-        // Add per-rock color variation
-        float colorVar = 0.9 + 0.2 * hash(center * 10.0);
+        // Add per-rock color variation based on distance from sun (left side)
+        // Rocks on the left (closer to sun) are brighter, rocks on the right are darker
+        float baseVariation = 0.85 + 0.15 * hash(center * 10.0); // Small random variation
+        float sunProximity = 1.0 - horizontalRatio; // 1.0 on left (near sun), 0.0 on right (far from sun)
+        float colorVar = mix(0.95, 1.15, sunProximity) * baseVariation; // Brighter on left, darker on right
         rockColor *= colorVar;
         
         // Blend based on distance
-        float dist = sdProceduralRock(uv, center, radius, irregularity, rockSeed, 8);
+        float dist = sdProceduralRock(uv, center, radius, irregularity, rockSeed, facets, verticalStretch);
         float blend = smoothstep(0.25, 0.1, dist);
         col = mix(col, rockColor, blend);
       }
@@ -735,6 +755,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
   // - splash swimmer end of arms when they hit the water (foam, depends on the angle of the arm)
   // - put people shapes in functions
   // - fix hairs
+  // - add grass on the cliff at certain positions
 
 
   // ==================================================
