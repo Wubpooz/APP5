@@ -740,9 +740,8 @@ float towelShape(vec2 uv, vec2 center, float size, float width, float height, fl
 // The scene is peaceful and relaxing.
 void mainImage(out vec4 fragColor, in vec2 fragCoord)
 {
+  // - improve cliff
   // - splash nageurs end of arms when they hit the water (foam, depends on the angle of the arm)
-  // - finir falaise
-  // - add noise to sand
   // - put people shapes in functions
 
   // ==================================================
@@ -898,7 +897,19 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
   // =================== Beach ===================
   // =============================================
   if (uv.y <= skyHeight) {
-    color = beachColor;
+    float sandNoise = fbm(beachUV * 2.0, 0.0);
+    
+    // Add granular detail with multiple noise layers
+    float fineGrain = noise(beachUV * 15.0) * 0.15;
+    float mediumGrain = noise(beachUV * 5.0) * 0.25;
+    float coarsePattern = fbm(beachUV * 0.8, 0.0) * 0.3;
+    
+    float combinedNoise = (sandNoise * 0.4 + fineGrain + mediumGrain + coarsePattern) * 0.3;
+    vec3 sandVariation = beachColor * (0.85 + combinedNoise);    
+    float colorVariation = noise(beachUV * 3.0) * 0.1;
+    sandVariation = mix(sandVariation, beachColor * 1.15, colorVariation);
+    
+    color = sandVariation;
   }
 
 
