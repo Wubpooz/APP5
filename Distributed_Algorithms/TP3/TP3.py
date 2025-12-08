@@ -11,41 +11,70 @@ Rappel de l'algorithme FloodSet:
     - Sinon -> on décide la valeur par défaut v0
 """
 
+import sys
+from typing import Set, List, Optional
+
 # PARAMÈTRES DE LA SIMULATION
-
-from typing import Set
-
 
 n: int = 4                           # Nombre de processus
 f: int = 1                           # Nombre maximum de crashs
 total_rounds: int = f + 1            # Nombre de rounds à exécuter
 default_value: int = 0               # Valeur par défaut v0
 
-# Scenario 1
-initial_values = [1, 1, 1, 1]
-crashed = [False, False, False, False]
+# Variables globales (initialisées dans load_scenario)
+initial_values: List[int] = []
+crashed: List[bool] = []
+W: List[Set[int]] = []
+decision: List[Optional[int]] = []
 
-# Scenario 2
-# initial_values = [1, 2, 3, 4]
-# crashed = [False, False, False, False]
+SCENARIOS = {
+    1: {
+        "name": "Le cas trivial",
+        "description": "Tout le monde a la même valeur, personne ne crashe. Résultat attendu: Tout le monde décide 1.",
+        "initial_values": [1, 1, 1, 1],
+        "crashed": [False, False, False, False]
+    },
+    2: {
+        "name": "Le cas de base",
+        "description": "Valeurs différentes, pas de crash. Résultat attendu: Tout le monde voit {1,2,3,4} et décide v0 (0).",
+        "initial_values": [1, 2, 3, 4],
+        "crashed": [False, False, False, False]
+    },
+    3: {
+        "name": "Le Crash Critique",
+        "description": "P0 a une info secrète (5). Il la donne à P1 au round 1, puis crashe. P1 la donne à P2 au round 2.",
+        "initial_values": [5, 1, 2, 3],
+        "crashed": [False, False, True, False]
+    },
+    4: {
+        "name": "Scénario D",
+        "description": "Crashs multiples: P1 et P3 crashent dès le début. P0 (1) et P2 (2) échangent leurs valeurs. La valeur 4 de P3 est perdue. P0 et P2 finissent avec {1, 2} et décident v0.",
+        "initial_values": [1, 2, 2, 4],
+        "crashed": [False, True, False, True]
+    }
+}
 
-# Scenario 3
-# initial_values = [5, 1, 2, 3]
-# crashed = [False, False, True, False]  # P2 crash après round
-
-# # Scenario D
-# initial_values = [1, 2, 2, 4]
-# crashed = [False, True, False, True]
-
-
-# État de chaque processus: W[i] = ensemble des valeurs connues par le processus i
-# Au début, chaque processus ne connaît que sa propre valeur initiale
-W: list[Set[int]] = [set() for _ in range(n)]
-for i in range(n):
-    W[i] = {initial_values[i]}
-
-# decision[i] = la décision du processus i (None si pas encore décidé)
-decision: list[int | None] = [None] * n
+def load_scenario(scenario_id: int):
+    global initial_values, crashed, W, decision
+    
+    if scenario_id not in SCENARIOS:
+        print(f"Erreur: Scénario {scenario_id} inconnu.")
+        sys.exit(1)
+        
+    scen = SCENARIOS[scenario_id]
+    print(f"Chargement du scénario {scenario_id}: {scen['name']}")
+    print(scen['description'])
+    
+    initial_values = scen["initial_values"]
+    crashed = scen["crashed"]
+    
+    # Initialisation de W
+    W = [set() for _ in range(n)]
+    for i in range(n):
+        W[i] = {initial_values[i]}
+        
+    # Initialisation de decision
+    decision = [None] * n
 
 
 # EXERCICE 1: Compléter cette fonction
@@ -167,7 +196,6 @@ def run_simulation():
         print(f"Consensus. Tout le monde a décidé: {decisions_faites[0]}")
 
 # =============================================================================
-
 # EXERCICE 3: Tester différents scénarios
 
 # Exécutez ce fichier pour tester votre implémentation
@@ -194,4 +222,21 @@ def run_simulation():
 
 # ============================================================================
 if __name__ == "__main__":
-  run_simulation()
+    if len(sys.argv) > 1:
+        try:
+            choice = int(sys.argv[1])
+        except ValueError:
+            print("L'argument doit être un entier.")
+            sys.exit(1)
+    else:
+        print("Choisissez un scénario:")
+        for k, v in SCENARIOS.items():
+            print(f"{k}: {v['name']}")
+        try:
+            choice = int(input("Entrez le numéro du scénario: "))
+        except ValueError:
+            print("Entrée invalide.")
+            sys.exit(1)
+            
+    load_scenario(choice)
+    run_simulation()
