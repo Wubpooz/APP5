@@ -23,7 +23,7 @@ default_value: int = 0               # Valeur par défaut v0
 
 # Variables globales (initialisées dans load_scenario)
 initial_values: List[int] = []
-crashed: List[bool] = []
+crashed: List[Optional[int]] = []  # None = pas de crash, int = round du crash
 W: List[Set[int]] = []
 decision: List[Optional[int]] = []
 
@@ -32,25 +32,25 @@ SCENARIOS = {
         "name": "Le cas trivial",
         "description": "Tout le monde a la même valeur, personne ne crashe. Résultat attendu: Tout le monde décide 1.",
         "initial_values": [1, 1, 1, 1],
-        "crashed": [False, False, False, False]
+        "crashed": [None, None, None, None]
     },
     2: {
         "name": "Le cas de base",
         "description": "Valeurs différentes, pas de crash. Résultat attendu: Tout le monde voit {1,2,3,4} et décide v0 (0).",
         "initial_values": [1, 2, 3, 4],
-        "crashed": [False, False, False, False]
+        "crashed": [None, None, None, None]
     },
     3: {
         "name": "Le Crash Critique",
-        "description": "P0 a une info secrète (5). Il la donne à P1 au round 1, puis crashe. P1 la donne à P2 au round 2.",
+        "description": "P0 a une info secrète (5). Il la donne à P1 au round 1, puis crashe (round 2). P1 la donne à P2 au round 2.",
         "initial_values": [5, 1, 2, 3],
-        "crashed": [False, False, True, False]
+        "crashed": [2, None, None, None]
     },
     4: {
         "name": "Scénario D",
-        "description": "Crashs multiples: P1 et P3 crashent dès le début. P0 (1) et P2 (2) échangent leurs valeurs. La valeur 4 de P3 est perdue. P0 et P2 finissent avec {1, 2} et décident v0.",
+        "description": "Crashs multiples: P1 et P3 crashent dès le début (round 1). P0 (1) et P2 (2) échangent leurs valeurs. La valeur 4 de P3 est perdue. P0 et P2 finissent avec {1, 2} et décident v0.",
         "initial_values": [1, 2, 2, 4],
-        "crashed": [False, True, False, True]
+        "crashed": [None, 1, None, 1]
     }
 }
 
@@ -155,7 +155,13 @@ def run_simulation():
         # Chaque processus prépare son message (son W actuel)
         messages = []
         for i in range(n):
-            if crashed[i]:
+            # Un processus est crashé s'il a un round de crash défini <= round actuel
+            crash_round = crashed[i]
+            is_crashed = False
+            if crash_round is not None and crash_round <= round_num:
+                is_crashed = True
+            
+            if is_crashed:
                 messages.append(None)
                 print(f"  P{i}: [CRASHED]")
             else:
@@ -164,13 +170,24 @@ def run_simulation():
         
         # Chaque processus reçoit les messages et met à jour son W
         for i in range(n):
-            if not crashed[i]:
+            # Un processus ne reçoit pas s'il est crashé
+            crash_round = crashed[i]
+            is_crashed = False
+            if crash_round is not None and crash_round <= round_num:
+                is_crashed = True
+
+            if not is_crashed:
                 receive_and_merge(i, messages)
         
         # Afficher l'état après le round
         print(f"  État après round {round_num}:")
         for i in range(n):
-            if crashed[i]:
+            crash_round = crashed[i]
+            is_crashed = False
+            if crash_round is not None and crash_round <= round_num:
+                is_crashed = True
+
+            if is_crashed:
                 print(f"    P{i}: [CRASHED]")
             else:
                 print(f"    P{i}: W = {W[i]}")
@@ -179,13 +196,29 @@ def run_simulation():
     # Phase de décision
     print("=== DÉCISION ===")
     for i in range(n):
-        if not crashed[i]:
+        # On considère qu'un processus peut décider s'il n'a pas crashé pendant les rounds
+        crash_round = crashed[i]
+        is_crashed = False
+        if crash_round is not None and crash_round <= total_rounds:
+            is_crashed = True
+        
+        if not is_crashed:
             decide(i)
             print(f"  P{i}: W = {W[i]} -> décide {decision[i]}")
     
     # Vérification
     print()
-    decisions_faites = [decision[i] for i in range(n) if not crashed[i]]
+    # On ne vérifie que les processus qui n'ont pas crashé
+    decisions_faites = []
+    for i in range(n):
+        crash_round = crashed[i]
+        is_crashed = False
+        if crash_round is not None and crash_round <= total_rounds:
+            is_crashed = True
+
+        if not is_crashed:
+            decisions_faites.append(decision[i])
+            
     if None in decisions_faites:
         print("ERREUR: Certains processus n'ont pas décidé")
         print("   Vérifiez votre fonction decide()")
@@ -193,7 +226,10 @@ def run_simulation():
         print("ERREUR: Les processus ont décidé des valeurs différentes!")
         print(f"   Décisions: {decisions_faites}")
     else:
-        print(f"Consensus. Tout le monde a décidé: {decisions_faites[0]}")
+        if decisions_faites:
+            print(f"Consensus. Tout le monde a décidé: {decisions_faites[0]}")
+        else:
+            print("Tous les processus ont crashé.")
 
 # =============================================================================
 # EXERCICE 3: Tester différents scénarios
@@ -220,7 +256,7 @@ def run_simulation():
 #
 # Scénario D: Créez et expliquez votre propre scénario 
 
-# ============================================================================
+# ============================================================================python3 Distributed_Algorithms/TP3/TP3.py 4
 if __name__ == "__main__":
     if len(sys.argv) > 1:
         try:
