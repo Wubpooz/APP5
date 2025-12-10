@@ -1,7 +1,18 @@
 // =============== SDF OPERATORS ===============
 float dot2( in vec3 v ) { return dot(v,v); }
 
+// =============== LIGHTING ===============
+#define NUM_LIGHTS 3
+struct DirLight {
+    vec3 dir;   // direction pointing from light toward the scene
+    vec3 color; // light radiance/tint
+};
+
 // =============== TEXT HELPERS ===============
+float sdBox(vec2 p, vec2 b) {
+    vec2 d = abs(p) - b;
+    return min(max(d.x, d.y), 0.0) + length(max(d, 0.0));
+}
 float sdSegment( in vec2 p, in vec2 a, in vec2 b )
 {
     vec2 pa = p-a, ba = b-a;
@@ -9,10 +20,40 @@ float sdSegment( in vec2 p, in vec2 a, in vec2 b )
     return length( pa - ba*h );
 }
 
-float charH(vec2 p) {
-    return min(min(sdSegment(p, vec2(-0.2,-0.3), vec2(-0.2,0.3)),
-                   sdSegment(p, vec2( 0.2,-0.3), vec2( 0.2,0.3))),
-                   sdSegment(p, vec2(-0.2, 0.0), vec2( 0.2,0.0)));
+// Individual glyphs built from segments; simple and compact
+float charA(vec2 p) {
+    float d = min(sdSegment(p, vec2(-0.2,-0.3), vec2(0.0,0.3)), sdSegment(p, vec2(0.0,0.3), vec2(0.2,-0.3)));
+    d = min(d, sdSegment(p, vec2(-0.1,0.0), vec2(0.1,0.0)));
+    return d;
+}
+float charB(vec2 p) {
+    float d = sdSegment(p, vec2(-0.2,-0.3), vec2(-0.2,0.3));
+    d = min(d, sdSegment(p, vec2(-0.2,0.3), vec2(0.1,0.3)));
+    d = min(d, sdSegment(p, vec2(0.1,0.3), vec2(0.15,0.15)));
+    d = min(d, sdSegment(p, vec2(0.15,0.15), vec2(0.1,0.0)));
+    d = min(d, sdSegment(p, vec2(0.1,0.0), vec2(-0.2,0.0)));
+    d = min(d, sdSegment(p, vec2(-0.2,0.0), vec2(0.1,0.0)));
+    d = min(d, sdSegment(p, vec2(0.1,0.0), vec2(0.15,-0.15)));
+    d = min(d, sdSegment(p, vec2(0.15,-0.15), vec2(0.1,-0.3)));
+    d = min(d, sdSegment(p, vec2(0.1,-0.3), vec2(-0.2,-0.3)));
+    return d;
+}
+float charC(vec2 p) {
+    float d = sdSegment(p, vec2(0.15,0.25), vec2(-0.1,0.3));
+    d = min(d, sdSegment(p, vec2(-0.1,0.3), vec2(-0.2,0.15)));
+    d = min(d, sdSegment(p, vec2(-0.2,0.15), vec2(-0.2,-0.15)));
+    d = min(d, sdSegment(p, vec2(-0.2,-0.15), vec2(-0.1,-0.3)));
+    d = min(d, sdSegment(p, vec2(-0.1,-0.3), vec2(0.15,-0.25)));
+    return d;
+}
+float charD(vec2 p) {
+    float d = sdSegment(p, vec2(-0.2,-0.3), vec2(-0.2,0.3));
+    d = min(d, sdSegment(p, vec2(-0.2,0.3), vec2(0.1,0.3)));
+    d = min(d, sdSegment(p, vec2(0.1,0.3), vec2(0.2,0.15)));
+    d = min(d, sdSegment(p, vec2(0.2,0.15), vec2(0.2,-0.15)));
+    d = min(d, sdSegment(p, vec2(0.2,-0.15), vec2(0.1,-0.3)));
+    d = min(d, sdSegment(p, vec2(0.1,-0.3), vec2(-0.2,-0.3)));
+    return d;
 }
 float charE(vec2 p) {
     float d = sdSegment(p, vec2(-0.2,-0.3), vec2(-0.2,0.3));
@@ -21,9 +62,45 @@ float charE(vec2 p) {
     d = min(d, sdSegment(p, vec2(-0.2,-0.3), vec2( 0.2,-0.3)));
     return d;
 }
+float charF(vec2 p) {
+    float d = sdSegment(p, vec2(-0.2,-0.3), vec2(-0.2,0.3));
+    d = min(d, sdSegment(p, vec2(-0.2,0.3), vec2(0.2,0.3)));
+    d = min(d, sdSegment(p, vec2(-0.2,0.05), vec2(0.1,0.05)));
+    return d;
+}
+float charG(vec2 p) {
+    float d = charC(p);
+    d = min(d, sdSegment(p, vec2(0.0,0.0), vec2(0.15,0.0)));
+    d = min(d, sdSegment(p, vec2(0.15,0.0), vec2(0.15,-0.15)));
+    return d;
+}
+float charH(vec2 p) {
+    return min(min(sdSegment(p, vec2(-0.2,-0.3), vec2(-0.2,0.3)),
+                   sdSegment(p, vec2( 0.2,-0.3), vec2( 0.2,0.3))),
+                   sdSegment(p, vec2(-0.2, 0.0), vec2( 0.2,0.0)));
+}
+float charI(vec2 p) {
+    float d = sdSegment(p, vec2(-0.15,0.3), vec2(0.15,0.3));
+    d = min(d, sdSegment(p, vec2(0.0,0.3), vec2(0.0,-0.3)));
+    d = min(d, sdSegment(p, vec2(-0.15,-0.3), vec2(0.15,-0.3)));
+    return d;
+}
 float charL(vec2 p) {
     return min(sdSegment(p, vec2(-0.2,-0.3), vec2(-0.2,0.3)),
                sdSegment(p, vec2(-0.2,-0.3), vec2( 0.2,-0.3)));
+}
+float charM(vec2 p) {
+    float d = sdSegment(p, vec2(-0.2,-0.3), vec2(-0.2,0.3));
+    d = min(d, sdSegment(p, vec2(-0.2,0.3), vec2(0.0,0.05)));
+    d = min(d, sdSegment(p, vec2(0.0,0.05), vec2(0.2,0.3)));
+    d = min(d, sdSegment(p, vec2(0.2,0.3), vec2(0.2,-0.3)));
+    return d;
+}
+float charN(vec2 p) {
+    float d = sdSegment(p, vec2(-0.2,-0.3), vec2(-0.2,0.3));
+    d = min(d, sdSegment(p, vec2(-0.2,0.3), vec2(0.2,-0.3)));
+    d = min(d, sdSegment(p, vec2(0.2,-0.3), vec2(0.2,0.3)));
+    return d;
 }
 float charO(vec2 p) {
     float d = sdSegment(p, vec2(-0.2,-0.3), vec2(-0.2,0.3));
@@ -32,11 +109,11 @@ float charO(vec2 p) {
     d = min(d, sdSegment(p, vec2(-0.2,-0.3), vec2( 0.2,-0.3)));
     return d;
 }
-float charW(vec2 p) {
-    float d = sdSegment(p, vec2(-0.3, 0.3), vec2(-0.15,-0.3));
-    d = min(d, sdSegment(p, vec2(-0.15,-0.3), vec2( 0.0, 0.0)));
-    d = min(d, sdSegment(p, vec2( 0.0, 0.0), vec2( 0.15,-0.3)));
-    d = min(d, sdSegment(p, vec2( 0.15,-0.3), vec2( 0.3, 0.3)));
+float charP(vec2 p) {
+    float d = sdSegment(p, vec2(-0.2,-0.3), vec2(-0.2,0.3));
+    d = min(d, sdSegment(p, vec2(-0.2,0.3), vec2(0.15,0.3)));
+    d = min(d, sdSegment(p, vec2(0.15,0.3), vec2(0.15,0.05)));
+    d = min(d, sdSegment(p, vec2(0.15,0.05), vec2(-0.2,0.05)));
     return d;
 }
 float charR(vec2 p) {
@@ -47,18 +124,132 @@ float charR(vec2 p) {
     d = min(d, sdSegment(p, vec2(-0.1, 0.0), vec2( 0.2,-0.3)));
     return d;
 }
-float charD(vec2 p) {
-    float d = sdSegment(p, vec2(-0.2,-0.3), vec2(-0.2,0.3));
-    d = min(d, sdSegment(p, vec2(-0.2, 0.3), vec2( 0.1,0.3)));
-    d = min(d, sdSegment(p, vec2( 0.1, 0.3), vec2( 0.2,0.15)));
-    d = min(d, sdSegment(p, vec2( 0.2, 0.15), vec2( 0.2,-0.15)));
-    d = min(d, sdSegment(p, vec2( 0.2,-0.15), vec2( 0.1,-0.3)));
-    d = min(d, sdSegment(p, vec2( 0.1,-0.3), vec2(-0.2,-0.3)));
+float charS(vec2 p) {
+    float d = sdSegment(p, vec2(0.15,0.3), vec2(-0.15,0.3));
+    d = min(d, sdSegment(p, vec2(-0.15,0.3), vec2(-0.2,0.05)));
+    d = min(d, sdSegment(p, vec2(-0.2,0.05), vec2(0.15,0.05)));
+    d = min(d, sdSegment(p, vec2(0.15,0.05), vec2(0.2,-0.2)));
+    d = min(d, sdSegment(p, vec2(0.2,-0.2), vec2(-0.15,-0.2)));
+    d = min(d, sdSegment(p, vec2(-0.15,-0.2), vec2(-0.15,-0.3)));
+    d = min(d, sdSegment(p, vec2(-0.15,-0.3), vec2(0.15,-0.3)));
+    return d;
+}
+float charT(vec2 p) {
+    float d = sdSegment(p, vec2(-0.2,0.3), vec2(0.2,0.3));
+    d = min(d, sdSegment(p, vec2(0.0,0.3), vec2(0.0,-0.3)));
+    return d;
+}
+float charU(vec2 p) {
+    float d = sdSegment(p, vec2(-0.2,0.3), vec2(-0.2,-0.2));
+    d = min(d, sdSegment(p, vec2(-0.2,-0.2), vec2(0.0,-0.3)));
+    d = min(d, sdSegment(p, vec2(0.0,-0.3), vec2(0.2,-0.2)));
+    d = min(d, sdSegment(p, vec2(0.2,-0.2), vec2(0.2,0.3)));
+    return d;
+}
+float charV(vec2 p) {
+    float d = sdSegment(p, vec2(-0.2,0.3), vec2(0.0,-0.3));
+    d = min(d, sdSegment(p, vec2(0.0,-0.3), vec2(0.2,0.3)));
+    return d;
+}
+float charW(vec2 p) {
+    float d = sdSegment(p, vec2(-0.3, 0.3), vec2(-0.15,-0.3));
+    d = min(d, sdSegment(p, vec2(-0.15,-0.3), vec2( 0.0, 0.0)));
+    d = min(d, sdSegment(p, vec2( 0.0, 0.0), vec2( 0.15,-0.3)));
+    d = min(d, sdSegment(p, vec2( 0.15,-0.3), vec2( 0.3, 0.3)));
+    return d;
+}
+float charX(vec2 p) {
+    float d = sdSegment(p, vec2(-0.2,0.3), vec2(0.2,-0.3));
+    d = min(d, sdSegment(p, vec2(0.2,0.3), vec2(-0.2,-0.3)));
+    return d;
+}
+float charY(vec2 p) {
+    float d = sdSegment(p, vec2(-0.2,0.3), vec2(0.0,0.0));
+    d = min(d, sdSegment(p, vec2(0.2,0.3), vec2(0.0,0.0)));
+    d = min(d, sdSegment(p, vec2(0.0,0.0), vec2(0.0,-0.3)));
+    return d;
+}
+
+float glyph(vec2 p, int id) {
+    // ASCII uppercase letters and space
+    if (id == 32) return 1e5;
+    if (id == 65) return charA(p);
+    if (id == 66) return charB(p);
+    if (id == 67) return charC(p);
+    if (id == 68) return charD(p);
+    if (id == 69) return charE(p);
+    if (id == 70) return charF(p);
+    if (id == 71) return charG(p);
+    if (id == 72) return charH(p);
+    if (id == 73) return charI(p);
+    if (id == 76) return charL(p);
+    if (id == 77) return charM(p);
+    if (id == 78) return charN(p);
+    if (id == 79) return charO(p);
+    if (id == 80) return charP(p);
+    if (id == 82) return charR(p);
+    if (id == 83) return charS(p);
+    if (id == 84) return charT(p);
+    if (id == 85) return charU(p);
+    if (id == 86) return charV(p);
+    if (id == 87) return charW(p);
+    if (id == 88) return charX(p);
+    if (id == 89) return charY(p);
+    return 1e5;
+}
+
+float renderLine(vec2 p, int line) {
+    float d = 1e5;
+    float adv = 0.55;
+    if (line == 0) {
+        p.x += 6.0; // "GODEL INCOMPLETENESS I"
+        int chars[24];
+        chars = int[24](71,79,68,69,76,32,73,78,67,79,77,80,76,69,84,69,78,69,83,83,32,73,32,32);
+        for (int i = 0; i < 24; ++i) { d = min(d, glyph(p, chars[i])); p.x -= adv; }
+    } else if (line == 1) {
+        p.x += 5.2; // "TRUE STATEMENTS EXIST"
+        int chars[21];
+        chars = int[21](84,82,85,69,32,83,84,65,84,69,77,69,78,84,83,32,69,88,73,83,84);
+        for (int i = 0; i < 21; ++i) { d = min(d, glyph(p, chars[i])); p.x -= adv; }
+    } else if (line == 2) {
+        p.x += 6.2; // "THE SYSTEM CANNOT PROVE"
+        int chars[25];
+        chars = int[25](84,72,69,32,83,89,83,84,69,77,32,67,65,78,78,79,84,32,80,82,79,86,69,32,32);
+        for (int i = 0; i < 25; ++i) { d = min(d, glyph(p, chars[i])); p.x -= adv; }
+    } else if (line == 3) {
+        p.x += 6.0; // "ALL ARITHMETIC TRUTHS"
+        int chars[24];
+        chars = int[24](65,76,76,32,65,82,73,84,72,77,69,84,73,67,32,84,82,85,84,72,83,32,32,32);
+        for (int i = 0; i < 24; ++i) { d = min(d, glyph(p, chars[i])); p.x -= adv; }
+    } else if (line == 4) {
+        d = 1e5; // spacer
+    } else if (line == 5) {
+        p.x += 5.0; // "INCOMPLETENESS II"
+        int chars[20];
+        chars = int[20](73,78,67,79,77,80,76,69,84,69,78,69,83,83,32,73,73,32,32,32);
+        for (int i = 0; i < 20; ++i) { d = min(d, glyph(p, chars[i])); p.x -= adv; }
+    } else if (line == 6) {
+        p.x += 5.2; // "NO CONSISTENT SYSTEM"
+        int chars[22];
+        chars = int[22](78,79,32,67,79,78,83,73,83,84,69,78,84,32,83,89,83,84,69,77,32,32);
+        for (int i = 0; i < 22; ++i) { d = min(d, glyph(p, chars[i])); p.x -= adv; }
+    } else if (line == 7) {
+        p.x += 7.0; // "PROVES ITS OWN CONSISTENCY"
+        int chars[29];
+        chars = int[29](80,82,79,86,69,83,32,73,84,83,32,79,87,78,32,67,79,78,83,73,83,84,69,78,67,89,32,32,32);
+        for (int i = 0; i < 29; ++i) { d = min(d, glyph(p, chars[i])); p.x -= adv; }
+    }
     return d;
 }
 
 float getText(vec2 p) {
-    // HELLO WORLD
+    // float d = 1e5;
+    // for (int i = 0; i < 8; ++i) {
+    //     vec2 lp = p;
+    //     lp.y -= float(i) * 0.8;
+    //     d = min(d, renderLine(lp, i));
+    // }
+    // return d;
     p.x += 2.5;
     float d = charH(p); p.x -= 0.5;
     d = min(d, charE(p)); p.x -= 0.5;
@@ -73,35 +264,14 @@ float getText(vec2 p) {
     return d;
 }
 
-vec3 getPlaneColor(vec2 p, float textScale) {
-    // Grid pattern (kept for subtle shading if needed later)
-    vec2 grid = abs(fract(p - 0.5) - 0.5) / fwidth(p);
-    float line = min(grid.x, grid.y);
-    
-    // Text pattern
-    vec2 tp = p * textScale;
-    float lineIndex = floor(tp.y);
-    tp.y = fract(tp.y) - 0.5;
-    tp.x += lineIndex * 2.0; // Shift lines
-    tp.x = mod(tp.x, 6.0) - 3.0; // Repeat sentence
-    
-    float d = getText(tp);
-    float textAlpha = smoothstep(0.05, 0.04, d);
-    
-    // Glowing Button
-    vec2 btnPos = vec2(2.0, 0.0);
-    float btnD = length(p - btnPos) - 0.4;
-    float btnGlow = 0.02 / (abs(btnD) + 0.001);
-    vec3 btnCol = vec3(1.0, 0.1, 0.1) * smoothstep(0.01, 0.0, -btnD); // Red core
-    btnCol += vec3(1.0, 0.3, 0.1) * btnGlow; // Orange glow
-    
-    vec3 bgColor = vec3(0.95); // Paper white
-    vec3 inkColor = vec3(0.1); // Dark ink
-    
-    vec3 col = bgColor;
-    col = mix(col, inkColor, textAlpha);
-    col += btnCol; // Add button
-    
+vec3 getPlaneColor(vec2 p, float textScale, bool revealText) {
+    vec3 col = vec3(0.95); // paper base
+    if (revealText) {
+        vec2 tp = p * textScale;
+        float d = getText(tp);
+        float textAlpha = smoothstep(0.05, 0.04, d);
+        col = mix(col, vec3(0.1), textAlpha); // ink
+    }
     return col;
 }
 
@@ -144,6 +314,19 @@ float intersectPlane(vec3 ro, vec3 rd, float height) {
     return t > 0.0 ? t : -1.0;
 }
 
+// Raymarch to plane y=0 using sphere tracing (more robust at grazing angles)
+float marchToPlane(vec3 ro, vec3 rd, float eps, float tmax) {
+    float t = 0.0;
+    for (int i = 0; i < 64; ++i) {
+        float h = ro.y + t * rd.y; // signed distance to plane y=0
+        float d = abs(h);
+        if (d < eps) return t;
+        t += max(d, 0.001);
+        if (t > tmax) break;
+    }
+    return -1.0;
+}
+
 // =============== RENDERING HELPERS ===============
 
 vec3 getRayDir(vec2 uv, vec3 ro, vec3 ta, float zoom) {
@@ -151,6 +334,34 @@ vec3 getRayDir(vec2 uv, vec3 ro, vec3 ta, float zoom) {
     vec3 uu = normalize( cross(ww,vec3(0.0,1.0,0.0)) );
     vec3 vv = normalize( cross(uu,ww));
     return normalize( uv.x*uu + uv.y*vv + zoom*ww );
+}
+
+vec3 evalDiffuse(vec3 normal, DirLight lights[NUM_LIGHTS]) {
+    vec3 accum = vec3(0.0);
+    for (int i = 0; i < NUM_LIGHTS; ++i) {
+        float ndotl = max(dot(normal, -lights[i].dir), 0.0);
+        accum += lights[i].color * ndotl;
+    }
+    return accum;
+}
+
+vec3 evalSpecular(vec3 normal, vec3 viewDir, DirLight lights[NUM_LIGHTS], float shininess) {
+    vec3 accum = vec3(0.0);
+    for (int i = 0; i < NUM_LIGHTS; ++i) {
+        vec3 r = reflect(lights[i].dir, normal);
+        float spec = pow(max(dot(r, viewDir), 0.0), shininess);
+        accum += lights[i].color * spec;
+    }
+    return accum;
+}
+
+vec3 shadePlane(vec3 p, float textScale, bool revealText, DirLight lights[NUM_LIGHTS], bool flipX, bool flipY) {
+    vec2 uv = p.xz;
+    if (flipX) uv.x = -uv.x;
+    if (flipY) uv.y = -uv.y; // fix upside-down text in reflections
+    vec3 base = getPlaneColor(uv, textScale, revealText);
+    vec3 diffuse = evalDiffuse(vec3(0.0, 1.0, 0.0), lights);
+    return base * (0.2 + diffuse); // ambient + diffuse
 }
 
 vec3 updatePillPosition(vec3 ro, vec3 ta, float zoom, float pillHeight) {
@@ -184,11 +395,11 @@ bool castRay(vec3 ro, vec3 rd, vec3 pillPos, vec4 pillParams, out float t) {
     return false;
 }
 
-vec3 renderBackground(vec3 ro, vec3 rd, vec3 pillPos, vec4 pillParams, float textScale) {
+vec3 renderBackground(vec3 ro, vec3 rd, vec3 pillPos, vec4 pillParams, float textScale, DirLight lights[NUM_LIGHTS]) {
     float t_plane = intersectPlane(ro, rd, 0.0);
     if (t_plane > 0.0) {
         vec3 p_plane = ro + t_plane * rd;
-        vec3 col = getPlaneColor(p_plane.xz, textScale);
+        vec3 col = shadePlane(p_plane, textScale, true, lights, false, false);
 
         return col; // Commenting this out will hide the plane but it'll be visible through the glass !!!!
         
@@ -200,7 +411,7 @@ vec3 renderBackground(vec3 ro, vec3 rd, vec3 pillPos, vec4 pillParams, float tex
     return vec3(0.9);
 }
 
-vec3 renderGlass(vec3 ro, vec3 rd, float t, vec3 pillPos, vec4 pillParams, float glassIOR, vec3 glassTint, float textScale, vec3 envColor, vec3 absorbCoeff, float dispersion) {
+vec3 renderGlass(vec3 ro, vec3 rd, float t, vec3 pillPos, vec4 pillParams, float glassIOR, vec3 glassTint, float textScale, vec3 envColor, vec3 absorbCoeff, float dispersion, DirLight lights[NUM_LIGHTS]) {
     vec3 p = ro + t*rd;
     vec3 n = calcNormal(p, pillPos, pillParams);
     vec3 rd_in = refract(rd, n, 1.0/glassIOR);
@@ -226,17 +437,19 @@ vec3 renderGlass(vec3 ro, vec3 rd, float t, vec3 pillPos, vec4 pillParams, float
     if (length(rd_out_g)==0.0) rd_out_g = reflect(rd_in, -n_out);
     if (length(rd_out_b)==0.0) rd_out_b = reflect(rd_in, -n_out);
 
-    // Helper: manual inline to avoid GLSL lambda
+    // Helper: manual inline to avoid GLSL lambda (uses raymarch to plane)
     vec3 col;
     for (int channel = 0; channel < 3; ++channel) {
         vec3 rayOrigin = p_in;
         vec3 rayDir = channel == 0 ? rd_out_r : (channel == 1 ? rd_out_g : rd_out_b);
-        vec3 c = envColor;
-        for (int bounce = 0; bounce < 3; ++bounce) {
-            float t_plane = intersectPlane(rayOrigin, rayDir, 0.0);
+        vec3 c = envColor * (0.2 + evalDiffuse(vec3(0.0, 1.0, 0.0), lights)); // light the env fallback a bit
+        for (int bounce = 0; bounce < 8; ++bounce) {
+            float t_plane = marchToPlane(rayOrigin, rayDir, 0.0005, 30.0);
             if (t_plane > 0.0) {
                 vec3 p_plane = rayOrigin + t_plane * rayDir;
-                c = getPlaneColor(p_plane.xz, textScale);
+                bool flipX = bounce > 0; // reflections mirror X
+                bool flipY = bounce > 0; // and also invert Y causing upside-down text
+                c = shadePlane(p_plane, textScale, true, lights, flipX, true);
                 break;
             }
             rayDir = reflect(rayDir, -n_out);
@@ -247,9 +460,20 @@ vec3 renderGlass(vec3 ro, vec3 rd, float t, vec3 pillPos, vec4 pillParams, float
         else col.b = c.b;
     }
     
-    // Softer Fresnel to avoid harsh white rims
+    // Fresnel reflection: sample the plane via a reflected ray so text appears in the glass
     float fre = pow(clamp(1.0 + dot(rd, n), 0.0, 1.0), 5.0);
-    col += vec3(0.6) * fre;
+    vec3 rd_reflect = reflect(rd, n);
+    vec3 reflCol = envColor;
+    float t_refl = marchToPlane(p + rd_reflect * 0.01, rd_reflect, 0.0005, 30.0);
+    if (t_refl > 0.0) {
+        vec3 p_refl = p + rd_reflect * t_refl;
+        reflCol = shadePlane(p_refl, textScale, true, lights, true, false); // mirror X in reflection
+    }
+    col = mix(col, reflCol, fre);
+
+    // Multi-light specular on glass
+    vec3 spec = evalSpecular(n, -rd, lights, 32.0);
+    col += spec * 0.4;
     // Beer-Lambert absorption based on distance traveled inside
     vec3 absorb = exp(-absorbCoeff * t_in);
     col *= absorb * glassTint;
@@ -275,6 +499,12 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
     vec3 envColor = vec3(0.9); // Environment color used when rays miss the plane
     vec3 absorbCoeff = vec3(0.20, 0.25, 0.27); // Beer-Lambert per-channel absorption
     float dispersion = 0.01; // Chromatic dispersion amount
+
+    // Lighting: sun + two colored lamps
+    DirLight lights[NUM_LIGHTS];
+    lights[0] = DirLight(normalize(vec3(0.15, -1.0, 0.1)), vec3(1.0, 0.97, 0.9));  // warm sun
+    lights[1] = DirLight(normalize(vec3(-0.6, -1.0, -0.2)), vec3(0.45, 0.65, 1.1)); // cool blue lamp
+    lights[2] = DirLight(normalize(vec3(0.7, -0.7, 0.6)), vec3(1.1, 0.7, 0.35));    // orange lamp
     
     // Text
     float textScale = 2.5;
@@ -293,9 +523,9 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
     bool hitPill = castRay(ro, rd, pillPos, pillParams, t);
     vec3 col;
     if (hitPill) {
-        col = renderGlass(ro, rd, t, pillPos, pillParams, glassIOR, glassTint, textScale, envColor, absorbCoeff, dispersion);
+        col = renderGlass(ro, rd, t, pillPos, pillParams, glassIOR, glassTint, textScale, envColor, absorbCoeff, dispersion, lights);
     } else {
-        col = renderBackground(ro, rd, pillPos, pillParams, textScale);
+        col = renderBackground(ro, rd, pillPos, pillParams, textScale, lights);
     }
     
     // Vignette
