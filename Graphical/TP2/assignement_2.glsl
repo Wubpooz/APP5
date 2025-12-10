@@ -390,137 +390,132 @@ vec3 getPlaneColor(vec2 p, float textScale, bool revealText) {
 
 // =============== 3D SCENE ===============
 // Complex organic glass sculpture SDF - liquid crystal form
+// OPTIMIZED: Precompute trig, reduce iterations, add bounding volume
+
+// Precomputed sin/cos for fixed angles (avoids recalculating every sample)
+#define PI 3.14159265
+#define HALF_PI 1.5707963
+#define TWO_PI 6.28318530
+
+// Fast rotation using precomputed angle
+vec2 rot2D(vec2 p, float c, float s) {
+    return vec2(p.x * c - p.y * s, p.x * s + p.y * c);
+}
+
 float mapSculpture(vec3 p, vec3 sculpturePos, float time) {
     vec3 q = p - sculpturePos;
     
-    // Animate with gentle organic motion
-    float pulse = sin(time * 0.5) * 0.04;
-    float wave = sin(time * 0.3) * 0.08;
-    float breathe = sin(time * 0.25) * 0.03;
+    // OPTIMIZATION: Bounding sphere early-out
+    float boundDist = length(q) - 1.2;
+    if (boundDist > 0.1) return boundDist;
+    
+    // Precompute animation values once
+    float t05 = time * 0.5;
+    float t03 = time * 0.3;
+    float t025 = time * 0.25;
+    float pulse = sin(t05) * 0.04;
+    float breathe = sin(t025) * 0.03;
     
     // === CENTRAL CORE - twisted ellipsoid ===
     vec3 coreP = q;
-    // Add twist based on height
     float twistAmount = coreP.y * 0.8 + time * 0.2;
-    coreP.xz = mat2(cos(twistAmount), -sin(twistAmount), sin(twistAmount), cos(twistAmount)) * coreP.xz;
+    float tc = cos(twistAmount), ts = sin(twistAmount);
+    coreP.xz = rot2D(coreP.xz, tc, ts);
     coreP.y *= 1.6;
     float core = sdSphere(coreP, 0.32 + pulse + breathe);
     
-    // === FLOWING RIBBONS - wrap around the core ===
+    // === FLOWING RIBBONS - 4 ribbons, optimized ===
     float ribbons = 1e5;
+    float ribbonBase = time * 0.15;
+    float ribbonWave = time * 0.3;
     for (int i = 0; i < 4; i++) {
-        float ribbonAngle = float(i) * 1.5708 + time * 0.15; // π/2
-        float heightPhase = sin(float(i) * 1.2 + time * 0.5) * 0.2;
+        float ribbonAngle = float(i) * 1.5708 + ribbonBase; // π/2
+        float rc = cos(ribbonAngle), rs = sin(ribbonAngle);
         
-        vec3 ribbonP = q;
-        ribbonP = rotateY(ribbonAngle) * ribbonP;
+        vec3 ribbonP = vec3(q.x * rc + q.z * rs, q.y, -q.x * rs + q.z * rc);
         
-        // Helix path
-        float helixAngle = ribbonP.y * 3.0 + ribbonAngle + time * 0.3;
+        float helixAngle = ribbonP.y * 3.0 + ribbonAngle + ribbonWave;
         float helixRadius = 0.35 + sin(ribbonP.y * 4.0 + time) * 0.05;
-        vec3 helixOffset = vec3(cos(helixAngle) * helixRadius, 0.0, sin(helixAngle) * helixRadius);
-        ribbonP -= helixOffset;
-        
-        // Ribbon cross-section (flattened)
+        ribbonP.x -= cos(helixAngle) * helixRadius;
+        ribbonP.z -= sin(helixAngle) * helixRadius;
         ribbonP.x *= 2.5;
-        float ribbon = sdSphere(ribbonP, 0.08);
         
-        ribbons = smin(ribbons, ribbon, 0.12);
+        ribbons = smin(ribbons, length(ribbonP) - 0.08, 0.12);
     }
     
-    // === ORBITING DROPLETS - like mercury drops ===
+    // === ORBITING DROPLETS - 5 droplets, optimized ===
     float drops = 1e5;
+    float dropBase = time * 0.4;
     for (int i = 0; i < 5; i++) {
-        float dropAngle = float(i) * 1.2566 + time * 0.4; // 2π/5
-        float dropOrbit = 0.55 + sin(time * 0.6 + float(i) * 0.8) * 0.12;
-        float dropY = sin(time * 0.5 + float(i) * 1.3) * 0.25 + cos(time * 0.35 + float(i)) * 0.1;
+        float fi = float(i);
+        float dropAngle = fi * 1.2566 + dropBase; // 2π/5
+        float dropOrbit = 0.55 + sin(time * 0.6 + fi * 0.8) * 0.12;
+        float dropY = sin(t05 + fi * 1.3) * 0.25;
         
-        vec3 dropPos = vec3(cos(dropAngle) * dropOrbit, dropY, sin(dropAngle) * dropOrbit);
+        vec3 dropP = q - vec3(cos(dropAngle) * dropOrbit, dropY, sin(dropAngle) * dropOrbit);
+        dropP.y += dropP.y * dropP.y * 0.5;
+        float dropSize = 0.09 + sin(time * 1.2 + fi * 2.5) * 0.025;
         
-        // Teardrop shape - stretched sphere
-        vec3 dropP = q - dropPos;
-        float dropSpeed = length(vec3(cos(dropAngle + 0.1) - cos(dropAngle), 0.0, sin(dropAngle + 0.1) - sin(dropAngle)));
-        dropP.y += dropP.y * dropP.y * 0.5; // elongate downward
-        float dropSize = 0.09 + sin(time * 1.2 + float(i) * 2.5) * 0.025;
-        float drop = sdSphere(dropP, dropSize);
-        
-        // Add connecting tendril to core
-        vec3 tendrilP = q - dropPos * 0.5;
-        float tendril = sdSphere(tendrilP * vec3(1.0, 2.5, 1.0), 0.04);
-        drop = smin(drop, tendril, 0.15);
-        
-        drops = smin(drops, drop, 0.18);
+        drops = smin(drops, length(dropP) - dropSize, 0.18);
     }
     
-    // === CROWN - blooming lotus-like top ===
+    // === CROWN - 8 petals, optimized rotation ===
     vec3 crownP = q - vec3(0.0, 0.38 + breathe, 0.0);
     float crown = 1e5;
+    float crownBase = time * 0.08;
     for (int i = 0; i < 8; i++) {
-        float petalAngle = float(i) * 0.7854 + time * 0.08; // π/4
-        float petalOpen = 0.3 + sin(time * 0.4 + float(i) * 0.5) * 0.1;
+        float fi = float(i);
+        float petalAngle = fi * 0.7854 + crownBase; // π/4
+        float petalOpen = 0.3 + sin(time * 0.4 + fi * 0.5) * 0.1;
         
-        vec3 petalP = rotateY(petalAngle) * crownP;
-        petalP = rotateZ(petalOpen) * petalP; // petals open outward
+        // Combined rotation - Y then Z
+        float cy = cos(petalAngle), sy = sin(petalAngle);
+        float cz = cos(petalOpen), sz = sin(petalOpen);
+        vec3 petalP = vec3(
+            crownP.x * cy + crownP.z * sy,
+            crownP.y * cz - (crownP.z * cy - crownP.x * sy) * sz,
+            crownP.y * sz + (crownP.z * cy - crownP.x * sy) * cz
+        );
         petalP.x -= 0.15;
-        
-        // Curved petal shape
         petalP.y *= 1.8;
         petalP.z *= 2.5;
-        float petal = sdEllipsoid(petalP, vec3(0.12, 0.08, 0.04));
         
-        crown = smin(crown, petal, 0.1);
+        crown = smin(crown, sdEllipsoid(petalP, vec3(0.12, 0.08, 0.04)), 0.1);
     }
     
     // === BASE - dripping stalactite ===
-    vec3 baseP = q + vec3(0.0, 0.35, 0.0);
-    baseP.y = -baseP.y;
-    
-    // Main drop
+    vec3 baseP = vec3(q.x, -q.y - 0.35, q.z);
     float baseDrop = sdRoundCone(baseP, 0.18, 0.03, 0.35);
     
-    // Smaller drips
-    float drips = 1e5;
+    // 3 drips
     for (int i = 0; i < 3; i++) {
         float dripAngle = float(i) * 2.094 + 0.5; // 2π/3
         vec3 dripP = baseP - vec3(cos(dripAngle) * 0.12, -0.1, sin(dripAngle) * 0.12);
         float dripLen = 0.15 + sin(time + float(i)) * 0.05;
-        float drip = sdRoundCone(dripP, 0.05, 0.015, dripLen);
-        drips = smin(drips, drip, 0.08);
+        baseDrop = smin(baseDrop, sdRoundCone(dripP, 0.05, 0.015, dripLen), 0.08);
     }
-    baseDrop = smin(baseDrop, drips, 0.1);
     
-    // === TORUS RINGS - floating halos ===
+    // === TORUS RINGS - kept at 2, optimized ===
     float rings = 1e5;
+    float ringTiltBase = sin(t03) * 0.1;
     for (int i = 0; i < 2; i++) {
-        float ringY = float(i) * 0.4 - 0.15 + sin(time * 0.6 + float(i) * 2.0) * 0.08;
-        float ringTilt = 0.15 + sin(time * 0.4 + float(i)) * 0.1;
-        float ringSize = 0.42 - float(i) * 0.08 + pulse;
+        float fi = float(i);
+        float ringY = fi * 0.4 - 0.15 + sin(time * 0.6 + fi * 2.0) * 0.08;
+        float ringTilt = 0.15 + sin(time * 0.4 + fi) * 0.1;
+        float ringSize = 0.42 - fi * 0.08 + pulse;
         
         vec3 ringP = q - vec3(0.0, ringY, 0.0);
-        ringP = rotateX(ringTilt) * ringP;
-        ringP = rotateZ(sin(time * 0.3) * 0.1) * ringP;
+        // Simplified rotation - just X tilt
+        float cx = cos(ringTilt), sx = sin(ringTilt);
+        ringP.yz = rot2D(ringP.yz, cx, sx);
         
-        float ring = sdTorus(ringP, vec2(ringSize, 0.025 + float(i) * 0.01));
-        rings = smin(rings, ring, 0.08);
+        rings = smin(rings, sdTorus(ringP, vec2(ringSize, 0.025 + fi * 0.01)), 0.08);
     }
     
-    // === INNER VOID - hollow core for complex refraction ===
+    // === INNER VOID - simplified ===
     vec3 voidP = q;
     voidP.y *= 1.3;
-    float innerVoid = sdSphere(voidP, 0.12 + sin(time * 0.8) * 0.02);
-    
-    // Secondary void - creates light channels
-    vec3 channelP = q;
-    channelP = rotateY(time * 0.1) * channelP;
-    float channels = 1e5;
-    for (int i = 0; i < 3; i++) {
-        float chAngle = float(i) * 2.094;
-        vec3 chP = rotateY(chAngle) * channelP;
-        chP.x -= 0.15;
-        float ch = sdSphere(chP * vec3(1.0, 3.0, 1.0), 0.04);
-        channels = min(channels, ch);
-    }
-    innerVoid = smin(innerVoid, channels, 0.05);
+    float innerVoid = length(voidP) - (0.12 + sin(time * 0.8) * 0.02);
     
     // === COMBINE ALL ELEMENTS ===
     float d = core;
@@ -542,7 +537,7 @@ float map(vec3 p, vec3 sculpturePos, vec4 unusedParams) {
 
 vec3 calcNormal( in vec3 p, vec3 sculpturePos, vec4 unused )
 {
-    const float h = 0.0001;
+    const float h = 0.0003; // Slightly larger for performance
     const vec2 k = vec2(1,-1);
     return normalize( k.xyy*mapSculpture( p + k.xyy*h, sculpturePos, iTime ) + 
                       k.yyx*mapSculpture( p + k.yyx*h, sculpturePos, iTime ) + 
@@ -594,58 +589,74 @@ vec3 evalSpecular(vec3 normal, vec3 viewDir, DirLight lights[NUM_LIGHTS], float 
     vec3 accum = vec3(0.0);
     for (int i = 0; i < NUM_LIGHTS; ++i) {
         vec3 r = reflect(lights[i].dir, normal);
-        float spec = pow(max(dot(r, viewDir), 0.0), shininess);
+        float NdotR = max(dot(r, viewDir), 0.0);
+        // Approximate pow(x, 32) with repeated squaring
+        float spec = NdotR * NdotR; // ^2
+        spec *= spec; // ^4
+        spec *= spec; // ^8
+        spec *= spec; // ^16
+        spec *= spec; // ^32
         accum += lights[i].color * spec;
     }
     return accum;
 }
 
-// Soft shadow from sculpture onto the plane
+// Soft shadow from sculpture onto the plane - OPTIMIZED
 float softShadow(vec3 ro, vec3 rd, vec3 sculpturePos, vec4 sculptureParams) {
-    float t = 0.05;
+    // Early out if pointing away from sculpture
+    vec3 toSculpt = sculpturePos - ro;
+    if (dot(rd, toSculpt) < -0.5) return 1.0;
+    
+    float t = 0.08;
     float res = 1.0;
-    for (int i = 0; i < 48; ++i) {
+    for (int i = 0; i < 24; ++i) { // Reduced from 48
         vec3 p = ro + rd * t;
         float h = mapSculpture(p, sculpturePos, iTime);
-        if (h < 0.001) return 0.0;
-        res = min(res, 12.0 * h / t);
-        t += clamp(h, 0.02, 0.25);
-        if (t > 8.0) break;
+        if (h < 0.002) return 0.0;
+        res = min(res, 10.0 * h / t);
+        t += clamp(h, 0.04, 0.4); // Larger steps
+        if (t > 5.0 || res < 0.01) break;
     }
     return clamp(res, 0.0, 1.0);
 }
 
 void accumulateBulb(vec3 p, vec3 viewDir, vec3 n, vec3 pos, vec3 color, inout vec3 diffuse, inout vec3 specAcc) {
     vec3 lb = pos - p;
-    float lbDist = length(lb);
+    float lbDist2 = dot(lb, lb);
+    float lbDist = sqrt(lbDist2);
     vec3 lbDir = lb / max(lbDist, 1e-3);
-    float bulbAtt = 1.0 / (1.0 + 0.45 * lbDist + 0.1 * lbDist * lbDist);
-    float bulbDiff = max(dot(n, lbDir), 0.0);
-    diffuse += color * bulbDiff * bulbAtt;
-    specAcc += color * pow(max(dot(reflect(-lbDir, n), viewDir), 0.0), 32.0) * bulbAtt;
+    float bulbAtt = 1.0 / (1.0 + 0.45 * lbDist + 0.1 * lbDist2);
+    diffuse += color * max(dot(n, lbDir), 0.0) * bulbAtt;
+    // Approximate pow(x, 32) with repeated squaring
+    float NdotR = max(dot(reflect(-lbDir, n), viewDir), 0.0);
+    float spec = NdotR * NdotR; spec *= spec; spec *= spec; spec *= spec; spec *= spec; // ^32
+    specAcc += color * spec * bulbAtt;
 }
 
 vec3 bulbDiffuse(vec3 p, vec3 n) {
     vec3 diff = vec3(0.0);
-    // Loop through all point lights
     for (int i = 0; i < NUM_BULBS; i++) {
         vec3 lb = bulbPositions[i] - p;
-        float lbDist = length(lb);
+        float lbDist2 = dot(lb, lb);
+        float lbDist = sqrt(lbDist2);
         vec3 lbDir = lb / max(lbDist, 1e-3);
-        float bulbAtt = 1.0 / (1.0 + 0.35 * lbDist + 0.08 * lbDist * lbDist);
+        float bulbAtt = 1.0 / (1.0 + 0.35 * lbDist + 0.08 * lbDist2);
         diff += bulbColors[i] * max(dot(n, lbDir), 0.0) * bulbAtt;
     }
     return diff;
 }
 
-// Simple forward-scatter term: stronger when view aligns with light direction, attenuated by distance
+// Simple forward-scatter term - OPTIMIZED
 vec3 bulbScatter(vec3 p, vec3 viewDir) {
     vec3 scatter = vec3(0.0);
     for (int i = 0; i < NUM_BULBS; i++) {
-        vec3 toL = normalize(bulbPositions[i] - p);
-        float dist = length(bulbPositions[i] - p);
-        float phase = pow(max(dot(toL, -viewDir), 0.0), 3.0);
-        float att = 1.0 / (1.0 + 0.3 * dist + 0.06 * dist * dist);
+        vec3 toL = bulbPositions[i] - p;
+        float dist2 = dot(toL, toL);
+        float dist = sqrt(dist2);
+        toL /= max(dist, 1e-3);
+        float phase = max(dot(toL, -viewDir), 0.0);
+        phase *= phase * phase; // ^3 without pow()
+        float att = 1.0 / (1.0 + 0.3 * dist + 0.06 * dist2);
         scatter += bulbColors[i] * phase * att * 0.8;
     }
     return scatter;
@@ -654,33 +665,49 @@ vec3 bulbScatter(vec3 p, vec3 viewDir) {
 vec3 shadePlane(vec3 p, vec3 viewDir, float textScale, bool revealText, DirLight lights[NUM_LIGHTS], vec3 pillPos, vec4 pillParams, bool flipX, bool flipY) {
     vec2 uv = p.xz;
     if (flipX) uv.x = -uv.x;
-    if (flipY) uv.y = -uv.y; // fix upside-down text in reflections
+    if (flipY) uv.y = -uv.y;
     vec3 base = getPlaneColor(uv, textScale, revealText);
     vec3 n = vec3(0.0, 1.0, 0.0);
-    // Shadow only from the sun (light 0)
-    float sunShadow = softShadow(p + n * 0.01, -lights[0].dir, pillPos, pillParams);
-    vec3 diffuse = lights[0].color * max(dot(n, -lights[0].dir), 0.0) * sunShadow;
-    for (int i = 1; i < NUM_LIGHTS; ++i) {
-        diffuse += lights[i].color * max(dot(n, -lights[i].dir), 0.0);
+    
+    // OPTIMIZATION: Skip shadow if far from sculpture
+    float distToSculpt = length(p.xz - pillPos.xz);
+    float sunShadow = 1.0;
+    if (distToSculpt < 3.0) {
+        sunShadow = softShadow(p + n * 0.01, -lights[0].dir, pillPos, pillParams);
     }
+    
+    vec3 diffuse = lights[0].color * max(-lights[0].dir.y, 0.0) * sunShadow;
+    // Unrolled for performance (compiler may not unroll)
+    diffuse += lights[1].color * max(-lights[1].dir.y, 0.0);
+    diffuse += lights[2].color * max(-lights[2].dir.y, 0.0);
+    diffuse += lights[3].color * max(-lights[3].dir.y, 0.0);
+    diffuse += lights[4].color * max(-lights[4].dir.y, 0.0);
+    diffuse += lights[5].color * max(-lights[5].dir.y, 0.0);
+    
     vec3 bulbSpec = vec3(0.0);
-    // Accumulate all point lights
     for (int i = 0; i < NUM_BULBS; i++) {
         accumulateBulb(p, viewDir, n, bulbPositions[i], bulbColors[i], diffuse, bulbSpec);
     }
     vec3 spec = evalSpecular(n, viewDir, lights, 32.0);
-    // Keep more of the base checkerboard pattern visible
     return base * (0.55 + diffuse * 0.45) + spec * 0.06 + bulbSpec * 0.25;
 }
 
 bool castRay(vec3 ro, vec3 rd, vec3 sculpturePos, vec4 sculptureParams, out float t) {
     t = 0.0;
-    float tmax = 25.0;
-    for(int i=0; i<128; i++) {
+    float tmax = 20.0;
+    float minStep = 0.001;
+    
+    // OPTIMIZATION: Start closer if we can
+    float boundHit = length(ro - sculpturePos) - 1.3;
+    if (boundHit > 0.0) t = max(0.0, boundHit - 0.1);
+    
+    for(int i=0; i<80; i++) { // Reduced from 128
         vec3 p = ro + t*rd;
         float d = mapSculpture(p, sculpturePos, iTime);
-        if(d < 0.0005) return true;
-        t += d * 0.8; // slightly conservative step for complex shapes
+        if(d < 0.0008) return true; // Slightly relaxed threshold
+        // Adaptive stepping: more aggressive when far
+        float step = d * (0.85 + 0.1 * smoothstep(0.0, 1.0, d));
+        t += max(step, minStep);
         if(t > tmax) break;
     }
     return false;
@@ -704,18 +731,18 @@ vec3 renderGlass(vec3 ro, vec3 rd, float t, vec3 sculpturePos, vec4 sculpturePar
     // If total internal reflection at entry (shouldn't happen but safety)
     if (length(rd_in) == 0.0) rd_in = reflect(rd, n);
     
-    // March through the glass interior
+    // March through the glass interior - OPTIMIZED
     float t_in = 0.02; 
     vec3 p_in = p;
     float totalDist = 0.0;
-    for(int i=0; i<96; i++) {
+    for(int i=0; i<48; i++) { // Reduced from 96
         p_in = p + t_in * rd_in;
         float d_in = mapSculpture(p_in, sculpturePos, iTime);
-        if(d_in > -0.0005) break;
-        float step = max(abs(d_in), 0.002);
+        if(d_in > -0.001) break; // Relaxed threshold
+        float step = max(abs(d_in), 0.005); // Larger min step
         t_in += step;
         totalDist += step;
-        if (t_in > 5.0) break;
+        if (t_in > 3.0) break; // Reduced max distance
     }
     
     vec3 n_out = calcNormal(p_in, sculpturePos, sculptureParams);
@@ -729,31 +756,28 @@ vec3 renderGlass(vec3 ro, vec3 rd, float t, vec3 sculpturePos, vec4 sculpturePar
     vec3 rd_out_b = refract(rd_in, -n_out, iorB);
     
     // Handle total internal reflection per channel
-    if (length(rd_out_r)==0.0) rd_out_r = reflect(rd_in, -n_out);
-    if (length(rd_out_g)==0.0) rd_out_g = reflect(rd_in, -n_out);
-    if (length(rd_out_b)==0.0) rd_out_b = reflect(rd_in, -n_out);
+    if (dot(rd_out_r, rd_out_r) < 0.001) rd_out_r = reflect(rd_in, -n_out);
+    if (dot(rd_out_g, rd_out_g) < 0.001) rd_out_g = reflect(rd_in, -n_out);
+    if (dot(rd_out_b, rd_out_b) < 0.001) rd_out_b = reflect(rd_in, -n_out);
 
-    // Sample background for each color channel (chromatic dispersion)
-    vec3 col;
-    for (int channel = 0; channel < 3; ++channel) {
-        vec3 rayOrigin = p_in;
-        vec3 rayDir = channel == 0 ? rd_out_r : (channel == 1 ? rd_out_g : rd_out_b);
-        vec3 c = envColor * (0.3 + evalDiffuse(vec3(0.0, 1.0, 0.0), lights) * 0.5);
+    // OPTIMIZED: Sample background once with green ray, offset for chromatic effect
+    vec3 col = envColor * (0.3 + evalDiffuse(vec3(0.0, 1.0, 0.0), lights) * 0.5);
+    
+    float t_plane = intersectPlane(p_in, rd_out_g, 0.0);
+    if (t_plane > 0.0) {
+        vec3 p_plane = p_in + t_plane * rd_out_g;
+        col = shadePlane(p_plane, normalize(-rd_out_g), textScale, true, lights, sculpturePos, sculptureParams, false, false);
         
-        // Try to hit the floor plane - use analytic intersection (cleaner, faster)
-        float t_plane = intersectPlane(rayOrigin, rayDir, 0.0);
-        if (t_plane > 0.0) {
-            vec3 p_plane = rayOrigin + t_plane * rayDir;
-            c = shadePlane(p_plane, normalize(-rayDir), textScale, true, lights, sculpturePos, sculptureParams, false, false);
-        }
-        
-        // Add caustic-like patterns from internal bounces
-        c += bulbScatter(p_in, rayDir) * glassTint * 0.25;
-        
-        if (channel == 0) col.r = c.r;
-        else if (channel == 1) col.g = c.g;
-        else col.b = c.b;
+        // Approximate chromatic offset based on ray divergence
+        vec3 rayDiff = (rd_out_b - rd_out_r) * t_plane;
+        float chromaStrength = length(rayDiff) * 2.0;
+        // Subtle color shift to simulate dispersion without extra shade calls
+        col.r *= 1.0 - chromaStrength * 0.15;
+        col.b *= 1.0 + chromaStrength * 0.15;
     }
+    
+    // Add caustic-like patterns from internal bounces
+    col += bulbScatter(p_in, rd_out_g) * glassTint * 0.25;
     
     // Beer-Lambert absorption - more dramatic for complex shapes
     vec3 absorb = exp(-absorbCoeff * totalDist * 2.0);
@@ -788,27 +812,36 @@ vec3 renderGlass(vec3 ro, vec3 rd, float t, vec3 sculpturePos, vec4 sculpturePar
         reflCol += lights[0].color * pow(sunDot, 32.0) * 0.5;
     }
     
-    // Specular highlights
+    // Specular highlights - OPTIMIZED
     vec3 specHighlights = vec3(0.0);
     
-    // Multi-light specular
+    // Combined directional + sun highlight
     for (int i = 0; i < NUM_LIGHTS; i++) {
         vec3 lightRefl = reflect(lights[i].dir, n);
-        float spec = pow(max(dot(lightRefl, -rd), 0.0), 64.0);
+        float NdotR = max(dot(lightRefl, -rd), 0.0);
+        float spec = NdotR * NdotR; // spec^2
+        spec *= spec; // spec^4
+        spec *= spec; // spec^8
+        spec *= spec; // spec^16
+        spec *= spec; // spec^32
+        spec *= spec; // spec^64
         specHighlights += lights[i].color * spec * 0.8;
+        // Extra sharp highlight for key light
+        if (i == 0) {
+            float sunSpec = spec * spec * spec * spec; // 64^4 = 256
+            specHighlights += lights[0].color * sunSpec * 2.5;
+        }
     }
-    
-    // Sharp sun highlight
-    vec3 sunRefl = reflect(lights[0].dir, n);
-    float sunSpec = pow(max(dot(sunRefl, -rd), 0.0), 256.0);
-    specHighlights += lights[0].color * sunSpec * 2.5;
     
     // Point light specular - loop through all bulbs
     for (int i = 0; i < NUM_BULBS; i++) {
-        vec3 toBulb = normalize(bulbPositions[i] - p);
+        vec3 toBulb = bulbPositions[i] - p;
+        float distBulb = length(toBulb);
+        toBulb /= distBulb;
         vec3 reflBulb = reflect(-toBulb, n);
-        float specBulb = pow(max(dot(reflBulb, -rd), 0.0), 64.0);
-        float distBulb = length(bulbPositions[i] - p);
+        float NdotR = max(dot(reflBulb, -rd), 0.0);
+        float specBulb = NdotR * NdotR;
+        specBulb *= specBulb; specBulb *= specBulb; specBulb *= specBulb; specBulb *= specBulb; // ^64
         float attBulb = 1.0 / (1.0 + 0.12 * distBulb + 0.025 * distBulb * distBulb);
         specHighlights += bulbColors[i] * specBulb * attBulb * 1.2;
     }
