@@ -10,9 +10,9 @@ struct DirLight {
 
 // Point bulbs
 const vec3 bulbPosOrange = vec3(0.0);
-const vec3 bulbColorOrange = vec3(1.2, 0.75, 0.4);
-const vec3 bulbPosBlue = vec3(1.6, 2.2, 0.0);
-const vec3 bulbColorBlue = vec3(0.5, 0.85, 1.6);
+const vec3 bulbColorOrange = vec3(1.0, 0.55, 0.2); // warmer, less white
+const vec3 bulbPosBlue = vec3(3.0, .2, .2);
+const vec3 bulbColorBlue = vec3(0.1, 0.2, 2.0); // brighter and more saturated blue
 
 // =============== TEXT HELPERS ===============
 float sdBox(vec2 p, vec2 b) {
@@ -271,7 +271,12 @@ float getText(vec2 p) {
 }
 
 vec3 getPlaneColor(vec2 p, float textScale, bool revealText) {
-    vec3 col = vec3(0.95); // paper base
+    // Checkerboard pattern
+    float checkerSize = 0.5;
+    vec2 checker = floor(p / checkerSize);
+    float checkerPattern = mod(checker.x + checker.y, 2.0);
+    vec3 col = mix(vec3(0.6), vec3(1.0), checkerPattern); // alternate between gray and white
+    
     if (revealText) {
         vec2 tp = p * textScale;
         float d = getText(tp);
@@ -447,7 +452,8 @@ vec3 shadePlane(vec3 p, vec3 viewDir, float textScale, bool revealText, DirLight
     accumulateBulb(p, viewDir, n, bulbPosOrange, bulbColorOrange, diffuse, bulbSpec);
     accumulateBulb(p, viewDir, n, bulbPosBlue, bulbColorBlue, diffuse, bulbSpec);
     vec3 spec = evalSpecular(n, viewDir, lights, 32.0);
-    return base * (0.2 + diffuse) + spec * 0.05 + bulbSpec * 0.3; // ambient + diffuse + a touch of spec and bulb highlight
+    // Keep more of the base checkerboard pattern visible by using additive lighting instead of multiplicative
+    return base * (0.6 + diffuse * 0.4) + spec * 0.05 + bulbSpec * 0.3;
 }
 
 vec3 updatePillPosition(vec3 ro, vec3 ta, float zoom, float pillHeight) {
@@ -486,13 +492,7 @@ vec3 renderBackground(vec3 ro, vec3 rd, vec3 pillPos, vec4 pillParams, float tex
     if (t_plane > 0.0) {
         vec3 p_plane = ro + t_plane * rd;
         vec3 col = shadePlane(p_plane, normalize(-rd), textScale, true, lights, pillPos, pillParams, false, false);
-
-        return col; // Commenting this out will hide the plane but it'll be visible through the glass !!!!
-        
-        // Optional: Add pill shadow on the plane
-        // float d_shadow = map(p_plane, pillPos, pillParams);
-        // float shadow = smoothstep(0.0, 1.5, d_shadow);
-        // return col * mix(0.9, 1.0, shadow);
+        return col;
     }
     return vec3(0.9);
 }
@@ -542,6 +542,9 @@ vec3 renderGlass(vec3 ro, vec3 rd, float t, vec3 pillPos, vec4 pillParams, float
             rayDir = reflect(rayDir, -n_out);
             rayOrigin += rayDir * 0.01; // small offset to avoid self-intersection
         }
+        // Apply internal scattering inside glass (forward scatter along refracted path)
+        c += bulbScatter(p_in, rayDir) * glassTint * 0.15;
+        
         if (channel == 0) col.r = c.r;
         else if (channel == 1) col.g = c.g;
         else col.b = c.b;
@@ -609,28 +612,32 @@ vec3 renderGlass(vec3 ro, vec3 rd, float t, vec3 pillPos, vec4 pillParams, float
     // Smooth Fresnel blend between refracted content and reflection+specular
     col = mix(col, reflCol, fre);
     
-    // Bulb diffuse on the glass surface to carry their color even from afar (additive, not affected by fresnel)
-    col += glassTint * bulbDiffuse(p, n) * 0.35;
-    // Light-ray forward scattering to keep bulbs visible through glass from afar
-    col += glassTint * bulbScatter(p, rd) * 0.25;
-    
     // Rim lighting effect - enhance edges of glass
-    float rim = pow(1.0 - max(dot(-rd, n), 0.0), 3.0);
-    col += vec3(0.15) * rim * 0.5;
+    // float rim = pow(1.0 - max(dot(-rd, n), 0.0), 3.0);
+    // col += vec3(0.15) * rim * 0.5;
     
+    // // Gold glow at the bottom of the glass
+    // // Calculate how much this point is at the bottom edge of the pill
+    // vec3 localP = p - pillPos;
+    // float bottomness = 1.0 - smoothstep(-0.05, 0.15, localP.y); // stronger near bottom
+    // float edgeFactor = pow(1.0 - abs(dot(-rd, n)), 2.0); // stronger at edges
+    // vec3 goldColor = vec3(1.0, 0.75, 0.3); // warm gold
+    // col += goldColor * bottomness * edgeFactor * 0.6;
     return col;
 }
 
-void addBulbGlow(vec3 ro, vec3 ta, float camZoom, vec2 fragCoord, vec3 bulbPos, vec3 bulbColor, vec3 ww, vec3 uu, vec3 vv, inout vec3 col) {
+void addBulbGlow(vec3 ro, vec3 ta, float camZoom, vec2 fragCoord, vec3 bulbPos, vec3 bulbColor, vec3 ww, vec3 uu, vec3 vv, inout vec3 col, float phase, float speed) {
     vec3 rel = bulbPos - ro;
     float depth = dot(rel, ww);
     if (depth > 0.0) {
         vec2 bulbProj = vec2(dot(rel, uu), dot(rel, vv)) / (depth * camZoom);
         vec2 pixUV = (fragCoord - 0.5 * iResolution.xy) / iResolution.y;
         float r2 = dot(pixUV - bulbProj, pixUV - bulbProj);
+        // Time-based pulsing glow with adjustable speed
+        float pulse = 0.85 + 0.15 * sin(iTime * speed + phase);
         float glowCore = exp(-r2 / (2.0 * 0.04 * 0.04));
         float glowBloom = exp(-r2 / (2.0 * 0.12 * 0.12));
-        col += bulbColor * (glowCore * 1.2 + glowBloom * 0.7);
+        col += bulbColor * pulse * (glowCore * 1.2 + glowBloom * 0.7);
     }
 }
 
@@ -662,6 +669,9 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
     
     // Text
     float textScale = 2.5;
+    
+    // Bulb Glow Animation
+    float glowPulseSpeed = 1.0; // controls how fast bulbs pulse (lower = slower)
     // ============================================
 
     vec2 uv = (fragCoord - 0.5 * iResolution.xy) / iResolution.y;
@@ -686,11 +696,14 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
     vec3 ww = normalize(ta - ro);
     vec3 uu = normalize(cross(ww, vec3(0.0, 1.0, 0.0)));
     vec3 vv = cross(uu, ww);
-    addBulbGlow(ro, ta, camZoom, fragCoord, bulbPosOrange, bulbColorOrange, ww, uu, vv, col);
-    addBulbGlow(ro, ta, camZoom, fragCoord, bulbPosBlue, bulbColorBlue, ww, uu, vv, col);
+    addBulbGlow(ro, ta, camZoom, fragCoord, bulbPosOrange, bulbColorOrange, ww, uu, vv, col, 0.0, glowPulseSpeed);
+    addBulbGlow(ro, ta, camZoom, fragCoord, bulbPosBlue, bulbColorBlue, ww, uu, vv, col, 3.14159, glowPulseSpeed);
     
     // Vignette
     col *= 1.0 - 0.2 * length(uv);
 
     fragColor = vec4(col, 1.0);
 }
+
+
+//TODO make complex shapes 3D with smooth Union or liquid sim OR complex glass shape with reflexions
