@@ -1,18 +1,104 @@
 // =============== SDF OPERATORS ===============
 float dot2( in vec3 v ) { return dot(v,v); }
 
+// Smooth minimum for organic blending
+float smin(float a, float b, float k) {
+    float h = clamp(0.5 + 0.5 * (b - a) / k, 0.0, 1.0);
+    return mix(b, a, h) - k * h * (1.0 - h);
+}
+
+// Smooth maximum
+float smax(float a, float b, float k) {
+    return -smin(-a, -b, k);
+}
+
+// 3D SDFs
+float sdSphere(vec3 p, float r) {
+    return length(p) - r;
+}
+
+float sdEllipsoid(vec3 p, vec3 r) {
+    float k0 = length(p / r);
+    float k1 = length(p / (r * r));
+    return k0 * (k0 - 1.0) / k1;
+}
+
+float sdTorus(vec3 p, vec2 t) {
+    vec2 q = vec2(length(p.xz) - t.x, p.y);
+    return length(q) - t.y;
+}
+
+float sdCappedTorus(vec3 p, vec2 sc, float ra, float rb) {
+    p.x = abs(p.x);
+    float k = (sc.y * p.x > sc.x * p.y) ? dot(p.xy, sc) : length(p.xy);
+    return sqrt(dot(p, p) + ra * ra - 2.0 * ra * k) - rb;
+}
+
+float sdRoundCone(vec3 p, float r1, float r2, float h) {
+    float b = (r1 - r2) / h;
+    float a = sqrt(1.0 - b * b);
+    vec2 q = vec2(length(p.xz), p.y);
+    float k = dot(q, vec2(-b, a));
+    if (k < 0.0) return length(q) - r1;
+    if (k > a * h) return length(q - vec2(0.0, h)) - r2;
+    return dot(q, vec2(a, b)) - r1;
+}
+
+float sdOctahedron(vec3 p, float s) {
+    p = abs(p);
+    float m = p.x + p.y + p.z - s;
+    vec3 q;
+    if (3.0 * p.x < m) q = p.xyz;
+    else if (3.0 * p.y < m) q = p.yzx;
+    else if (3.0 * p.z < m) q = p.zxy;
+    else return m * 0.57735027;
+    float k = clamp(0.5 * (q.z - q.y + s), 0.0, s);
+    return length(vec3(q.x, q.y - s + k, q.z - k));
+}
+
+// Rotation matrices
+mat3 rotateX(float a) {
+    float c = cos(a), s = sin(a);
+    return mat3(1, 0, 0, 0, c, -s, 0, s, c);
+}
+
+mat3 rotateY(float a) {
+    float c = cos(a), s = sin(a);
+    return mat3(c, 0, s, 0, 1, 0, -s, 0, c);
+}
+
+mat3 rotateZ(float a) {
+    float c = cos(a), s = sin(a);
+    return mat3(c, -s, 0, s, c, 0, 0, 0, 1);
+}
+
 // =============== LIGHTING ===============
-#define NUM_LIGHTS 4
+#define NUM_LIGHTS 6
 struct DirLight {
     vec3 dir;   // direction pointing from light toward the scene
     vec3 color; // light radiance/tint
 };
 
-// Point bulbs
-const vec3 bulbPosOrange = vec3(0.0);
-const vec3 bulbColorOrange = vec3(1.0, 0.55, 0.2); // warmer, less white
-const vec3 bulbPosBlue = vec3(3.0, .2, .2);
-const vec3 bulbColorBlue = vec3(0.1, 0.2, 2.0); // brighter and more saturated blue
+// Point bulbs - repositioned to better illuminate the sculpture
+#define NUM_BULBS 4
+const vec3 bulbPositions[NUM_BULBS] = vec3[](
+    vec3(1.8, 0.6, 1.2),    // warm orange - front right
+    vec3(-1.6, 1.4, -1.0),  // cool blue - back left high
+    vec3(-1.2, 0.3, 1.5),   // magenta/pink - front left low
+    vec3(1.0, 1.8, -0.5)    // cyan - top right back
+);
+const vec3 bulbColors[NUM_BULBS] = vec3[](
+    vec3(1.0, 0.55, 0.2),   // warm orange
+    vec3(0.15, 0.35, 1.4),  // bright blue
+    vec3(1.0, 0.3, 0.7),    // magenta/pink
+    vec3(0.2, 0.9, 0.9)     // cyan
+);
+
+// Legacy aliases for compatibility
+const vec3 bulbPosOrange = vec3(1.8, 0.6, 1.2);
+const vec3 bulbColorOrange = vec3(1.0, 0.55, 0.2);
+const vec3 bulbPosBlue = vec3(-1.6, 1.4, -1.0);
+const vec3 bulbColorBlue = vec3(0.15, 0.35, 1.4);
 
 // =============== TEXT HELPERS ===============
 float sdBox(vec2 p, vec2 b) {
@@ -271,51 +357,197 @@ float getText(vec2 p) {
 }
 
 vec3 getPlaneColor(vec2 p, float textScale, bool revealText) {
-    // Checkerboard pattern
-    float checkerSize = 0.5;
-    vec2 checker = floor(p / checkerSize);
-    float checkerPattern = mod(checker.x + checker.y, 2.0);
-    vec3 col = mix(vec3(0.6), vec3(1.0), checkerPattern); // alternate between gray and white
+    // Enhanced checkerboard with anti-aliasing (fixes grain on integrated graphics)
+    float checkerSize = 0.4;
+    
+    // Anti-aliased checkerboard using fwidth
+    vec2 uv = p / checkerSize;
+    vec2 w = fwidth(uv) + 0.001; // derivative for AA, small bias to avoid division issues
+    vec2 i = 2.0 * (abs(fract((uv - 0.5 * w) * 0.5) - 0.5) - abs(fract((uv + 0.5 * w) * 0.5) - 0.5)) / w;
+    float checkerPattern = 0.5 - 0.5 * i.x * i.y; // smooth 0-1 transition
+    
+    // Add subtle color variation based on position
+    float distFromCenter = length(p) * 0.08;
+    vec3 lightColor = mix(vec3(0.95, 0.96, 0.98), vec3(0.88, 0.90, 0.93), clamp(distFromCenter, 0.0, 1.0));
+    vec3 darkColor = mix(vec3(0.52, 0.55, 0.60), vec3(0.45, 0.48, 0.52), clamp(distFromCenter, 0.0, 1.0));
+    
+    vec3 col = mix(darkColor, lightColor, checkerPattern);
+    
+    // Add subtle radial gradient for depth
+    float radialGrad = 1.0 - smoothstep(0.0, 10.0, length(p));
+    col = mix(col * 0.82, col, radialGrad);
     
     if (revealText) {
         vec2 tp = p * textScale;
         float d = getText(tp);
-        float textAlpha = smoothstep(0.05, 0.04, d);
-        col = mix(col, vec3(0.1), textAlpha); // ink
+        // Anti-aliased text edges
+        float textW = fwidth(d) * 1.5;
+        float textAlpha = smoothstep(0.05 + textW, 0.04 - textW, d);
+        col = mix(col, vec3(0.06), textAlpha); // darker ink
     }
     return col;
 }
 
 // =============== 3D SCENE ===============
-// 3D Capsule SDF
-float sdCapsule( vec3 p, vec3 a, vec3 b, float r )
-{
-  vec3 pa = p - a, ba = b - a;
-  float h = clamp( dot(pa,ba)/dot(ba,ba), 0.0, 1.0 );
-  return length( pa - ba*h ) - r;
+// Complex organic glass sculpture SDF - liquid crystal form
+float mapSculpture(vec3 p, vec3 sculpturePos, float time) {
+    vec3 q = p - sculpturePos;
+    
+    // Animate with gentle organic motion
+    float pulse = sin(time * 0.5) * 0.04;
+    float wave = sin(time * 0.3) * 0.08;
+    float breathe = sin(time * 0.25) * 0.03;
+    
+    // === CENTRAL CORE - twisted ellipsoid ===
+    vec3 coreP = q;
+    // Add twist based on height
+    float twistAmount = coreP.y * 0.8 + time * 0.2;
+    coreP.xz = mat2(cos(twistAmount), -sin(twistAmount), sin(twistAmount), cos(twistAmount)) * coreP.xz;
+    coreP.y *= 1.6;
+    float core = sdSphere(coreP, 0.32 + pulse + breathe);
+    
+    // === FLOWING RIBBONS - wrap around the core ===
+    float ribbons = 1e5;
+    for (int i = 0; i < 4; i++) {
+        float ribbonAngle = float(i) * 1.5708 + time * 0.15; // π/2
+        float heightPhase = sin(float(i) * 1.2 + time * 0.5) * 0.2;
+        
+        vec3 ribbonP = q;
+        ribbonP = rotateY(ribbonAngle) * ribbonP;
+        
+        // Helix path
+        float helixAngle = ribbonP.y * 3.0 + ribbonAngle + time * 0.3;
+        float helixRadius = 0.35 + sin(ribbonP.y * 4.0 + time) * 0.05;
+        vec3 helixOffset = vec3(cos(helixAngle) * helixRadius, 0.0, sin(helixAngle) * helixRadius);
+        ribbonP -= helixOffset;
+        
+        // Ribbon cross-section (flattened)
+        ribbonP.x *= 2.5;
+        float ribbon = sdSphere(ribbonP, 0.08);
+        
+        ribbons = smin(ribbons, ribbon, 0.12);
+    }
+    
+    // === ORBITING DROPLETS - like mercury drops ===
+    float drops = 1e5;
+    for (int i = 0; i < 5; i++) {
+        float dropAngle = float(i) * 1.2566 + time * 0.4; // 2π/5
+        float dropOrbit = 0.55 + sin(time * 0.6 + float(i) * 0.8) * 0.12;
+        float dropY = sin(time * 0.5 + float(i) * 1.3) * 0.25 + cos(time * 0.35 + float(i)) * 0.1;
+        
+        vec3 dropPos = vec3(cos(dropAngle) * dropOrbit, dropY, sin(dropAngle) * dropOrbit);
+        
+        // Teardrop shape - stretched sphere
+        vec3 dropP = q - dropPos;
+        float dropSpeed = length(vec3(cos(dropAngle + 0.1) - cos(dropAngle), 0.0, sin(dropAngle + 0.1) - sin(dropAngle)));
+        dropP.y += dropP.y * dropP.y * 0.5; // elongate downward
+        float dropSize = 0.09 + sin(time * 1.2 + float(i) * 2.5) * 0.025;
+        float drop = sdSphere(dropP, dropSize);
+        
+        // Add connecting tendril to core
+        vec3 tendrilP = q - dropPos * 0.5;
+        float tendril = sdSphere(tendrilP * vec3(1.0, 2.5, 1.0), 0.04);
+        drop = smin(drop, tendril, 0.15);
+        
+        drops = smin(drops, drop, 0.18);
+    }
+    
+    // === CROWN - blooming lotus-like top ===
+    vec3 crownP = q - vec3(0.0, 0.38 + breathe, 0.0);
+    float crown = 1e5;
+    for (int i = 0; i < 8; i++) {
+        float petalAngle = float(i) * 0.7854 + time * 0.08; // π/4
+        float petalOpen = 0.3 + sin(time * 0.4 + float(i) * 0.5) * 0.1;
+        
+        vec3 petalP = rotateY(petalAngle) * crownP;
+        petalP = rotateZ(petalOpen) * petalP; // petals open outward
+        petalP.x -= 0.15;
+        
+        // Curved petal shape
+        petalP.y *= 1.8;
+        petalP.z *= 2.5;
+        float petal = sdEllipsoid(petalP, vec3(0.12, 0.08, 0.04));
+        
+        crown = smin(crown, petal, 0.1);
+    }
+    
+    // === BASE - dripping stalactite ===
+    vec3 baseP = q + vec3(0.0, 0.35, 0.0);
+    baseP.y = -baseP.y;
+    
+    // Main drop
+    float baseDrop = sdRoundCone(baseP, 0.18, 0.03, 0.35);
+    
+    // Smaller drips
+    float drips = 1e5;
+    for (int i = 0; i < 3; i++) {
+        float dripAngle = float(i) * 2.094 + 0.5; // 2π/3
+        vec3 dripP = baseP - vec3(cos(dripAngle) * 0.12, -0.1, sin(dripAngle) * 0.12);
+        float dripLen = 0.15 + sin(time + float(i)) * 0.05;
+        float drip = sdRoundCone(dripP, 0.05, 0.015, dripLen);
+        drips = smin(drips, drip, 0.08);
+    }
+    baseDrop = smin(baseDrop, drips, 0.1);
+    
+    // === TORUS RINGS - floating halos ===
+    float rings = 1e5;
+    for (int i = 0; i < 2; i++) {
+        float ringY = float(i) * 0.4 - 0.15 + sin(time * 0.6 + float(i) * 2.0) * 0.08;
+        float ringTilt = 0.15 + sin(time * 0.4 + float(i)) * 0.1;
+        float ringSize = 0.42 - float(i) * 0.08 + pulse;
+        
+        vec3 ringP = q - vec3(0.0, ringY, 0.0);
+        ringP = rotateX(ringTilt) * ringP;
+        ringP = rotateZ(sin(time * 0.3) * 0.1) * ringP;
+        
+        float ring = sdTorus(ringP, vec2(ringSize, 0.025 + float(i) * 0.01));
+        rings = smin(rings, ring, 0.08);
+    }
+    
+    // === INNER VOID - hollow core for complex refraction ===
+    vec3 voidP = q;
+    voidP.y *= 1.3;
+    float innerVoid = sdSphere(voidP, 0.12 + sin(time * 0.8) * 0.02);
+    
+    // Secondary void - creates light channels
+    vec3 channelP = q;
+    channelP = rotateY(time * 0.1) * channelP;
+    float channels = 1e5;
+    for (int i = 0; i < 3; i++) {
+        float chAngle = float(i) * 2.094;
+        vec3 chP = rotateY(chAngle) * channelP;
+        chP.x -= 0.15;
+        float ch = sdSphere(chP * vec3(1.0, 3.0, 1.0), 0.04);
+        channels = min(channels, ch);
+    }
+    innerVoid = smin(innerVoid, channels, 0.05);
+    
+    // === COMBINE ALL ELEMENTS ===
+    float d = core;
+    d = smin(d, ribbons, 0.15);
+    d = smin(d, drops, 0.2);
+    d = smin(d, crown, 0.12);
+    d = smin(d, baseDrop, 0.15);
+    d = smin(d, rings, 0.1);
+    
+    // Subtract inner void
+    d = smax(d, -innerVoid, 0.06);
+    
+    return d;
 }
 
-float map(vec3 p, vec3 pillPos, vec4 pillParams) {
-    // Flattening the pill
-    vec3 q = p - pillPos;
-    q.y *= pillParams.x; // Squash Y axis more for flatter look
-    
-    // Capsule defined in local space
-    // Wider and longer to match the reference
-    float d = sdCapsule(q, vec3(-pillParams.y, 0.0, 0.0), vec3(pillParams.y, 0.0, 0.0), pillParams.z);
-    
-    // Return distance with correction factor
-    return d * pillParams.w;
+float map(vec3 p, vec3 sculpturePos, vec4 unusedParams) {
+    return mapSculpture(p, sculpturePos, iTime);
 }
 
-vec3 calcNormal( in vec3 p, vec3 pillPos, vec4 pillParams )
+vec3 calcNormal( in vec3 p, vec3 sculpturePos, vec4 unused )
 {
     const float h = 0.0001;
     const vec2 k = vec2(1,-1);
-    return normalize( k.xyy*map( p + k.xyy*h, pillPos, pillParams ) + 
-                      k.yyx*map( p + k.yyx*h, pillPos, pillParams ) + 
-                      k.yxy*map( p + k.yxy*h, pillPos, pillParams ) + 
-                      k.xxx*map( p + k.xxx*h, pillPos, pillParams ) );
+    return normalize( k.xyy*mapSculpture( p + k.xyy*h, sculpturePos, iTime ) + 
+                      k.yyx*mapSculpture( p + k.yyx*h, sculpturePos, iTime ) + 
+                      k.yxy*mapSculpture( p + k.yxy*h, sculpturePos, iTime ) + 
+                      k.xxx*mapSculpture( p + k.xxx*h, sculpturePos, iTime ) );
 }
 
 float intersectPlane(vec3 ro, vec3 rd, float height) {
@@ -368,17 +600,17 @@ vec3 evalSpecular(vec3 normal, vec3 viewDir, DirLight lights[NUM_LIGHTS], float 
     return accum;
 }
 
-// Soft shadow from pill onto the plane (sun light only)
-float softShadow(vec3 ro, vec3 rd, vec3 pillPos, vec4 pillParams) {
-    float t = 0.02;
+// Soft shadow from sculpture onto the plane
+float softShadow(vec3 ro, vec3 rd, vec3 sculpturePos, vec4 sculptureParams) {
+    float t = 0.05;
     float res = 1.0;
-    for (int i = 0; i < 40; ++i) {
+    for (int i = 0; i < 48; ++i) {
         vec3 p = ro + rd * t;
-        float h = map(p, pillPos, pillParams);
-        if (h < 0.0005) return 0.0;
-        res = min(res, 10.0 * h / t);
-        t += clamp(h, 0.01, 0.3);
-        if (t > 10.0) break;
+        float h = mapSculpture(p, sculpturePos, iTime);
+        if (h < 0.001) return 0.0;
+        res = min(res, 12.0 * h / t);
+        t += clamp(h, 0.02, 0.25);
+        if (t > 8.0) break;
     }
     return clamp(res, 0.0, 1.0);
 }
@@ -395,21 +627,13 @@ void accumulateBulb(vec3 p, vec3 viewDir, vec3 n, vec3 pos, vec3 color, inout ve
 
 vec3 bulbDiffuse(vec3 p, vec3 n) {
     vec3 diff = vec3(0.0);
-    // Orange bulb
-    {
-        vec3 lb = bulbPosOrange - p;
+    // Loop through all point lights
+    for (int i = 0; i < NUM_BULBS; i++) {
+        vec3 lb = bulbPositions[i] - p;
         float lbDist = length(lb);
         vec3 lbDir = lb / max(lbDist, 1e-3);
-        float bulbAtt = 1.0 / (1.0 + 0.45 * lbDist + 0.1 * lbDist * lbDist);
-        diff += bulbColorOrange * max(dot(n, lbDir), 0.0) * bulbAtt;
-    }
-    // Blue bulb
-    {
-        vec3 lb = bulbPosBlue - p;
-        float lbDist = length(lb);
-        vec3 lbDir = lb / max(lbDist, 1e-3);
-        float bulbAtt = 1.0 / (1.0 + 0.45 * lbDist + 0.1 * lbDist * lbDist);
-        diff += bulbColorBlue * max(dot(n, lbDir), 0.0) * bulbAtt;
+        float bulbAtt = 1.0 / (1.0 + 0.35 * lbDist + 0.08 * lbDist * lbDist);
+        diff += bulbColors[i] * max(dot(n, lbDir), 0.0) * bulbAtt;
     }
     return diff;
 }
@@ -417,21 +641,12 @@ vec3 bulbDiffuse(vec3 p, vec3 n) {
 // Simple forward-scatter term: stronger when view aligns with light direction, attenuated by distance
 vec3 bulbScatter(vec3 p, vec3 viewDir) {
     vec3 scatter = vec3(0.0);
-    // Orange bulb
-    {
-        vec3 toL = normalize(bulbPosOrange - p);
-        float dist = length(bulbPosOrange - p);
+    for (int i = 0; i < NUM_BULBS; i++) {
+        vec3 toL = normalize(bulbPositions[i] - p);
+        float dist = length(bulbPositions[i] - p);
         float phase = pow(max(dot(toL, -viewDir), 0.0), 3.0);
-        float att = 1.0 / (1.0 + 0.35 * dist + 0.08 * dist * dist);
-        scatter += bulbColorOrange * phase * att;
-    }
-    // Blue bulb
-    {
-        vec3 toL = normalize(bulbPosBlue - p);
-        float dist = length(bulbPosBlue - p);
-        float phase = pow(max(dot(toL, -viewDir), 0.0), 3.0);
-        float att = 1.0 / (1.0 + 0.35 * dist + 0.08 * dist * dist);
-        scatter += bulbColorBlue * phase * att;
+        float att = 1.0 / (1.0 + 0.3 * dist + 0.06 * dist * dist);
+        scatter += bulbColors[i] * phase * att * 0.8;
     }
     return scatter;
 }
@@ -449,39 +664,23 @@ vec3 shadePlane(vec3 p, vec3 viewDir, float textScale, bool revealText, DirLight
         diffuse += lights[i].color * max(dot(n, -lights[i].dir), 0.0);
     }
     vec3 bulbSpec = vec3(0.0);
-    accumulateBulb(p, viewDir, n, bulbPosOrange, bulbColorOrange, diffuse, bulbSpec);
-    accumulateBulb(p, viewDir, n, bulbPosBlue, bulbColorBlue, diffuse, bulbSpec);
-    vec3 spec = evalSpecular(n, viewDir, lights, 32.0);
-    // Keep more of the base checkerboard pattern visible by using additive lighting instead of multiplicative
-    return base * (0.6 + diffuse * 0.4) + spec * 0.05 + bulbSpec * 0.3;
-}
-
-vec3 updatePillPosition(vec3 ro, vec3 ta, float zoom, float pillHeight) {
-    vec3 pillPos = vec3(0.0, pillHeight, 0.0);
-    
-    if (length(iMouse.xy) > 10.0) {
-        vec2 mouseUV = (iMouse.xy - 0.5 * iResolution.xy) / iResolution.y;
-        vec3 rd_mouse = getRayDir(mouseUV, ro, ta, zoom);
-        
-        // Avoid division by near-zero when camera is parallel to the pill plane
-        if (abs(rd_mouse.y) > 1e-4) {
-            float t_mouse = (pillHeight - ro.y) / rd_mouse.y;
-            if (t_mouse > 0.0) {
-                pillPos = ro + t_mouse * rd_mouse;
-            }
-        }
+    // Accumulate all point lights
+    for (int i = 0; i < NUM_BULBS; i++) {
+        accumulateBulb(p, viewDir, n, bulbPositions[i], bulbColors[i], diffuse, bulbSpec);
     }
-    return pillPos;
+    vec3 spec = evalSpecular(n, viewDir, lights, 32.0);
+    // Keep more of the base checkerboard pattern visible
+    return base * (0.55 + diffuse * 0.45) + spec * 0.06 + bulbSpec * 0.25;
 }
 
-bool castRay(vec3 ro, vec3 rd, vec3 pillPos, vec4 pillParams, out float t) {
+bool castRay(vec3 ro, vec3 rd, vec3 sculpturePos, vec4 sculptureParams, out float t) {
     t = 0.0;
-    float tmax = 20.0;
-    for(int i=0; i<64; i++) {
+    float tmax = 25.0;
+    for(int i=0; i<128; i++) {
         vec3 p = ro + t*rd;
-        float d = map(p, pillPos, pillParams);
-        if(d < 0.001) return true;
-        t += d;
+        float d = mapSculpture(p, sculpturePos, iTime);
+        if(d < 0.0005) return true;
+        t += d * 0.8; // slightly conservative step for complex shapes
         if(t > tmax) break;
     }
     return false;
@@ -497,132 +696,132 @@ vec3 renderBackground(vec3 ro, vec3 rd, vec3 pillPos, vec4 pillParams, float tex
     return vec3(0.9);
 }
 
-vec3 renderGlass(vec3 ro, vec3 rd, float t, vec3 pillPos, vec4 pillParams, float glassIOR, vec3 glassTint, float textScale, vec3 envColor, vec3 absorbCoeff, float dispersion, DirLight lights[NUM_LIGHTS]) {
+vec3 renderGlass(vec3 ro, vec3 rd, float t, vec3 sculpturePos, vec4 sculptureParams, float glassIOR, vec3 glassTint, float textScale, vec3 envColor, vec3 absorbCoeff, float dispersion, DirLight lights[NUM_LIGHTS]) {
     vec3 p = ro + t*rd;
-    vec3 n = calcNormal(p, pillPos, pillParams);
+    vec3 n = calcNormal(p, sculpturePos, sculptureParams);
     vec3 rd_in = refract(rd, n, 1.0/glassIOR);
     
-    float t_in = 0.01; 
+    // If total internal reflection at entry (shouldn't happen but safety)
+    if (length(rd_in) == 0.0) rd_in = reflect(rd, n);
+    
+    // March through the glass interior
+    float t_in = 0.02; 
     vec3 p_in = p;
-    for(int i=0; i<64; i++) {
+    float totalDist = 0.0;
+    for(int i=0; i<96; i++) {
         p_in = p + t_in * rd_in;
-        float d_in = map(p_in, pillPos, pillParams);
-        if(d_in > -0.001) break;
-        t_in += abs(d_in); 
+        float d_in = mapSculpture(p_in, sculpturePos, iTime);
+        if(d_in > -0.0005) break;
+        float step = max(abs(d_in), 0.002);
+        t_in += step;
+        totalDist += step;
+        if (t_in > 5.0) break;
     }
     
-    vec3 n_out = calcNormal(p_in, pillPos, pillParams);
-    // Per-channel dispersion for exit direction
+    vec3 n_out = calcNormal(p_in, sculpturePos, sculptureParams);
+    
+    // Per-channel dispersion for exit direction (rainbow caustics)
     float iorR = glassIOR * (1.0 - dispersion);
     float iorG = glassIOR;
     float iorB = glassIOR * (1.0 + dispersion);
     vec3 rd_out_r = refract(rd_in, -n_out, iorR);
     vec3 rd_out_g = refract(rd_in, -n_out, iorG);
     vec3 rd_out_b = refract(rd_in, -n_out, iorB);
+    
+    // Handle total internal reflection per channel
     if (length(rd_out_r)==0.0) rd_out_r = reflect(rd_in, -n_out);
     if (length(rd_out_g)==0.0) rd_out_g = reflect(rd_in, -n_out);
     if (length(rd_out_b)==0.0) rd_out_b = reflect(rd_in, -n_out);
 
-    // Helper: manual inline to avoid GLSL lambda (uses raymarch to plane)
+    // Sample background for each color channel (chromatic dispersion)
     vec3 col;
     for (int channel = 0; channel < 3; ++channel) {
         vec3 rayOrigin = p_in;
         vec3 rayDir = channel == 0 ? rd_out_r : (channel == 1 ? rd_out_g : rd_out_b);
-        vec3 c = envColor * (0.2 + evalDiffuse(vec3(0.0, 1.0, 0.0), lights)); // light the env fallback a bit
-        c += bulbDiffuse(rayOrigin, vec3(0.0, 1.0, 0.0)); // let bulbs tint fallback/reflection
-        for (int bounce = 0; bounce < 8; ++bounce) {
-            float t_plane = marchToPlane(rayOrigin, rayDir, 0.0005, 30.0);
-            if (t_plane > 0.0) {
-                vec3 p_plane = rayOrigin + t_plane * rayDir;
-                bool flipX = bounce > 0; // reflections mirror X
-                bool flipY = bounce % 2 == 0; // and also invert Y causing upside-down text
-                c = shadePlane(p_plane, normalize(-rayDir), textScale, true, lights, pillPos, pillParams, flipX, flipY);
-                break;
-            }
-            rayDir = reflect(rayDir, -n_out);
-            rayOrigin += rayDir * 0.01; // small offset to avoid self-intersection
+        vec3 c = envColor * (0.3 + evalDiffuse(vec3(0.0, 1.0, 0.0), lights) * 0.5);
+        
+        // Try to hit the floor plane - use analytic intersection (cleaner, faster)
+        float t_plane = intersectPlane(rayOrigin, rayDir, 0.0);
+        if (t_plane > 0.0) {
+            vec3 p_plane = rayOrigin + t_plane * rayDir;
+            c = shadePlane(p_plane, normalize(-rayDir), textScale, true, lights, sculpturePos, sculptureParams, false, false);
         }
-        // Apply internal scattering inside glass (forward scatter along refracted path)
-        c += bulbScatter(p_in, rayDir) * glassTint * 0.15;
+        
+        // Add caustic-like patterns from internal bounces
+        c += bulbScatter(p_in, rayDir) * glassTint * 0.25;
         
         if (channel == 0) col.r = c.r;
         else if (channel == 1) col.g = c.g;
         else col.b = c.b;
     }
     
-    // Beer-Lambert absorption based on distance traveled inside (apply to refracted content only)
-    vec3 absorb = exp(-absorbCoeff * t_in);
+    // Beer-Lambert absorption - more dramatic for complex shapes
+    vec3 absorb = exp(-absorbCoeff * totalDist * 2.0);
     col *= absorb * glassTint;
     
-    // Add a base glass tint/color so it's not fully transparent when far from text
-    // This simulates internal reflections and slight opacity of real glass
-    float glassOpacity = 0.08; // subtle base opacity
-    vec3 glassBaseColor = glassTint * 0.95;
-    col = mix(col, glassBaseColor, glassOpacity);
-
-    // Fresnel reflection: sample the plane via a reflected ray so text appears in the glass
-    float fresnelBase = 1.0 + dot(rd, n);
-    float fre = pow(clamp(fresnelBase, 0.0, 1.0), 5.0);
-    // Add a minimum fresnel so glass edges are always slightly visible
-    fre = mix(0.04, 1.0, fre); // Schlick's approximation base reflectance ~0.04 for glass
+    // Internal glow effect - simulates subsurface scattering
+    vec3 sss = vec3(0.1, 0.15, 0.2) * (1.0 - exp(-totalDist * 3.0));
+    col += sss * glassTint;
     
+    // Fresnel reflection
+    float fresnelBase = 1.0 + dot(rd, n);
+    float fre = pow(clamp(fresnelBase, 0.0, 1.0), 4.0);
+    fre = mix(0.06, 1.0, fre);
+    
+    // Sample reflection
     vec3 rd_reflect = reflect(rd, n);
     vec3 reflCol = envColor;
-    float t_refl = marchToPlane(p + rd_reflect * 0.01, rd_reflect, 0.0005, 30.0);
+    
+    // Check if reflection hits the floor - use analytic intersection
+    float t_refl = intersectPlane(p + rd_reflect * 0.02, rd_reflect, 0.0);
     if (t_refl > 0.0) {
         vec3 p_refl = p + rd_reflect * t_refl;
-        reflCol = shadePlane(p_refl, normalize(-rd_reflect), textScale, true, lights, pillPos, pillParams, true, false); // mirror X in reflection
+        reflCol = shadePlane(p_refl, normalize(-rd_reflect), textScale, true, lights, sculpturePos, sculptureParams, false, false);
+    } else {
+        // Sky gradient for upward reflections - more colorful
+        float skyGrad = rd_reflect.y * 0.5 + 0.5;
+        vec3 horizonCol = vec3(0.7, 0.75, 0.85);
+        vec3 zenithCol = vec3(0.25, 0.45, 0.8);
+        reflCol = mix(horizonCol, zenithCol, pow(skyGrad, 1.5));
+        // Add subtle sun reflection in sky
+        float sunDot = max(dot(rd_reflect, -lights[0].dir), 0.0);
+        reflCol += lights[0].color * pow(sunDot, 32.0) * 0.5;
     }
     
-    // Compute all specular highlights before mixing with Fresnel reflection
+    // Specular highlights
     vec3 specHighlights = vec3(0.0);
     
-    // Multi-light specular on glass (enhanced sun visibility)
-    vec3 spec = evalSpecular(n, -rd, lights, 32.0);
-    specHighlights += spec * 0.6;
+    // Multi-light specular
+    for (int i = 0; i < NUM_LIGHTS; i++) {
+        vec3 lightRefl = reflect(lights[i].dir, n);
+        float spec = pow(max(dot(lightRefl, -rd), 0.0), 64.0);
+        specHighlights += lights[i].color * spec * 0.8;
+    }
     
-    // Add bright sun highlight (high shininess for sharp reflection)
+    // Sharp sun highlight
     vec3 sunRefl = reflect(lights[0].dir, n);
-    float sunSpec = pow(max(dot(sunRefl, -rd), 0.0), 128.0);
-    specHighlights += lights[0].color * sunSpec * 1.5;
+    float sunSpec = pow(max(dot(sunRefl, -rd), 0.0), 256.0);
+    specHighlights += lights[0].color * sunSpec * 2.5;
     
-    // Point light specular reflections on glass (visible from distance)
-    // Orange bulb specular
-    {
-        vec3 toOrange = normalize(bulbPosOrange - p);
-        vec3 reflOrange = reflect(-toOrange, n);
-        float specOrange = pow(max(dot(reflOrange, -rd), 0.0), 64.0);
-        float distOrange = length(bulbPosOrange - p);
-        float attOrange = 1.0 / (1.0 + 0.2 * distOrange + 0.05 * distOrange * distOrange);
-        specHighlights += bulbColorOrange * specOrange * attOrange * 2.0;
-    }
-    // Blue bulb specular
-    {
-        vec3 toBlue = normalize(bulbPosBlue - p);
-        vec3 reflBlue = reflect(-toBlue, n);
-        float specBlue = pow(max(dot(reflBlue, -rd), 0.0), 64.0);
-        float distBlue = length(bulbPosBlue - p);
-        float attBlue = 1.0 / (1.0 + 0.2 * distBlue + 0.05 * distBlue * distBlue);
-        specHighlights += bulbColorBlue * specBlue * attBlue * 2.0;
+    // Point light specular - loop through all bulbs
+    for (int i = 0; i < NUM_BULBS; i++) {
+        vec3 toBulb = normalize(bulbPositions[i] - p);
+        vec3 reflBulb = reflect(-toBulb, n);
+        float specBulb = pow(max(dot(reflBulb, -rd), 0.0), 64.0);
+        float distBulb = length(bulbPositions[i] - p);
+        float attBulb = 1.0 / (1.0 + 0.12 * distBulb + 0.025 * distBulb * distBulb);
+        specHighlights += bulbColors[i] * specBulb * attBulb * 1.2;
     }
     
-    // Add specular to reflection color for proper rim blending
     reflCol += specHighlights;
     
-    // Smooth Fresnel blend between refracted content and reflection+specular
+    // Fresnel blend
     col = mix(col, reflCol, fre);
     
-    // Rim lighting effect - enhance edges of glass
-    // float rim = pow(1.0 - max(dot(-rd, n), 0.0), 3.0);
-    // col += vec3(0.15) * rim * 0.5;
+    // Edge highlight (rim lighting)
+    float rim = pow(1.0 - max(dot(-rd, n), 0.0), 3.0);
+    col += vec3(0.3, 0.35, 0.4) * rim * 0.4;
     
-    // // Gold glow at the bottom of the glass
-    // // Calculate how much this point is at the bottom edge of the pill
-    // vec3 localP = p - pillPos;
-    // float bottomness = 1.0 - smoothstep(-0.05, 0.15, localP.y); // stronger near bottom
-    // float edgeFactor = pow(1.0 - abs(dot(-rd, n)), 2.0); // stronger at edges
-    // vec3 goldColor = vec3(1.0, 0.75, 0.3); // warm gold
-    // col += goldColor * bottomness * edgeFactor * 0.6;
     return col;
 }
 
@@ -644,66 +843,79 @@ void addBulbGlow(vec3 ro, vec3 ta, float camZoom, vec2 fragCoord, vec3 bulbPos, 
 void mainImage( out vec4 fragColor, in vec2 fragCoord )
 {
     // ================= SETTINGS =================
-    // Camera
-    vec3 camPos = vec3(0.0, 5.5, 4.5);
-    float camZoom = 1.5;
+    // Camera - pulled back to see the sculpture
+    vec3 camPos = vec3(0.0, 1.5, 3.0);
+    float camZoom = 1.8;
   
-    // Pill Geometry
-    float pillHeight = 0.6;
-    // x: SquashY, y: Length, z: Radius, w: SDF Correction
-    vec4 pillParams = vec4(5.0, 0.8, 0.5, 0.2); 
+    // Sculpture position
+    float sculptureHeight = 0.5;
+    vec4 sculptureParams = vec4(1.0); // unused but kept for compatibility
     
-    // Glass Look
-    float glassIOR = 1.55;
-    vec3 glassTint = vec3(0.95, 0.98, 1.0);
-    vec3 envColor = vec3(0.9); // Environment color used when rays miss the plane
-    vec3 absorbCoeff = vec3(0.20, 0.25, 0.27); // Beer-Lambert per-channel absorption
-    float dispersion = 0.01; // Chromatic dispersion amount
+    // Glass Look - enhanced for complex sculpture
+    float glassIOR = 1.45; // slightly lower for more dramatic refraction
+    vec3 glassTint = vec3(0.92, 0.95, 1.0); // slight blue tint
+    vec3 envColor = vec3(0.85, 0.88, 0.92);
+    vec3 absorbCoeff = vec3(0.15, 0.18, 0.22); // subtle absorption
+    float dispersion = 0.025; // more chromatic aberration for rainbow effects
 
-    // Lighting: sun + two colored lamps + soft red sun fill
+    // Lighting: key + fill + rim + accent lights for dramatic effect
     DirLight lights[NUM_LIGHTS];
-    lights[0] = DirLight(normalize(vec3(0.15, -1.0, 0.1)), vec3(1.0, 0.97, 0.9));  // warm sun
-    lights[1] = DirLight(normalize(vec3(-0.6, -1.0, -0.2)), vec3(0.45, 0.65, 1.1)); // cool blue lamp
-    lights[2] = DirLight(normalize(vec3(0.7, -0.7, 0.6)), vec3(1.1, 0.7, 0.35));    // orange lamp
-    lights[3] = DirLight(normalize(vec3(-0.25, -1.0, 0.3)), vec3(0.8, 0.25, 0.25)); // soft red sun fill
+    lights[0] = DirLight(normalize(vec3(0.4, -1.0, 0.3)), vec3(1.3, 1.2, 1.05));  // key light - warm sun
+    lights[1] = DirLight(normalize(vec3(-0.7, -0.5, -0.4)), vec3(0.25, 0.4, 0.8)); // fill - cool blue
+    lights[2] = DirLight(normalize(vec3(0.6, -0.4, 0.8)), vec3(0.85, 0.55, 0.25)); // accent - warm orange
+    lights[3] = DirLight(normalize(vec3(-0.4, -0.9, 0.3)), vec3(0.45, 0.2, 0.5));  // accent - purple
+    lights[4] = DirLight(normalize(vec3(-0.2, -0.3, -0.9)), vec3(0.2, 0.6, 0.5));  // rim - teal from behind
+    lights[5] = DirLight(normalize(vec3(0.9, -0.2, -0.2)), vec3(0.7, 0.3, 0.4));   // side - rose/magenta
     
     // Text
     float textScale = 2.5;
     
     // Bulb Glow Animation
-    float glowPulseSpeed = 1.0; // controls how fast bulbs pulse (lower = slower)
+    float glowPulseSpeed = 0.8;
     // ============================================
 
     vec2 uv = (fragCoord - 0.5 * iResolution.xy) / iResolution.y;
     
-    // Camera & Interaction
-    vec3 ro = camPos;
-    vec3 ta = vec3(0.0);
-    vec3 pillPos = updatePillPosition(ro, ta, camZoom, pillHeight);
+    // Camera orbits slowly around the sculpture
+    float camAngle = iTime * 0.1;
+    vec3 ro = vec3(sin(camAngle) * 3.0, 1.5 + sin(iTime * 0.15) * 0.3, cos(camAngle) * 3.0);
+    vec3 ta = vec3(0.0, 0.4, 0.0);
+    
+    // Mouse control overrides orbit
+    if (iMouse.z > 0.0) {
+        float mouseX = (iMouse.x / iResolution.x - 0.5) * 6.28;
+        float mouseY = (iMouse.y / iResolution.y - 0.5) * 2.0;
+        ro = vec3(sin(mouseX) * 3.0, 1.5 + mouseY, cos(mouseX) * 3.0);
+    }
+    
+    vec3 sculpturePos = vec3(0.0, sculptureHeight, 0.0);
     vec3 rd = getRayDir(uv, ro, ta, camZoom);
 
     // Raymarch
     float t;
-    bool hitPill = castRay(ro, rd, pillPos, pillParams, t);
+    bool hitSculpture = castRay(ro, rd, sculpturePos, sculptureParams, t);
     vec3 col;
-    if (hitPill) {
-        col = renderGlass(ro, rd, t, pillPos, pillParams, glassIOR, glassTint, textScale, envColor, absorbCoeff, dispersion, lights);
+    if (hitSculpture) {
+        col = renderGlass(ro, rd, t, sculpturePos, sculptureParams, glassIOR, glassTint, textScale, envColor, absorbCoeff, dispersion, lights);
     } else {
-        col = renderBackground(ro, rd, pillPos, pillParams, textScale, lights);
+        col = renderBackground(ro, rd, sculpturePos, sculptureParams, textScale, lights);
     }
 
-    // Screen-space glow for the bulb
+    // Screen-space glow for all bulbs
     vec3 ww = normalize(ta - ro);
     vec3 uu = normalize(cross(ww, vec3(0.0, 1.0, 0.0)));
     vec3 vv = cross(uu, ww);
-    addBulbGlow(ro, ta, camZoom, fragCoord, bulbPosOrange, bulbColorOrange, ww, uu, vv, col, 0.0, glowPulseSpeed);
-    addBulbGlow(ro, ta, camZoom, fragCoord, bulbPosBlue, bulbColorBlue, ww, uu, vv, col, 3.14159, glowPulseSpeed);
+    for (int i = 0; i < NUM_BULBS; i++) {
+        float phase = float(i) * 1.5708; // π/2 offset per bulb
+        addBulbGlow(ro, ta, camZoom, fragCoord, bulbPositions[i], bulbColors[i], ww, uu, vv, col, phase, glowPulseSpeed);
+    }
     
-    // Vignette
-    col *= 1.0 - 0.2 * length(uv);
+    // Subtle vignette
+    col *= 1.0 - 0.15 * length(uv);
+    
+    // Tone mapping for HDR
+    col = col / (col + vec3(1.0));
+    col = pow(col, vec3(0.95)); // slight gamma adjustment
 
     fragColor = vec4(col, 1.0);
 }
-
-
-//TODO make complex shapes 3D with smooth Union or liquid sim OR complex glass shape with reflexions
