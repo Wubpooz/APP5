@@ -101,289 +101,340 @@ const vec3 bulbPosBlue = vec3(-1.6, 1.4, -1.0);
 const vec3 bulbColorBlue = vec3(0.15, 0.35, 1.4);
 
 // =============== TEXT HELPERS ===============
-float sdBox(vec2 p, vec2 b) {
-    vec2 d = abs(p) - b;
-    return min(max(d.x, d.y), 0.0) + length(max(d, 0.0));
-}
-float sdSegment( in vec2 p, in vec2 a, in vec2 b )
-{
-    vec2 pa = p-a, ba = b-a;
-    float h = clamp( dot(pa,ba)/dot(ba,ba), 0.0, 1.0 );
-    return length( pa - ba*h );
+// OPTIMIZED: Minimal character set using simple SDFs
+
+float sdSegment(vec2 p, vec2 a, vec2 b) {
+    vec2 pa = p - a, ba = b - a;
+    float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
+    return length(pa - ba * h);
 }
 
-// Individual glyphs built from segments; simple and compact
+// Simple segment-based characters - clean and readable
 float charA(vec2 p) {
-    float d = min(sdSegment(p, vec2(-0.2,-0.3), vec2(0.0,0.3)), sdSegment(p, vec2(0.0,0.3), vec2(0.2,-0.3)));
-    d = min(d, sdSegment(p, vec2(-0.1,0.0), vec2(0.1,0.0)));
-    return d;
-}
-float charB(vec2 p) {
-    float d = sdSegment(p, vec2(-0.2,-0.3), vec2(-0.2,0.3));
-    d = min(d, sdSegment(p, vec2(-0.2,0.3), vec2(0.1,0.3)));
-    d = min(d, sdSegment(p, vec2(0.1,0.3), vec2(0.15,0.15)));
-    d = min(d, sdSegment(p, vec2(0.15,0.15), vec2(0.1,0.0)));
-    d = min(d, sdSegment(p, vec2(0.1,0.0), vec2(-0.2,0.0)));
-    d = min(d, sdSegment(p, vec2(-0.2,0.0), vec2(0.1,0.0)));
-    d = min(d, sdSegment(p, vec2(0.1,0.0), vec2(0.15,-0.15)));
-    d = min(d, sdSegment(p, vec2(0.15,-0.15), vec2(0.1,-0.3)));
-    d = min(d, sdSegment(p, vec2(0.1,-0.3), vec2(-0.2,-0.3)));
+    float d = sdSegment(p, vec2(-0.12, -0.25), vec2(0.0, 0.25));
+    d = min(d, sdSegment(p, vec2(0.0, 0.25), vec2(0.12, -0.25)));
+    d = min(d, sdSegment(p, vec2(-0.08, -0.05), vec2(0.08, -0.05)));
     return d;
 }
 float charC(vec2 p) {
-    float d = sdSegment(p, vec2(0.15,0.25), vec2(-0.1,0.3));
-    d = min(d, sdSegment(p, vec2(-0.1,0.3), vec2(-0.2,0.15)));
-    d = min(d, sdSegment(p, vec2(-0.2,0.15), vec2(-0.2,-0.15)));
-    d = min(d, sdSegment(p, vec2(-0.2,-0.15), vec2(-0.1,-0.3)));
-    d = min(d, sdSegment(p, vec2(-0.1,-0.3), vec2(0.15,-0.25)));
+    float d = sdSegment(p, vec2(0.12, 0.2), vec2(-0.08, 0.25));
+    d = min(d, sdSegment(p, vec2(-0.08, 0.25), vec2(-0.12, 0.0)));
+    d = min(d, sdSegment(p, vec2(-0.12, 0.0), vec2(-0.08, -0.25)));
+    d = min(d, sdSegment(p, vec2(-0.08, -0.25), vec2(0.12, -0.2)));
     return d;
 }
 float charD(vec2 p) {
-    float d = sdSegment(p, vec2(-0.2,-0.3), vec2(-0.2,0.3));
-    d = min(d, sdSegment(p, vec2(-0.2,0.3), vec2(0.1,0.3)));
-    d = min(d, sdSegment(p, vec2(0.1,0.3), vec2(0.2,0.15)));
-    d = min(d, sdSegment(p, vec2(0.2,0.15), vec2(0.2,-0.15)));
-    d = min(d, sdSegment(p, vec2(0.2,-0.15), vec2(0.1,-0.3)));
-    d = min(d, sdSegment(p, vec2(0.1,-0.3), vec2(-0.2,-0.3)));
+    float d = sdSegment(p, vec2(-0.12, -0.25), vec2(-0.12, 0.25));
+    d = min(d, sdSegment(p, vec2(-0.12, 0.25), vec2(0.05, 0.2)));
+    d = min(d, sdSegment(p, vec2(0.05, 0.2), vec2(0.12, 0.0)));
+    d = min(d, sdSegment(p, vec2(0.12, 0.0), vec2(0.05, -0.2)));
+    d = min(d, sdSegment(p, vec2(0.05, -0.2), vec2(-0.12, -0.25)));
     return d;
 }
 float charE(vec2 p) {
-    float d = sdSegment(p, vec2(-0.2,-0.3), vec2(-0.2,0.3));
-    d = min(d, sdSegment(p, vec2(-0.2, 0.3), vec2( 0.2,0.3)));
-    d = min(d, sdSegment(p, vec2(-0.2, 0.0), vec2( 0.1,0.0)));
-    d = min(d, sdSegment(p, vec2(-0.2,-0.3), vec2( 0.2,-0.3)));
-    return d;
-}
-float charF(vec2 p) {
-    float d = sdSegment(p, vec2(-0.2,-0.3), vec2(-0.2,0.3));
-    d = min(d, sdSegment(p, vec2(-0.2,0.3), vec2(0.2,0.3)));
-    d = min(d, sdSegment(p, vec2(-0.2,0.05), vec2(0.1,0.05)));
+    float d = sdSegment(p, vec2(-0.12, -0.25), vec2(-0.12, 0.25));
+    d = min(d, sdSegment(p, vec2(-0.12, 0.25), vec2(0.12, 0.25)));
+    d = min(d, sdSegment(p, vec2(-0.12, 0.0), vec2(0.08, 0.0)));
+    d = min(d, sdSegment(p, vec2(-0.12, -0.25), vec2(0.12, -0.25)));
     return d;
 }
 float charG(vec2 p) {
     float d = charC(p);
-    d = min(d, sdSegment(p, vec2(0.0,0.0), vec2(0.15,0.0)));
-    d = min(d, sdSegment(p, vec2(0.15,0.0), vec2(0.15,-0.15)));
+    d = min(d, sdSegment(p, vec2(0.12, -0.2), vec2(0.12, 0.0)));
+    d = min(d, sdSegment(p, vec2(0.12, 0.0), vec2(0.02, 0.0)));
     return d;
 }
 float charH(vec2 p) {
-    return min(min(sdSegment(p, vec2(-0.2,-0.3), vec2(-0.2,0.3)),
-                   sdSegment(p, vec2( 0.2,-0.3), vec2( 0.2,0.3))),
-                   sdSegment(p, vec2(-0.2, 0.0), vec2( 0.2,0.0)));
+    float d = sdSegment(p, vec2(-0.12, -0.25), vec2(-0.12, 0.25));
+    d = min(d, sdSegment(p, vec2(0.12, -0.25), vec2(0.12, 0.25)));
+    d = min(d, sdSegment(p, vec2(-0.12, 0.0), vec2(0.12, 0.0)));
+    return d;
 }
 float charI(vec2 p) {
-    float d = sdSegment(p, vec2(-0.15,0.3), vec2(0.15,0.3));
-    d = min(d, sdSegment(p, vec2(0.0,0.3), vec2(0.0,-0.3)));
-    d = min(d, sdSegment(p, vec2(-0.15,-0.3), vec2(0.15,-0.3)));
+    float d = sdSegment(p, vec2(-0.08, 0.25), vec2(0.08, 0.25));
+    d = min(d, sdSegment(p, vec2(0.0, 0.25), vec2(0.0, -0.25)));
+    d = min(d, sdSegment(p, vec2(-0.08, -0.25), vec2(0.08, -0.25)));
     return d;
 }
 float charL(vec2 p) {
-    return min(sdSegment(p, vec2(-0.2,-0.3), vec2(-0.2,0.3)),
-               sdSegment(p, vec2(-0.2,-0.3), vec2( 0.2,-0.3)));
+    float d = sdSegment(p, vec2(-0.12, 0.25), vec2(-0.12, -0.25));
+    d = min(d, sdSegment(p, vec2(-0.12, -0.25), vec2(0.12, -0.25)));
+    return d;
 }
 float charM(vec2 p) {
-    float d = sdSegment(p, vec2(-0.2,-0.3), vec2(-0.2,0.3));
-    d = min(d, sdSegment(p, vec2(-0.2,0.3), vec2(0.0,0.05)));
-    d = min(d, sdSegment(p, vec2(0.0,0.05), vec2(0.2,0.3)));
-    d = min(d, sdSegment(p, vec2(0.2,0.3), vec2(0.2,-0.3)));
+    float d = sdSegment(p, vec2(-0.15, -0.25), vec2(-0.15, 0.25));
+    d = min(d, sdSegment(p, vec2(-0.15, 0.25), vec2(0.0, 0.0)));
+    d = min(d, sdSegment(p, vec2(0.0, 0.0), vec2(0.15, 0.25)));
+    d = min(d, sdSegment(p, vec2(0.15, 0.25), vec2(0.15, -0.25)));
     return d;
 }
 float charN(vec2 p) {
-    float d = sdSegment(p, vec2(-0.2,-0.3), vec2(-0.2,0.3));
-    d = min(d, sdSegment(p, vec2(-0.2,0.3), vec2(0.2,-0.3)));
-    d = min(d, sdSegment(p, vec2(0.2,-0.3), vec2(0.2,0.3)));
+    float d = sdSegment(p, vec2(-0.12, -0.25), vec2(-0.12, 0.25));
+    d = min(d, sdSegment(p, vec2(-0.12, 0.25), vec2(0.12, -0.25)));
+    d = min(d, sdSegment(p, vec2(0.12, -0.25), vec2(0.12, 0.25)));
     return d;
 }
 float charO(vec2 p) {
-    float d = sdSegment(p, vec2(-0.2,-0.3), vec2(-0.2,0.3));
-    d = min(d, sdSegment(p, vec2( 0.2,-0.3), vec2( 0.2,0.3)));
-    d = min(d, sdSegment(p, vec2(-0.2, 0.3), vec2( 0.2,0.3)));
-    d = min(d, sdSegment(p, vec2(-0.2,-0.3), vec2( 0.2,-0.3)));
+    float d = sdSegment(p, vec2(-0.12, -0.2), vec2(-0.12, 0.2));
+    d = min(d, sdSegment(p, vec2(-0.12, 0.2), vec2(0.0, 0.25)));
+    d = min(d, sdSegment(p, vec2(0.0, 0.25), vec2(0.12, 0.2)));
+    d = min(d, sdSegment(p, vec2(0.12, 0.2), vec2(0.12, -0.2)));
+    d = min(d, sdSegment(p, vec2(0.12, -0.2), vec2(0.0, -0.25)));
+    d = min(d, sdSegment(p, vec2(0.0, -0.25), vec2(-0.12, -0.2)));
     return d;
 }
 float charP(vec2 p) {
-    float d = sdSegment(p, vec2(-0.2,-0.3), vec2(-0.2,0.3));
-    d = min(d, sdSegment(p, vec2(-0.2,0.3), vec2(0.15,0.3)));
-    d = min(d, sdSegment(p, vec2(0.15,0.3), vec2(0.15,0.05)));
-    d = min(d, sdSegment(p, vec2(0.15,0.05), vec2(-0.2,0.05)));
+    float d = sdSegment(p, vec2(-0.12, -0.25), vec2(-0.12, 0.25));
+    d = min(d, sdSegment(p, vec2(-0.12, 0.25), vec2(0.1, 0.25)));
+    d = min(d, sdSegment(p, vec2(0.1, 0.25), vec2(0.12, 0.12)));
+    d = min(d, sdSegment(p, vec2(0.12, 0.12), vec2(0.1, 0.0)));
+    d = min(d, sdSegment(p, vec2(0.1, 0.0), vec2(-0.12, 0.0)));
     return d;
 }
 float charR(vec2 p) {
-    float d = sdSegment(p, vec2(-0.2,-0.3), vec2(-0.2,0.3));
-    d = min(d, sdSegment(p, vec2(-0.2, 0.3), vec2( 0.2,0.3)));
-    d = min(d, sdSegment(p, vec2( 0.2, 0.3), vec2( 0.2,0.0)));
-    d = min(d, sdSegment(p, vec2( 0.2, 0.0), vec2(-0.2,0.0)));
-    d = min(d, sdSegment(p, vec2(-0.1, 0.0), vec2( 0.2,-0.3)));
+    float d = charP(p);
+    d = min(d, sdSegment(p, vec2(0.0, 0.0), vec2(0.12, -0.25)));
     return d;
 }
 float charS(vec2 p) {
-    float d = sdSegment(p, vec2(0.15,0.3), vec2(-0.15,0.3));
-    d = min(d, sdSegment(p, vec2(-0.15,0.3), vec2(-0.2,0.05)));
-    d = min(d, sdSegment(p, vec2(-0.2,0.05), vec2(0.15,0.05)));
-    d = min(d, sdSegment(p, vec2(0.15,0.05), vec2(0.2,-0.2)));
-    d = min(d, sdSegment(p, vec2(0.2,-0.2), vec2(-0.15,-0.2)));
-    d = min(d, sdSegment(p, vec2(-0.15,-0.2), vec2(-0.15,-0.3)));
-    d = min(d, sdSegment(p, vec2(-0.15,-0.3), vec2(0.15,-0.3)));
+    float d = sdSegment(p, vec2(0.12, 0.2), vec2(-0.05, 0.25));
+    d = min(d, sdSegment(p, vec2(-0.05, 0.25), vec2(-0.12, 0.15)));
+    d = min(d, sdSegment(p, vec2(-0.12, 0.15), vec2(0.12, -0.15)));
+    d = min(d, sdSegment(p, vec2(0.12, -0.15), vec2(0.05, -0.25)));
+    d = min(d, sdSegment(p, vec2(0.05, -0.25), vec2(-0.12, -0.2)));
     return d;
 }
 float charT(vec2 p) {
-    float d = sdSegment(p, vec2(-0.2,0.3), vec2(0.2,0.3));
-    d = min(d, sdSegment(p, vec2(0.0,0.3), vec2(0.0,-0.3)));
+    float d = sdSegment(p, vec2(-0.12, 0.25), vec2(0.12, 0.25));
+    d = min(d, sdSegment(p, vec2(0.0, 0.25), vec2(0.0, -0.25)));
     return d;
 }
 float charU(vec2 p) {
-    float d = sdSegment(p, vec2(-0.2,0.3), vec2(-0.2,-0.2));
-    d = min(d, sdSegment(p, vec2(-0.2,-0.2), vec2(0.0,-0.3)));
-    d = min(d, sdSegment(p, vec2(0.0,-0.3), vec2(0.2,-0.2)));
-    d = min(d, sdSegment(p, vec2(0.2,-0.2), vec2(0.2,0.3)));
+    float d = sdSegment(p, vec2(-0.12, 0.25), vec2(-0.12, -0.2));
+    d = min(d, sdSegment(p, vec2(-0.12, -0.2), vec2(0.0, -0.25)));
+    d = min(d, sdSegment(p, vec2(0.0, -0.25), vec2(0.12, -0.2)));
+    d = min(d, sdSegment(p, vec2(0.12, -0.2), vec2(0.12, 0.25)));
     return d;
 }
 float charV(vec2 p) {
-    float d = sdSegment(p, vec2(-0.2,0.3), vec2(0.0,-0.3));
-    d = min(d, sdSegment(p, vec2(0.0,-0.3), vec2(0.2,0.3)));
+    float d = sdSegment(p, vec2(-0.12, 0.25), vec2(0.0, -0.25));
+    d = min(d, sdSegment(p, vec2(0.0, -0.25), vec2(0.12, 0.25)));
     return d;
 }
 float charW(vec2 p) {
-    float d = sdSegment(p, vec2(-0.3, 0.3), vec2(-0.15,-0.3));
-    d = min(d, sdSegment(p, vec2(-0.15,-0.3), vec2( 0.0, 0.0)));
-    d = min(d, sdSegment(p, vec2( 0.0, 0.0), vec2( 0.15,-0.3)));
-    d = min(d, sdSegment(p, vec2( 0.15,-0.3), vec2( 0.3, 0.3)));
-    return d;
-}
-float charX(vec2 p) {
-    float d = sdSegment(p, vec2(-0.2,0.3), vec2(0.2,-0.3));
-    d = min(d, sdSegment(p, vec2(0.2,0.3), vec2(-0.2,-0.3)));
+    float d = sdSegment(p, vec2(-0.18, 0.25), vec2(-0.09, -0.25));
+    d = min(d, sdSegment(p, vec2(-0.09, -0.25), vec2(0.0, 0.05)));
+    d = min(d, sdSegment(p, vec2(0.0, 0.05), vec2(0.09, -0.25)));
+    d = min(d, sdSegment(p, vec2(0.09, -0.25), vec2(0.18, 0.25)));
     return d;
 }
 float charY(vec2 p) {
-    float d = sdSegment(p, vec2(-0.2,0.3), vec2(0.0,0.0));
-    d = min(d, sdSegment(p, vec2(0.2,0.3), vec2(0.0,0.0)));
-    d = min(d, sdSegment(p, vec2(0.0,0.0), vec2(0.0,-0.3)));
+    float d = sdSegment(p, vec2(-0.12, 0.25), vec2(0.0, 0.0));
+    d = min(d, sdSegment(p, vec2(0.12, 0.25), vec2(0.0, 0.0)));
+    d = min(d, sdSegment(p, vec2(0.0, 0.0), vec2(0.0, -0.25)));
     return d;
 }
 
-float glyph(vec2 p, int id) {
-    // ASCII uppercase letters and space
-    if (id == 32) return 1e5;
-    if (id == 65) return charA(p);
-    if (id == 66) return charB(p);
-    if (id == 67) return charC(p);
-    if (id == 68) return charD(p);
-    if (id == 69) return charE(p);
-    if (id == 70) return charF(p);
-    if (id == 71) return charG(p);
-    if (id == 72) return charH(p);
-    if (id == 73) return charI(p);
-    if (id == 76) return charL(p);
-    if (id == 77) return charM(p);
-    if (id == 78) return charN(p);
-    if (id == 79) return charO(p);
-    if (id == 80) return charP(p);
-    if (id == 82) return charR(p);
-    if (id == 83) return charS(p);
-    if (id == 84) return charT(p);
-    if (id == 85) return charU(p);
-    if (id == 86) return charV(p);
-    if (id == 87) return charW(p);
-    if (id == 88) return charX(p);
-    if (id == 89) return charY(p);
+// Fast character lookup by ID
+float renderChar(vec2 p, int c) {
+    if (c == 0) return 1e5;  // space
+    if (c == 1) return charA(p);
+    if (c == 2) return charC(p);
+    if (c == 3) return charD(p);
+    if (c == 4) return charE(p);
+    if (c == 5) return charG(p);
+    if (c == 6) return charH(p);
+    if (c == 7) return charI(p);
+    if (c == 8) return charL(p);
+    if (c == 9) return charM(p);
+    if (c == 10) return charN(p);
+    if (c == 11) return charO(p);
+    if (c == 12) return charP(p);
+    if (c == 13) return charR(p);
+    if (c == 14) return charS(p);
+    if (c == 15) return charT(p);
+    if (c == 16) return charU(p);
+    if (c == 17) return charV(p);
+    if (c == 18) return charW(p);
+    if (c == 19) return charY(p);
     return 1e5;
 }
 
-float renderLine(vec2 p, int line) {
+// Text: Gödel's Incompleteness Theorem
+// 0=space,1=A,2=C,3=D,4=E,5=G,6=H,7=I,8=L,9=M,10=N,11=O,12=P,13=R,14=S,15=T,16=U,17=V,18=W,19=Y
+
+float getTextSDF(vec2 p) {
+    float charW = 0.38;
+    float lineH = 0.75;
+    
+    // Early out - bounding box
+    if (abs(p.x) > 4.5 || abs(p.y) > 3.5) return 1e5;
+    
     float d = 1e5;
-    float adv = 0.55;
-    if (line == 0) {
-        p.x += 6.0; // "GODEL INCOMPLETENESS I"
-        int chars[24];
-        chars = int[24](71,79,68,69,76,32,73,78,67,79,77,80,76,69,84,69,78,69,83,83,32,73,32,32);
-        for (int i = 0; i < 24; ++i) { d = min(d, glyph(p, chars[i])); p.x -= adv; }
-    } else if (line == 1) {
-        p.x += 5.2; // "TRUE STATEMENTS EXIST"
-        int chars[21];
-        chars = int[21](84,82,85,69,32,83,84,65,84,69,77,69,78,84,83,32,69,88,73,83,84);
-        for (int i = 0; i < 21; ++i) { d = min(d, glyph(p, chars[i])); p.x -= adv; }
-    } else if (line == 2) {
-        p.x += 6.2; // "THE SYSTEM CANNOT PROVE"
-        int chars[25];
-        chars = int[25](84,72,69,32,83,89,83,84,69,77,32,67,65,78,78,79,84,32,80,82,79,86,69,32,32);
-        for (int i = 0; i < 25; ++i) { d = min(d, glyph(p, chars[i])); p.x -= adv; }
-    } else if (line == 3) {
-        p.x += 6.0; // "ALL ARITHMETIC TRUTHS"
-        int chars[24];
-        chars = int[24](65,76,76,32,65,82,73,84,72,77,69,84,73,67,32,84,82,85,84,72,83,32,32,32);
-        for (int i = 0; i < 24; ++i) { d = min(d, glyph(p, chars[i])); p.x -= adv; }
-    } else if (line == 4) {
-        d = 1e5; // spacer
-    } else if (line == 5) {
-        p.x += 5.0; // "INCOMPLETENESS II"
-        int chars[20];
-        chars = int[20](73,78,67,79,77,80,76,69,84,69,78,69,83,83,32,73,73,32,32,32);
-        for (int i = 0; i < 20; ++i) { d = min(d, glyph(p, chars[i])); p.x -= adv; }
-    } else if (line == 6) {
-        p.x += 5.2; // "NO CONSISTENT SYSTEM"
-        int chars[22];
-        chars = int[22](78,79,32,67,79,78,83,73,83,84,69,78,84,32,83,89,83,84,69,77,32,32);
-        for (int i = 0; i < 22; ++i) { d = min(d, glyph(p, chars[i])); p.x -= adv; }
-    } else if (line == 7) {
-        p.x += 7.0; // "PROVES ITS OWN CONSISTENCY"
-        int chars[29];
-        chars = int[29](80,82,79,86,69,83,32,73,84,83,32,79,87,78,32,67,79,78,83,73,83,84,69,78,67,89,32,32,32);
-        for (int i = 0; i < 29; ++i) { d = min(d, glyph(p, chars[i])); p.x -= adv; }
+    
+    // Line 0: "GODEL" (y = 2.25)
+    float ly0 = p.y - 2.25;
+    if (abs(ly0) < 0.4) {
+        int chars0[5] = int[5](5,11,3,4,8); // G O D E L
+        float startX = -float(5-1) * charW * 0.5;
+        for (int i = 0; i < 5; i++) {
+            vec2 cp = vec2(p.x - startX - float(i) * charW, ly0);
+            if (abs(cp.x) < charW) d = min(d, renderChar(cp, chars0[i]));
+        }
     }
+    
+    // Line 1: "INCOMPLETENESS" (y = 1.5)
+    float ly1 = p.y - 1.5;
+    if (abs(ly1) < 0.4) {
+        int chars1[14] = int[14](7,10,2,11,9,12,8,4,15,4,10,4,14,14); // I N C O M P L E T E N E S S
+        float startX = -float(14-1) * charW * 0.5;
+        for (int i = 0; i < 14; i++) {
+            vec2 cp = vec2(p.x - startX - float(i) * charW, ly1);
+            if (abs(cp.x) < charW) d = min(d, renderChar(cp, chars1[i]));
+        }
+    }
+    
+    // Line 2: "THEOREM I" (y = 0.75)
+    float ly2 = p.y - 0.75;
+    if (abs(ly2) < 0.4) {
+        int chars2[9] = int[9](15,6,4,11,13,4,9,0,7); // T H E O R E M _ I
+        float startX = -float(9-1) * charW * 0.5;
+        for (int i = 0; i < 9; i++) {
+            vec2 cp = vec2(p.x - startX - float(i) * charW, ly2);
+            if (abs(cp.x) < charW) d = min(d, renderChar(cp, chars2[i]));
+        }
+    }
+    
+    // Line 3: spacer
+    
+    // Line 4: "NO SYSTEM CAN" (y = -0.75)
+    float ly4 = p.y + 0.75;
+    if (abs(ly4) < 0.4) {
+        int chars4[13] = int[13](10,11,0,14,19,14,15,4,9,0,2,1,10); // N O _ S Y S T E M _ C A N
+        float startX = -float(13-1) * charW * 0.5;
+        for (int i = 0; i < 13; i++) {
+            vec2 cp = vec2(p.x - startX - float(i) * charW, ly4);
+            if (abs(cp.x) < charW) d = min(d, renderChar(cp, chars4[i]));
+        }
+    }
+    
+    // Line 5: "PROVE ITS OWN" (y = -1.5)
+    float ly5 = p.y + 1.5;
+    if (abs(ly5) < 0.4) {
+        int chars5[13] = int[13](12,13,11,17,4,0,7,15,14,0,11,18,10); // P R O V E _ I T S _ O W N
+        float startX = -float(13-1) * charW * 0.5;
+        for (int i = 0; i < 13; i++) {
+            vec2 cp = vec2(p.x - startX - float(i) * charW, ly5);
+            if (abs(cp.x) < charW) d = min(d, renderChar(cp, chars5[i]));
+        }
+    }
+    
+    // Line 6: "CONSISTENCY" (y = -2.25)
+    float ly6 = p.y + 2.25;
+    if (abs(ly6) < 0.4) {
+        int chars6[11] = int[11](2,11,10,14,7,14,15,4,10,2,19); // C O N S I S T E N C Y
+        float startX = -float(11-1) * charW * 0.5;
+        for (int i = 0; i < 11; i++) {
+            vec2 cp = vec2(p.x - startX - float(i) * charW, ly6);
+            if (abs(cp.x) < charW) d = min(d, renderChar(cp, chars6[i]));
+        }
+    }
+    
     return d;
 }
 
-float getText(vec2 p) {
-    // float d = 1e5;
-    // for (int i = 0; i < 8; ++i) {
-    //     vec2 lp = p;
-    //     lp.y -= float(i) * 0.8;
-    //     d = min(d, renderLine(lp, i));
-    // }
-    // return d;
-    p.x += 2.5;
-    float d = charH(p); p.x -= 0.5;
-    d = min(d, charE(p)); p.x -= 0.5;
-    d = min(d, charL(p)); p.x -= 0.5;
-    d = min(d, charL(p)); p.x -= 0.5;
-    d = min(d, charO(p)); p.x -= 0.8; // Space
-    d = min(d, charW(p)); p.x -= 0.6; // W is wide
-    d = min(d, charO(p)); p.x -= 0.5;
-    d = min(d, charR(p)); p.x -= 0.5;
-    d = min(d, charL(p)); p.x -= 0.5;
-    d = min(d, charD(p));
-    return d;
+// Noise function for procedural patterns
+float hash(vec2 p) {
+    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
+
+float noise(vec2 p) {
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x),
+               mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x), f.y);
+}
+
+float fbm(vec2 p) {
+    float v = 0.0;
+    float a = 0.5;
+    vec2 shift = vec2(100.0);
+    mat2 rot = mat2(cos(0.5), sin(0.5), -sin(0.5), cos(0.5));
+    for (int i = 0; i < 4; i++) {
+        v += a * noise(p);
+        p = rot * p * 2.0 + shift;
+        a *= 0.5;
+    }
+    return v;
 }
 
 vec3 getPlaneColor(vec2 p, float textScale, bool revealText) {
-    // Enhanced checkerboard with anti-aliasing (fixes grain on integrated graphics)
-    float checkerSize = 0.4;
+    // === LAYERED FLOOR PATTERN ===
     
-    // Anti-aliased checkerboard using fwidth
+    // Base: Elegant marble-like pattern
+    float marbleNoise = fbm(p * 0.8 + vec2(iTime * 0.02, 0.0));
+    float marbleVeins = abs(sin(p.x * 2.0 + p.y * 1.5 + marbleNoise * 6.0));
+    marbleVeins = pow(marbleVeins, 0.3);
+    
+    // Anti-aliased checkerboard overlay
+    float checkerSize = 0.5;
     vec2 uv = p / checkerSize;
-    vec2 w = fwidth(uv) + 0.001; // derivative for AA, small bias to avoid division issues
+    vec2 w = fwidth(uv) + 0.001;
     vec2 i = 2.0 * (abs(fract((uv - 0.5 * w) * 0.5) - 0.5) - abs(fract((uv + 0.5 * w) * 0.5) - 0.5)) / w;
-    float checkerPattern = 0.5 - 0.5 * i.x * i.y; // smooth 0-1 transition
+    float checker = 0.5 - 0.5 * i.x * i.y;
     
-    // Add subtle color variation based on position
-    float distFromCenter = length(p) * 0.08;
-    vec3 lightColor = mix(vec3(0.95, 0.96, 0.98), vec3(0.88, 0.90, 0.93), clamp(distFromCenter, 0.0, 1.0));
-    vec3 darkColor = mix(vec3(0.52, 0.55, 0.60), vec3(0.45, 0.48, 0.52), clamp(distFromCenter, 0.0, 1.0));
+    // Hexagonal pattern overlay
+    vec2 hexUV = p * 1.5;
+    vec2 hexGrid = vec2(hexUV.x + hexUV.y * 0.5, hexUV.y * 0.866);
+    vec2 hexId = floor(hexGrid);
+    vec2 hexF = fract(hexGrid);
+    float hexDist = min(min(length(hexF - vec2(0.5, 0.5)), 
+                           length(hexF - vec2(0.0, 0.0))),
+                       min(length(hexF - vec2(1.0, 0.0)),
+                           length(hexF - vec2(0.0, 1.0))));
+    float hexPattern = smoothstep(0.02, 0.06, hexDist);
     
-    vec3 col = mix(darkColor, lightColor, checkerPattern);
+    // Radial rings emanating from center
+    float dist = length(p);
+    float rings = sin(dist * 3.0 - iTime * 0.5) * 0.5 + 0.5;
+    rings = smoothstep(0.3, 0.7, rings);
     
-    // Add subtle radial gradient for depth
-    float radialGrad = 1.0 - smoothstep(0.0, 10.0, length(p));
-    col = mix(col * 0.82, col, radialGrad);
+    // Color palette - elegant blue-gray tones
+    vec3 darkBlue = vec3(0.12, 0.15, 0.22);
+    vec3 midGray = vec3(0.35, 0.38, 0.45);
+    vec3 lightSilver = vec3(0.75, 0.78, 0.85);
+    vec3 warmAccent = vec3(0.5, 0.4, 0.35);
+    
+    // Compose the pattern
+    vec3 col = mix(darkBlue, midGray, marbleVeins);
+    col = mix(col, lightSilver, checker * 0.4);
+    col = mix(col, col * 0.85, 1.0 - hexPattern); // Hex grid lines
+    col = mix(col, warmAccent, rings * 0.15); // Subtle warm rings
+    
+    // Distance-based color shift (warmer near center, cooler at edges)
+    float distFade = 1.0 - smoothstep(0.0, 12.0, dist);
+    col = mix(col * vec3(0.7, 0.75, 0.9), col * vec3(1.1, 1.05, 1.0), distFade);
+    
+    // Subtle grid highlight at tile edges
+    vec2 tileEdge = abs(fract(p) - 0.5);
+    float edgeGlow = smoothstep(0.48, 0.5, max(tileEdge.x, tileEdge.y));
+    col += vec3(0.15, 0.2, 0.3) * edgeGlow * 0.3;
+    
+    // Vignette on the floor
+    col *= 0.7 + 0.3 * distFade;
     
     if (revealText) {
         vec2 tp = p * textScale;
-        float d = getText(tp);
-        // Anti-aliased text edges
+        float d = getTextSDF(tp);
         float textW = fwidth(d) * 1.5;
         float textAlpha = smoothstep(0.05 + textW, 0.04 - textW, d);
-        col = mix(col, vec3(0.06), textAlpha); // darker ink
+        // Glowing gold text
+        vec3 textCol = mix(vec3(0.02), vec3(0.9, 0.75, 0.4), 0.8);
+        // Add subtle glow around text
+        float textGlow = smoothstep(0.2, 0.04, d) * 0.4;
+        col += vec3(0.4, 0.3, 0.15) * textGlow;
+        col = mix(col, textCol, textAlpha);
     }
     return col;
 }
@@ -664,6 +715,8 @@ vec3 bulbScatter(vec3 p, vec3 viewDir) {
 
 vec3 shadePlane(vec3 p, vec3 viewDir, float textScale, bool revealText, DirLight lights[NUM_LIGHTS], vec3 pillPos, vec4 pillParams, bool flipX, bool flipY) {
     vec2 uv = p.xz;
+    // flipX/flipY control text orientation - when viewing through glass, 
+    // refraction flips the image, so we pre-flip the text to make it readable
     if (flipX) uv.x = -uv.x;
     if (flipY) uv.y = -uv.y;
     vec3 base = getPlaneColor(uv, textScale, revealText);
@@ -717,10 +770,76 @@ vec3 renderBackground(vec3 ro, vec3 rd, vec3 pillPos, vec4 pillParams, float tex
     float t_plane = intersectPlane(ro, rd, 0.0);
     if (t_plane > 0.0) {
         vec3 p_plane = ro + t_plane * rd;
+        // Direct view of floor: show text but inverted (unreadable without glass lens)
         vec3 col = shadePlane(p_plane, normalize(-rd), textScale, true, lights, pillPos, pillParams, false, false);
         return col;
     }
-    return vec3(0.9);
+    
+    // === DRAMATIC SKY BACKGROUND ===
+    
+    // Base gradient - deep blue to warm horizon
+    float skyGrad = rd.y * 0.5 + 0.5;
+    vec3 zenith = vec3(0.05, 0.08, 0.18);      // Deep night blue
+    vec3 midSky = vec3(0.15, 0.22, 0.45);      // Rich blue
+    vec3 horizon = vec3(0.55, 0.45, 0.50);     // Warm purple-pink
+    vec3 lowHorizon = vec3(0.7, 0.5, 0.4);     // Orange glow
+    
+    vec3 skyCol;
+    if (skyGrad > 0.5) {
+        skyCol = mix(midSky, zenith, (skyGrad - 0.5) * 2.0);
+    } else if (skyGrad > 0.2) {
+        skyCol = mix(horizon, midSky, (skyGrad - 0.2) / 0.3);
+    } else {
+        skyCol = mix(lowHorizon, horizon, skyGrad / 0.2);
+    }
+    
+    // Aurora borealis effect
+    float auroraY = rd.y * 2.0 + 0.3;
+    if (auroraY > 0.0 && auroraY < 1.0) {
+        float auroraX = atan(rd.z, rd.x) * 2.0;
+        float aurora = sin(auroraX * 3.0 + iTime * 0.3) * sin(auroraX * 5.0 - iTime * 0.2);
+        aurora += sin(auroraX * 7.0 + iTime * 0.5) * 0.5;
+        aurora = aurora * 0.5 + 0.5;
+        aurora *= sin(auroraY * 3.14159) * smoothstep(0.0, 0.3, auroraY) * smoothstep(1.0, 0.6, auroraY);
+        vec3 auroraCol = mix(vec3(0.1, 0.8, 0.5), vec3(0.3, 0.4, 0.9), sin(auroraX * 2.0) * 0.5 + 0.5);
+        auroraCol = mix(auroraCol, vec3(0.8, 0.3, 0.6), sin(auroraX * 4.0 + 1.0) * 0.5 + 0.5);
+        skyCol += auroraCol * aurora * 0.25;
+    }
+    
+    // Stars
+    vec3 starDir = normalize(rd);
+    vec2 starUV = vec2(atan(starDir.z, starDir.x), asin(starDir.y));
+    float stars = 0.0;
+    for (int layer = 0; layer < 2; layer++) {
+        vec2 starGrid = starUV * (150.0 + float(layer) * 100.0);
+        vec2 starId = floor(starGrid);
+        vec2 starF = fract(starGrid) - 0.5;
+        float starRand = hash(starId + float(layer) * 100.0);
+        if (starRand > 0.97) {
+            float starDist = length(starF);
+            float twinkle = sin(iTime * (3.0 + starRand * 5.0) + starRand * 6.28) * 0.3 + 0.7;
+            stars += smoothstep(0.1, 0.0, starDist) * twinkle * (starRand - 0.97) * 33.0;
+        }
+    }
+    skyCol += vec3(1.0, 0.95, 0.8) * stars * smoothstep(0.2, 0.6, skyGrad);
+    
+    // Sun/moon glow
+    float sunDot = max(dot(rd, -lights[0].dir), 0.0);
+    float sunGlow = pow(sunDot, 8.0) * 0.5;
+    float sunCore = pow(sunDot, 64.0) * 2.0;
+    skyCol += lights[0].color * sunGlow * vec3(1.0, 0.8, 0.6);
+    skyCol += vec3(1.0, 0.95, 0.9) * sunCore;
+    
+    // Subtle clouds/nebula
+    float cloudY = rd.y * 0.5 + 0.5;
+    if (cloudY > 0.1 && cloudY < 0.8) {
+        vec2 cloudUV = vec2(atan(rd.z, rd.x) * 0.5, rd.y * 2.0);
+        float cloud = fbm(cloudUV * 3.0 + vec2(iTime * 0.02, 0.0));
+        cloud = smoothstep(0.4, 0.7, cloud) * 0.15;
+        skyCol = mix(skyCol, vec3(0.6, 0.5, 0.7), cloud * smoothstep(0.1, 0.3, cloudY) * smoothstep(0.8, 0.5, cloudY));
+    }
+    
+    return skyCol;
 }
 
 vec3 renderGlass(vec3 ro, vec3 rd, float t, vec3 sculpturePos, vec4 sculptureParams, float glassIOR, vec3 glassTint, float textScale, vec3 envColor, vec3 absorbCoeff, float dispersion, DirLight lights[NUM_LIGHTS]) {
@@ -766,7 +885,8 @@ vec3 renderGlass(vec3 ro, vec3 rd, float t, vec3 sculpturePos, vec4 sculpturePar
     float t_plane = intersectPlane(p_in, rd_out_g, 0.0);
     if (t_plane > 0.0) {
         vec3 p_plane = p_in + t_plane * rd_out_g;
-        col = shadePlane(p_plane, normalize(-rd_out_g), textScale, true, lights, sculpturePos, sculptureParams, false, false);
+        // Through glass: flip Y so refraction makes text readable
+        col = shadePlane(p_plane, normalize(-rd_out_g), textScale, true, lights, sculpturePos, sculptureParams, false, true);
         
         // Approximate chromatic offset based on ray divergence
         vec3 rayDiff = (rd_out_b - rd_out_r) * t_plane;
@@ -800,16 +920,25 @@ vec3 renderGlass(vec3 ro, vec3 rd, float t, vec3 sculpturePos, vec4 sculpturePar
     float t_refl = intersectPlane(p + rd_reflect * 0.02, rd_reflect, 0.0);
     if (t_refl > 0.0) {
         vec3 p_refl = p + rd_reflect * t_refl;
+        // Reflection: text visible but not flipped (appears inverted in reflection)
         reflCol = shadePlane(p_refl, normalize(-rd_reflect), textScale, true, lights, sculpturePos, sculptureParams, false, false);
     } else {
-        // Sky gradient for upward reflections - more colorful
+        // Sky gradient for upward reflections - matches background
         float skyGrad = rd_reflect.y * 0.5 + 0.5;
-        vec3 horizonCol = vec3(0.7, 0.75, 0.85);
-        vec3 zenithCol = vec3(0.25, 0.45, 0.8);
-        reflCol = mix(horizonCol, zenithCol, pow(skyGrad, 1.5));
-        // Add subtle sun reflection in sky
+        vec3 zenith = vec3(0.05, 0.08, 0.18);
+        vec3 midSky = vec3(0.15, 0.22, 0.45);
+        vec3 horizon = vec3(0.55, 0.45, 0.50);
+        
+        if (skyGrad > 0.5) {
+            reflCol = mix(midSky, zenith, (skyGrad - 0.5) * 2.0);
+        } else {
+            reflCol = mix(horizon, midSky, skyGrad * 2.0);
+        }
+        
+        // Add sun reflection
         float sunDot = max(dot(rd_reflect, -lights[0].dir), 0.0);
-        reflCol += lights[0].color * pow(sunDot, 32.0) * 0.5;
+        reflCol += lights[0].color * pow(sunDot, 32.0) * 0.8;
+        reflCol += vec3(1.0, 0.9, 0.8) * pow(sunDot, 128.0) * 1.5;
     }
     
     // Specular highlights - OPTIMIZED
