@@ -2,11 +2,17 @@
 float dot2( in vec3 v ) { return dot(v,v); }
 
 // =============== LIGHTING ===============
-#define NUM_LIGHTS 3
+#define NUM_LIGHTS 4
 struct DirLight {
     vec3 dir;   // direction pointing from light toward the scene
     vec3 color; // light radiance/tint
 };
+
+// Point bulbs
+const vec3 bulbPosOrange = vec3(0.0);
+const vec3 bulbColorOrange = vec3(1.2, 0.75, 0.4);
+const vec3 bulbPosBlue = vec3(1.6, 2.2, 0.0);
+const vec3 bulbColorBlue = vec3(0.5, 0.85, 1.6);
 
 // =============== TEXT HELPERS ===============
 float sdBox(vec2 p, vec2 b) {
@@ -276,7 +282,6 @@ vec3 getPlaneColor(vec2 p, float textScale, bool revealText) {
 }
 
 // =============== 3D SCENE ===============
-
 // 3D Capsule SDF
 float sdCapsule( vec3 p, vec3 a, vec3 b, float r )
 {
@@ -327,8 +332,11 @@ float marchToPlane(vec3 ro, vec3 rd, float eps, float tmax) {
     return -1.0;
 }
 
-// =============== RENDERING HELPERS ===============
 
+
+
+
+// =============== RENDERING HELPERS ===============
 vec3 getRayDir(vec2 uv, vec3 ro, vec3 ta, float zoom) {
     vec3 ww = normalize( ta - ro );
     vec3 uu = normalize( cross(ww,vec3(0.0,1.0,0.0)) );
@@ -355,15 +363,91 @@ vec3 evalSpecular(vec3 normal, vec3 viewDir, DirLight lights[NUM_LIGHTS], float 
     return accum;
 }
 
-vec3 shadePlane(vec3 p, vec3 viewDir, float textScale, bool revealText, DirLight lights[NUM_LIGHTS], bool flipX, bool flipY) {
+// Soft shadow from pill onto the plane (sun light only)
+float softShadow(vec3 ro, vec3 rd, vec3 pillPos, vec4 pillParams) {
+    float t = 0.02;
+    float res = 1.0;
+    for (int i = 0; i < 40; ++i) {
+        vec3 p = ro + rd * t;
+        float h = map(p, pillPos, pillParams);
+        if (h < 0.0005) return 0.0;
+        res = min(res, 10.0 * h / t);
+        t += clamp(h, 0.01, 0.3);
+        if (t > 10.0) break;
+    }
+    return clamp(res, 0.0, 1.0);
+}
+
+void accumulateBulb(vec3 p, vec3 viewDir, vec3 n, vec3 pos, vec3 color, inout vec3 diffuse, inout vec3 specAcc) {
+    vec3 lb = pos - p;
+    float lbDist = length(lb);
+    vec3 lbDir = lb / max(lbDist, 1e-3);
+    float bulbAtt = 1.0 / (1.0 + 0.45 * lbDist + 0.1 * lbDist * lbDist);
+    float bulbDiff = max(dot(n, lbDir), 0.0);
+    diffuse += color * bulbDiff * bulbAtt;
+    specAcc += color * pow(max(dot(reflect(-lbDir, n), viewDir), 0.0), 32.0) * bulbAtt;
+}
+
+vec3 bulbDiffuse(vec3 p, vec3 n) {
+    vec3 diff = vec3(0.0);
+    // Orange bulb
+    {
+        vec3 lb = bulbPosOrange - p;
+        float lbDist = length(lb);
+        vec3 lbDir = lb / max(lbDist, 1e-3);
+        float bulbAtt = 1.0 / (1.0 + 0.45 * lbDist + 0.1 * lbDist * lbDist);
+        diff += bulbColorOrange * max(dot(n, lbDir), 0.0) * bulbAtt;
+    }
+    // Blue bulb
+    {
+        vec3 lb = bulbPosBlue - p;
+        float lbDist = length(lb);
+        vec3 lbDir = lb / max(lbDist, 1e-3);
+        float bulbAtt = 1.0 / (1.0 + 0.45 * lbDist + 0.1 * lbDist * lbDist);
+        diff += bulbColorBlue * max(dot(n, lbDir), 0.0) * bulbAtt;
+    }
+    return diff;
+}
+
+// Simple forward-scatter term: stronger when view aligns with light direction, attenuated by distance
+vec3 bulbScatter(vec3 p, vec3 viewDir) {
+    vec3 scatter = vec3(0.0);
+    // Orange bulb
+    {
+        vec3 toL = normalize(bulbPosOrange - p);
+        float dist = length(bulbPosOrange - p);
+        float phase = pow(max(dot(toL, -viewDir), 0.0), 3.0);
+        float att = 1.0 / (1.0 + 0.35 * dist + 0.08 * dist * dist);
+        scatter += bulbColorOrange * phase * att;
+    }
+    // Blue bulb
+    {
+        vec3 toL = normalize(bulbPosBlue - p);
+        float dist = length(bulbPosBlue - p);
+        float phase = pow(max(dot(toL, -viewDir), 0.0), 3.0);
+        float att = 1.0 / (1.0 + 0.35 * dist + 0.08 * dist * dist);
+        scatter += bulbColorBlue * phase * att;
+    }
+    return scatter;
+}
+
+vec3 shadePlane(vec3 p, vec3 viewDir, float textScale, bool revealText, DirLight lights[NUM_LIGHTS], vec3 pillPos, vec4 pillParams, bool flipX, bool flipY) {
     vec2 uv = p.xz;
     if (flipX) uv.x = -uv.x;
     if (flipY) uv.y = -uv.y; // fix upside-down text in reflections
     vec3 base = getPlaneColor(uv, textScale, revealText);
     vec3 n = vec3(0.0, 1.0, 0.0);
-    vec3 diffuse = evalDiffuse(n, lights);
+    // Shadow only from the sun (light 0)
+    float sunShadow = softShadow(p + n * 0.01, -lights[0].dir, pillPos, pillParams);
+    vec3 diffuse = lights[0].color * max(dot(n, -lights[0].dir), 0.0) * sunShadow;
+    for (int i = 1; i < NUM_LIGHTS; ++i) {
+        diffuse += lights[i].color * max(dot(n, -lights[i].dir), 0.0);
+    }
+    vec3 bulbSpec = vec3(0.0);
+    accumulateBulb(p, viewDir, n, bulbPosOrange, bulbColorOrange, diffuse, bulbSpec);
+    accumulateBulb(p, viewDir, n, bulbPosBlue, bulbColorBlue, diffuse, bulbSpec);
     vec3 spec = evalSpecular(n, viewDir, lights, 32.0);
-    return base * (0.2 + diffuse) + spec * 0.05; // ambient + diffuse + a touch of spec
+    return base * (0.2 + diffuse) + spec * 0.05 + bulbSpec * 0.3; // ambient + diffuse + a touch of spec and bulb highlight
 }
 
 vec3 updatePillPosition(vec3 ro, vec3 ta, float zoom, float pillHeight) {
@@ -401,7 +485,7 @@ vec3 renderBackground(vec3 ro, vec3 rd, vec3 pillPos, vec4 pillParams, float tex
     float t_plane = intersectPlane(ro, rd, 0.0);
     if (t_plane > 0.0) {
         vec3 p_plane = ro + t_plane * rd;
-        vec3 col = shadePlane(p_plane, normalize(-rd), textScale, true, lights, false, false);
+        vec3 col = shadePlane(p_plane, normalize(-rd), textScale, true, lights, pillPos, pillParams, false, false);
 
         return col; // Commenting this out will hide the plane but it'll be visible through the glass !!!!
         
@@ -445,13 +529,14 @@ vec3 renderGlass(vec3 ro, vec3 rd, float t, vec3 pillPos, vec4 pillParams, float
         vec3 rayOrigin = p_in;
         vec3 rayDir = channel == 0 ? rd_out_r : (channel == 1 ? rd_out_g : rd_out_b);
         vec3 c = envColor * (0.2 + evalDiffuse(vec3(0.0, 1.0, 0.0), lights)); // light the env fallback a bit
+        c += bulbDiffuse(rayOrigin, vec3(0.0, 1.0, 0.0)); // let bulbs tint fallback/reflection
         for (int bounce = 0; bounce < 8; ++bounce) {
             float t_plane = marchToPlane(rayOrigin, rayDir, 0.0005, 30.0);
             if (t_plane > 0.0) {
                 vec3 p_plane = rayOrigin + t_plane * rayDir;
                 bool flipX = bounce > 0; // reflections mirror X
                 bool flipY = bounce % 2 == 0; // and also invert Y causing upside-down text
-                c = shadePlane(p_plane, normalize(-rayDir), textScale, true, lights, flipX, flipY);
+                c = shadePlane(p_plane, normalize(-rayDir), textScale, true, lights, pillPos, pillParams, flipX, flipY);
                 break;
             }
             rayDir = reflect(rayDir, -n_out);
@@ -462,25 +547,91 @@ vec3 renderGlass(vec3 ro, vec3 rd, float t, vec3 pillPos, vec4 pillParams, float
         else col.b = c.b;
     }
     
+    // Beer-Lambert absorption based on distance traveled inside (apply to refracted content only)
+    vec3 absorb = exp(-absorbCoeff * t_in);
+    col *= absorb * glassTint;
+    
+    // Add a base glass tint/color so it's not fully transparent when far from text
+    // This simulates internal reflections and slight opacity of real glass
+    float glassOpacity = 0.08; // subtle base opacity
+    vec3 glassBaseColor = glassTint * 0.95;
+    col = mix(col, glassBaseColor, glassOpacity);
+
     // Fresnel reflection: sample the plane via a reflected ray so text appears in the glass
-    float fre = pow(clamp(1.0 + dot(rd, n), 0.0, 1.0), 5.0);
+    float fresnelBase = 1.0 + dot(rd, n);
+    float fre = pow(clamp(fresnelBase, 0.0, 1.0), 5.0);
+    // Add a minimum fresnel so glass edges are always slightly visible
+    fre = mix(0.04, 1.0, fre); // Schlick's approximation base reflectance ~0.04 for glass
+    
     vec3 rd_reflect = reflect(rd, n);
     vec3 reflCol = envColor;
     float t_refl = marchToPlane(p + rd_reflect * 0.01, rd_reflect, 0.0005, 30.0);
     if (t_refl > 0.0) {
         vec3 p_refl = p + rd_reflect * t_refl;
-        reflCol = shadePlane(p_refl, normalize(-rd_reflect), textScale, true, lights, true, false); // mirror X in reflection
+        reflCol = shadePlane(p_refl, normalize(-rd_reflect), textScale, true, lights, pillPos, pillParams, true, false); // mirror X in reflection
     }
-    col = mix(col, reflCol, fre);
-
-    // Multi-light specular on glass
+    
+    // Compute all specular highlights before mixing with Fresnel reflection
+    vec3 specHighlights = vec3(0.0);
+    
+    // Multi-light specular on glass (enhanced sun visibility)
     vec3 spec = evalSpecular(n, -rd, lights, 32.0);
-    col += spec * 0.4;
-    // Beer-Lambert absorption based on distance traveled inside
-    vec3 absorb = exp(-absorbCoeff * t_in);
-    col *= absorb * glassTint;
+    specHighlights += spec * 0.6;
+    
+    // Add bright sun highlight (high shininess for sharp reflection)
+    vec3 sunRefl = reflect(lights[0].dir, n);
+    float sunSpec = pow(max(dot(sunRefl, -rd), 0.0), 128.0);
+    specHighlights += lights[0].color * sunSpec * 1.5;
+    
+    // Point light specular reflections on glass (visible from distance)
+    // Orange bulb specular
+    {
+        vec3 toOrange = normalize(bulbPosOrange - p);
+        vec3 reflOrange = reflect(-toOrange, n);
+        float specOrange = pow(max(dot(reflOrange, -rd), 0.0), 64.0);
+        float distOrange = length(bulbPosOrange - p);
+        float attOrange = 1.0 / (1.0 + 0.2 * distOrange + 0.05 * distOrange * distOrange);
+        specHighlights += bulbColorOrange * specOrange * attOrange * 2.0;
+    }
+    // Blue bulb specular
+    {
+        vec3 toBlue = normalize(bulbPosBlue - p);
+        vec3 reflBlue = reflect(-toBlue, n);
+        float specBlue = pow(max(dot(reflBlue, -rd), 0.0), 64.0);
+        float distBlue = length(bulbPosBlue - p);
+        float attBlue = 1.0 / (1.0 + 0.2 * distBlue + 0.05 * distBlue * distBlue);
+        specHighlights += bulbColorBlue * specBlue * attBlue * 2.0;
+    }
+    
+    // Add specular to reflection color for proper rim blending
+    reflCol += specHighlights;
+    
+    // Smooth Fresnel blend between refracted content and reflection+specular
+    col = mix(col, reflCol, fre);
+    
+    // Bulb diffuse on the glass surface to carry their color even from afar (additive, not affected by fresnel)
+    col += glassTint * bulbDiffuse(p, n) * 0.35;
+    // Light-ray forward scattering to keep bulbs visible through glass from afar
+    col += glassTint * bulbScatter(p, rd) * 0.25;
+    
+    // Rim lighting effect - enhance edges of glass
+    float rim = pow(1.0 - max(dot(-rd, n), 0.0), 3.0);
+    col += vec3(0.15) * rim * 0.5;
     
     return col;
+}
+
+void addBulbGlow(vec3 ro, vec3 ta, float camZoom, vec2 fragCoord, vec3 bulbPos, vec3 bulbColor, vec3 ww, vec3 uu, vec3 vv, inout vec3 col) {
+    vec3 rel = bulbPos - ro;
+    float depth = dot(rel, ww);
+    if (depth > 0.0) {
+        vec2 bulbProj = vec2(dot(rel, uu), dot(rel, vv)) / (depth * camZoom);
+        vec2 pixUV = (fragCoord - 0.5 * iResolution.xy) / iResolution.y;
+        float r2 = dot(pixUV - bulbProj, pixUV - bulbProj);
+        float glowCore = exp(-r2 / (2.0 * 0.04 * 0.04));
+        float glowBloom = exp(-r2 / (2.0 * 0.12 * 0.12));
+        col += bulbColor * (glowCore * 1.2 + glowBloom * 0.7);
+    }
 }
 
 void mainImage( out vec4 fragColor, in vec2 fragCoord )
@@ -502,11 +653,12 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
     vec3 absorbCoeff = vec3(0.20, 0.25, 0.27); // Beer-Lambert per-channel absorption
     float dispersion = 0.01; // Chromatic dispersion amount
 
-    // Lighting: sun + two colored lamps
+    // Lighting: sun + two colored lamps + soft red sun fill
     DirLight lights[NUM_LIGHTS];
     lights[0] = DirLight(normalize(vec3(0.15, -1.0, 0.1)), vec3(1.0, 0.97, 0.9));  // warm sun
     lights[1] = DirLight(normalize(vec3(-0.6, -1.0, -0.2)), vec3(0.45, 0.65, 1.1)); // cool blue lamp
     lights[2] = DirLight(normalize(vec3(0.7, -0.7, 0.6)), vec3(1.1, 0.7, 0.35));    // orange lamp
+    lights[3] = DirLight(normalize(vec3(-0.25, -1.0, 0.3)), vec3(0.8, 0.25, 0.25)); // soft red sun fill
     
     // Text
     float textScale = 2.5;
@@ -529,6 +681,13 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
     } else {
         col = renderBackground(ro, rd, pillPos, pillParams, textScale, lights);
     }
+
+    // Screen-space glow for the bulb
+    vec3 ww = normalize(ta - ro);
+    vec3 uu = normalize(cross(ww, vec3(0.0, 1.0, 0.0)));
+    vec3 vv = cross(uu, ww);
+    addBulbGlow(ro, ta, camZoom, fragCoord, bulbPosOrange, bulbColorOrange, ww, uu, vv, col);
+    addBulbGlow(ro, ta, camZoom, fragCoord, bulbPosBlue, bulbColorBlue, ww, uu, vv, col);
     
     // Vignette
     col *= 1.0 - 0.2 * length(uv);
