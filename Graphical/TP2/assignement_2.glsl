@@ -200,7 +200,7 @@ vec3 renderBackground(vec3 ro, vec3 rd, vec3 pillPos, vec4 pillParams, float tex
     return vec3(0.9);
 }
 
-vec3 renderGlass(vec3 ro, vec3 rd, float t, vec3 pillPos, vec4 pillParams, float glassIOR, vec3 glassTint, float textScale) {
+vec3 renderGlass(vec3 ro, vec3 rd, float t, vec3 pillPos, vec4 pillParams, float glassIOR, vec3 glassTint, float textScale, vec3 envColor, vec3 absorbCoeff, float dispersion) {
     vec3 p = ro + t*rd;
     vec3 n = calcNormal(p, pillPos, pillParams);
     vec3 rd_in = refract(rd, n, 1.0/glassIOR);
@@ -215,30 +215,44 @@ vec3 renderGlass(vec3 ro, vec3 rd, float t, vec3 pillPos, vec4 pillParams, float
     }
     
     vec3 n_out = calcNormal(p_in, pillPos, pillParams);
-    vec3 rd_out = refract(rd_in, -n_out, glassIOR);
-    
-    if (length(rd_out) == 0.0) rd_out = reflect(rd_in, -n_out);
-    
-    // Allow multiple bounces so the rim always sees content
-    vec3 col = glassTint;
-    vec3 rayOrigin = p_in;
-    vec3 rayDir = rd_out;
-    for (int bounce = 0; bounce < 3; ++bounce) {
-        float t_plane = intersectPlane(rayOrigin, rayDir, 0.0);
-        if (t_plane > 0.0) {
-            vec3 p_plane = rayOrigin + t_plane * rayDir;
-            col = getPlaneColor(p_plane.xz, textScale);
-            break;
+    // Per-channel dispersion for exit direction
+    float iorR = glassIOR * (1.0 - dispersion);
+    float iorG = glassIOR;
+    float iorB = glassIOR * (1.0 + dispersion);
+    vec3 rd_out_r = refract(rd_in, -n_out, iorR);
+    vec3 rd_out_g = refract(rd_in, -n_out, iorG);
+    vec3 rd_out_b = refract(rd_in, -n_out, iorB);
+    if (length(rd_out_r)==0.0) rd_out_r = reflect(rd_in, -n_out);
+    if (length(rd_out_g)==0.0) rd_out_g = reflect(rd_in, -n_out);
+    if (length(rd_out_b)==0.0) rd_out_b = reflect(rd_in, -n_out);
+
+    // Helper: manual inline to avoid GLSL lambda
+    vec3 col;
+    for (int channel = 0; channel < 3; ++channel) {
+        vec3 rayOrigin = p_in;
+        vec3 rayDir = channel == 0 ? rd_out_r : (channel == 1 ? rd_out_g : rd_out_b);
+        vec3 c = envColor;
+        for (int bounce = 0; bounce < 3; ++bounce) {
+            float t_plane = intersectPlane(rayOrigin, rayDir, 0.0);
+            if (t_plane > 0.0) {
+                vec3 p_plane = rayOrigin + t_plane * rayDir;
+                c = getPlaneColor(p_plane.xz, textScale);
+                break;
+            }
+            rayDir = reflect(rayDir, -n_out);
+            rayOrigin += rayDir * 0.01; // small offset to avoid self-intersection
         }
-        // Reflect and try again
-        rayDir = reflect(rayDir, -n_out);
-        rayOrigin += rayDir * 0.01; // small offset to avoid self-intersection
+        if (channel == 0) col.r = c.r;
+        else if (channel == 1) col.g = c.g;
+        else col.b = c.b;
     }
     
     // Softer Fresnel to avoid harsh white rims
     float fre = pow(clamp(1.0 + dot(rd, n), 0.0, 1.0), 5.0);
     col += vec3(0.6) * fre;
-    col *= glassTint;
+    // Beer-Lambert absorption based on distance traveled inside
+    vec3 absorb = exp(-absorbCoeff * t_in);
+    col *= absorb * glassTint;
     
     return col;
 }
@@ -258,6 +272,9 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
     // Glass Look
     float glassIOR = 1.55;
     vec3 glassTint = vec3(0.95, 0.98, 1.0);
+    vec3 envColor = vec3(0.9); // Environment color used when rays miss the plane
+    vec3 absorbCoeff = vec3(0.20, 0.25, 0.27); // Beer-Lambert per-channel absorption
+    float dispersion = 0.01; // Chromatic dispersion amount
     
     // Text
     float textScale = 2.5;
@@ -274,11 +291,9 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
     // Raymarch
     float t;
     bool hitPill = castRay(ro, rd, pillPos, pillParams, t);
-
-    // Shading
     vec3 col;
     if (hitPill) {
-        col = renderGlass(ro, rd, t, pillPos, pillParams, glassIOR, glassTint, textScale);
+        col = renderGlass(ro, rd, t, pillPos, pillParams, glassIOR, glassTint, textScale, envColor, absorbCoeff, dispersion);
     } else {
         col = renderBackground(ro, rd, pillPos, pillParams, textScale);
     }
