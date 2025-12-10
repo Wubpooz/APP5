@@ -219,15 +219,20 @@ vec3 renderGlass(vec3 ro, vec3 rd, float t, vec3 pillPos, vec4 pillParams, float
     
     if (length(rd_out) == 0.0) rd_out = reflect(rd_in, -n_out);
     
-    float t_plane = intersectPlane(p_in, rd_out, 0.0);
-    vec3 col;
-    if (t_plane > 0.0) {
-        vec3 p_plane = p_in + t_plane * rd_out;
-        col = getPlaneColor(p_plane.xz, textScale);
-    } else {
-      // Sides of the pill miss the plane, TODO add multiple bounces!
-      vec3 p_plane = p_in + rd_out * rd_out;
-      col = getPlaneColor(p_plane.xz, textScale);
+    // Allow multiple bounces so the rim always sees content
+    vec3 col = glassTint;
+    vec3 rayOrigin = p_in;
+    vec3 rayDir = rd_out;
+    for (int bounce = 0; bounce < 3; ++bounce) {
+        float t_plane = intersectPlane(rayOrigin, rayDir, 0.0);
+        if (t_plane > 0.0) {
+            vec3 p_plane = rayOrigin + t_plane * rayDir;
+            col = getPlaneColor(p_plane.xz, textScale);
+            break;
+        }
+        // Reflect and try again
+        rayDir = reflect(rayDir, -n_out);
+        rayOrigin += rayDir * 0.01; // small offset to avoid self-intersection
     }
     
     // Softer Fresnel to avoid harsh white rims
