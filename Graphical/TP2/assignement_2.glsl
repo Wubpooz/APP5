@@ -189,10 +189,13 @@ vec3 renderBackground(vec3 ro, vec3 rd, vec3 pillPos, vec4 pillParams, float tex
     if (t_plane > 0.0) {
         vec3 p_plane = ro + t_plane * rd;
         vec3 col = getPlaneColor(p_plane.xz, textScale);
+
+        return col; // Commenting this out will hide the plane but it'll be visible through the glass !!!!
         
-        float d_shadow = map(p_plane, pillPos, pillParams);
-        float shadow = smoothstep(0.0, 1.5, d_shadow);
-        return col * mix(0.6, 1.0, shadow);
+        // Optional: Add pill shadow on the plane
+        // float d_shadow = map(p_plane, pillPos, pillParams);
+        // float shadow = smoothstep(0.0, 1.5, d_shadow);
+        // return col * mix(0.9, 1.0, shadow);
     }
     return vec3(0.9);
 }
@@ -222,11 +225,14 @@ vec3 renderGlass(vec3 ro, vec3 rd, float t, vec3 pillPos, vec4 pillParams, float
         vec3 p_plane = p_in + t_plane * rd_out;
         col = getPlaneColor(p_plane.xz, textScale);
     } else {
-        col = vec3(0.95);
+      // Sides of the pill miss the plane, TODO add multiple bounces!
+      vec3 p_plane = p_in + rd_out * rd_out;
+      col = getPlaneColor(p_plane.xz, textScale);
     }
     
-    float fre = pow(1.0 + dot(rd, n), 3.0);
-    col += vec3(1.0) * fre * 0.8;
+    // Softer Fresnel to avoid harsh white rims
+    float fre = pow(clamp(1.0 + dot(rd, n), 0.0, 1.0), 5.0);
+    col += vec3(0.6) * fre;
     col *= glassTint;
     
     return col;
