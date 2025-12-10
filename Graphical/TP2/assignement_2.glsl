@@ -355,13 +355,15 @@ vec3 evalSpecular(vec3 normal, vec3 viewDir, DirLight lights[NUM_LIGHTS], float 
     return accum;
 }
 
-vec3 shadePlane(vec3 p, float textScale, bool revealText, DirLight lights[NUM_LIGHTS], bool flipX, bool flipY) {
+vec3 shadePlane(vec3 p, vec3 viewDir, float textScale, bool revealText, DirLight lights[NUM_LIGHTS], bool flipX, bool flipY) {
     vec2 uv = p.xz;
     if (flipX) uv.x = -uv.x;
     if (flipY) uv.y = -uv.y; // fix upside-down text in reflections
     vec3 base = getPlaneColor(uv, textScale, revealText);
-    vec3 diffuse = evalDiffuse(vec3(0.0, 1.0, 0.0), lights);
-    return base * (0.2 + diffuse); // ambient + diffuse
+    vec3 n = vec3(0.0, 1.0, 0.0);
+    vec3 diffuse = evalDiffuse(n, lights);
+    vec3 spec = evalSpecular(n, viewDir, lights, 32.0);
+    return base * (0.2 + diffuse) + spec * 0.05; // ambient + diffuse + a touch of spec
 }
 
 vec3 updatePillPosition(vec3 ro, vec3 ta, float zoom, float pillHeight) {
@@ -399,7 +401,7 @@ vec3 renderBackground(vec3 ro, vec3 rd, vec3 pillPos, vec4 pillParams, float tex
     float t_plane = intersectPlane(ro, rd, 0.0);
     if (t_plane > 0.0) {
         vec3 p_plane = ro + t_plane * rd;
-        vec3 col = shadePlane(p_plane, textScale, true, lights, false, false);
+        vec3 col = shadePlane(p_plane, normalize(-rd), textScale, true, lights, false, false);
 
         return col; // Commenting this out will hide the plane but it'll be visible through the glass !!!!
         
@@ -448,8 +450,8 @@ vec3 renderGlass(vec3 ro, vec3 rd, float t, vec3 pillPos, vec4 pillParams, float
             if (t_plane > 0.0) {
                 vec3 p_plane = rayOrigin + t_plane * rayDir;
                 bool flipX = bounce > 0; // reflections mirror X
-                bool flipY = bounce > 0; // and also invert Y causing upside-down text
-                c = shadePlane(p_plane, textScale, true, lights, flipX, true);
+                bool flipY = bounce % 2 == 0; // and also invert Y causing upside-down text
+                c = shadePlane(p_plane, normalize(-rayDir), textScale, true, lights, flipX, flipY);
                 break;
             }
             rayDir = reflect(rayDir, -n_out);
@@ -467,7 +469,7 @@ vec3 renderGlass(vec3 ro, vec3 rd, float t, vec3 pillPos, vec4 pillParams, float
     float t_refl = marchToPlane(p + rd_reflect * 0.01, rd_reflect, 0.0005, 30.0);
     if (t_refl > 0.0) {
         vec3 p_refl = p + rd_reflect * t_refl;
-        reflCol = shadePlane(p_refl, textScale, true, lights, true, false); // mirror X in reflection
+        reflCol = shadePlane(p_refl, normalize(-rd_reflect), textScale, true, lights, true, false); // mirror X in reflection
     }
     col = mix(col, reflCol, fre);
 
