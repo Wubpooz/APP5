@@ -453,6 +453,164 @@ vec2 rot2D(vec2 p, float c, float s) {
     return vec2(p.x * c - p.y * s, p.x * s + p.y * c);
 }
 
+// =============== CHRISTMAS CAROUSEL ===============
+// A decorative carousel with horses, canopy, and festive details
+
+float sdCylinder(vec3 p, float r, float h) {
+    vec2 d = abs(vec2(length(p.xz), p.y)) - vec2(r, h);
+    return min(max(d.x, d.y), 0.0) + length(max(d, 0.0));
+}
+
+float sdCone(vec3 p, vec2 c, float h) {
+    vec2 q = h * vec2(c.x / c.y, -1.0);
+    vec2 w = vec2(length(p.xz), p.y);
+    vec2 a = w - q * clamp(dot(w, q) / dot(q, q), 0.0, 1.0);
+    vec2 b = w - q * vec2(clamp(w.x / q.x, 0.0, 1.0), 1.0);
+    float k = sign(q.y);
+    float d = min(dot(a, a), dot(b, b));
+    float s = max(k * (w.x * q.y - w.y * q.x), k * (w.y - q.y));
+    return sqrt(d) * sign(s);
+}
+
+float sdHorse(vec3 p) {
+    // Simplified horse shape - body + head + legs
+    // Body - elongated ellipsoid
+    vec3 bodyP = p;
+    bodyP.x *= 0.7;
+    float body = sdEllipsoid(bodyP, vec3(0.06, 0.035, 0.025));
+    
+    // Head - small sphere offset forward and up
+    vec3 headP = p - vec3(0.055, 0.025, 0.0);
+    float head = sdSphere(headP, 0.022);
+    
+    // Neck connecting head to body
+    vec3 neckP = p - vec3(0.035, 0.015, 0.0);
+    neckP.x *= 1.5;
+    float neck = sdEllipsoid(neckP, vec3(0.025, 0.02, 0.015));
+    
+    // Front legs
+    vec3 flegP = p - vec3(0.025, -0.04, 0.0);
+    float fleg = sdCylinder(flegP, 0.008, 0.03);
+    
+    // Back legs  
+    vec3 blegP = p - vec3(-0.03, -0.04, 0.0);
+    float bleg = sdCylinder(blegP, 0.008, 0.03);
+    
+    // Tail
+    vec3 tailP = p - vec3(-0.07, 0.0, 0.0);
+    tailP.y += tailP.x * 0.5;
+    float tail = sdEllipsoid(tailP, vec3(0.02, 0.025, 0.01));
+    
+    float d = smin(body, head, 0.015);
+    d = smin(d, neck, 0.01);
+    d = smin(d, fleg, 0.008);
+    d = smin(d, bleg, 0.008);
+    d = smin(d, tail, 0.01);
+    
+    return d;
+}
+
+float mapCarousel(vec3 p, vec3 carouselPos, float time) {
+    vec3 q = p - carouselPos;
+    
+    // OPTIMIZATION: Bounding cylinder early-out
+    float boundDist = max(length(q.xz) - 0.7, abs(q.y - 0.3) - 0.5);
+    if (boundDist > 0.1) return boundDist;
+    
+    // Carousel rotation
+    float rotSpeed = time * 0.5;
+    float rc = cos(rotSpeed), rs = sin(rotSpeed);
+    
+    // === CENTRAL POLE ===
+    float pole = sdCylinder(q - vec3(0.0, 0.25, 0.0), 0.04, 0.35);
+    
+    // Decorative ridges on pole
+    vec3 poleP = q - vec3(0.0, 0.25, 0.0);
+    float ridges = sdTorus(poleP - vec3(0.0, 0.15, 0.0), vec2(0.05, 0.012));
+    ridges = min(ridges, sdTorus(poleP - vec3(0.0, 0.0, 0.0), vec2(0.055, 0.01)));
+    ridges = min(ridges, sdTorus(poleP - vec3(0.0, -0.15, 0.0), vec2(0.05, 0.012)));
+    
+    // === CANOPY/ROOF ===
+    // Main conical roof
+    vec3 roofP = q - vec3(0.0, 0.55, 0.0);
+    float roof = sdCone(roofP, vec2(0.5, 0.2), 0.18);
+    
+    // Roof rim - decorative torus at edge
+    vec3 rimP = q - vec3(0.0, 0.5, 0.0);
+    float rim = sdTorus(rimP, vec2(0.45, 0.025));
+    
+    // Scalloped edge - wave pattern around the rim
+    float scallops = 1e5;
+    for (int i = 0; i < 12; i++) {
+        float angle = float(i) * 0.5236; // 2π/12
+        vec3 scP = rimP - vec3(cos(angle) * 0.45, -0.02, sin(angle) * 0.45);
+        scallops = smin(scallops, sdSphere(scP, 0.04), 0.02);
+    }
+    
+    // Top finial - golden ball
+    vec3 finialP = q - vec3(0.0, 0.72, 0.0);
+    float finial = sdSphere(finialP, 0.035);
+    // Small stem
+    float finialStem = sdCylinder(q - vec3(0.0, 0.68, 0.0), 0.015, 0.04);
+    
+    // === BASE PLATFORM ===
+    // Main circular base
+    vec3 baseP = q - vec3(0.0, -0.05, 0.0);
+    float base = sdCylinder(baseP, 0.5, 0.06);
+    
+    // Decorative base rim
+    float baseRim = sdTorus(q - vec3(0.0, 0.0, 0.0), vec2(0.5, 0.02));
+    float baseRim2 = sdTorus(q - vec3(0.0, -0.1, 0.0), vec2(0.48, 0.018));
+    
+    // Lower decorative tier
+    vec3 lowerP = q - vec3(0.0, -0.15, 0.0);
+    float lowerBase = sdCylinder(lowerP, 0.42, 0.04);
+    
+    // === HORSES - 4 carousel horses ===
+    float horses = 1e5;
+    for (int i = 0; i < 4; i++) {
+        float fi = float(i);
+        float horseAngle = fi * 1.5708 + rotSpeed; // π/2 spacing + rotation
+        float hc = cos(horseAngle), hs = sin(horseAngle);
+        
+        // Horse position on carousel
+        float horseRadius = 0.32;
+        float horseY = 0.18 + sin(time * 2.0 + fi * 1.5) * 0.03; // Bobbing up/down
+        
+        vec3 horsePos = vec3(hc * horseRadius, horseY, hs * horseRadius);
+        vec3 horseP = q - horsePos;
+        
+        // Rotate horse to face tangent direction
+        horseP.xz = vec2(horseP.x * hc + horseP.z * hs, -horseP.x * hs + horseP.z * hc);
+        
+        float horse = sdHorse(horseP);
+        
+        // Horse pole
+        vec3 horsePoleP = q - vec3(hc * horseRadius, 0.35, hs * horseRadius);
+        float horsePole = sdCylinder(horsePoleP, 0.008, 0.25);
+        
+        horses = min(horses, horse);
+        horses = min(horses, horsePole);
+    }
+    
+    // === COMBINE ALL ===
+    float d = pole;
+    d = min(d, ridges);
+    d = smin(d, roof, 0.02);
+    d = smin(d, rim, 0.015);
+    d = smin(d, scallops, 0.02);
+    d = min(d, finial);
+    d = min(d, finialStem);
+    d = smin(d, base, 0.02);
+    d = smin(d, baseRim, 0.01);
+    d = smin(d, baseRim2, 0.01);
+    d = smin(d, lowerBase, 0.02);
+    d = smin(d, horses, 0.01);
+    
+    return d;
+}
+
+// =============== GLASS SCULPTURE ===============
 float mapSculpture(vec3 p, vec3 sculpturePos, float time) {
     vec3 q = p - sculpturePos;
     
@@ -582,18 +740,42 @@ float mapSculpture(vec3 p, vec3 sculpturePos, float time) {
     return d;
 }
 
+// Shape selection: 0 = glass sculpture, 1 = carousel, 2 = both
+#define SHAPE_MODE 2
+
 float map(vec3 p, vec3 sculpturePos, vec4 unusedParams) {
-    return mapSculpture(p, sculpturePos, iTime);
+    #if SHAPE_MODE == 0
+        return mapSculpture(p, sculpturePos, iTime);
+    #elif SHAPE_MODE == 1
+        return mapCarousel(p, sculpturePos, iTime);
+    #else
+        // Both shapes side by side
+        float d1 = mapSculpture(p, sculpturePos - vec3(0.8, 0.0, 0.0), iTime);
+        float d2 = mapCarousel(p, sculpturePos + vec3(0.8, 0.0, 0.0), iTime);
+        return min(d1, d2);
+    #endif
 }
 
 vec3 calcNormal( in vec3 p, vec3 sculpturePos, vec4 unused )
 {
-    const float h = 0.0003; // Slightly larger for performance
+    const float h = 0.0003;
     const vec2 k = vec2(1,-1);
-    return normalize( k.xyy*mapSculpture( p + k.xyy*h, sculpturePos, iTime ) + 
-                      k.yyx*mapSculpture( p + k.yyx*h, sculpturePos, iTime ) + 
-                      k.yxy*mapSculpture( p + k.yxy*h, sculpturePos, iTime ) + 
-                      k.xxx*mapSculpture( p + k.xxx*h, sculpturePos, iTime ) );
+    #if SHAPE_MODE == 0
+        return normalize( k.xyy*mapSculpture( p + k.xyy*h, sculpturePos, iTime ) + 
+                          k.yyx*mapSculpture( p + k.yyx*h, sculpturePos, iTime ) + 
+                          k.yxy*mapSculpture( p + k.yxy*h, sculpturePos, iTime ) + 
+                          k.xxx*mapSculpture( p + k.xxx*h, sculpturePos, iTime ) );
+    #elif SHAPE_MODE == 1
+        return normalize( k.xyy*mapCarousel( p + k.xyy*h, sculpturePos, iTime ) + 
+                          k.yyx*mapCarousel( p + k.yyx*h, sculpturePos, iTime ) + 
+                          k.yxy*mapCarousel( p + k.yxy*h, sculpturePos, iTime ) + 
+                          k.xxx*mapCarousel( p + k.xxx*h, sculpturePos, iTime ) );
+    #else
+        return normalize( k.xyy*map( p + k.xyy*h, sculpturePos, unused ) + 
+                          k.yyx*map( p + k.yyx*h, sculpturePos, unused ) + 
+                          k.yxy*map( p + k.yxy*h, sculpturePos, unused ) + 
+                          k.xxx*map( p + k.xxx*h, sculpturePos, unused ) );
+    #endif
 }
 
 float intersectPlane(vec3 ro, vec3 rd, float height) {
@@ -662,7 +844,7 @@ float softShadow(vec3 ro, vec3 rd, vec3 sculpturePos, vec4 sculptureParams) {
     float res = 1.0;
     for (int i = 0; i < 24; ++i) { // Reduced from 48
         vec3 p = ro + rd * t;
-        float h = mapSculpture(p, sculpturePos, iTime);
+        float h = map(p, sculpturePos, sculptureParams);
         if (h < 0.002) return 0.0;
         res = min(res, 10.0 * h / t);
         t += clamp(h, 0.04, 0.4); // Larger steps
@@ -756,7 +938,7 @@ bool castRay(vec3 ro, vec3 rd, vec3 sculpturePos, vec4 sculptureParams, out floa
     
     for(int i=0; i<80; i++) { // Reduced from 128
         vec3 p = ro + t*rd;
-        float d = mapSculpture(p, sculpturePos, iTime);
+        float d = map(p, sculpturePos, sculptureParams);
         if(d < 0.0008) return true; // Slightly relaxed threshold
         // Adaptive stepping: more aggressive when far
         float step = d * (0.85 + 0.1 * smoothstep(0.0, 1.0, d));
@@ -856,7 +1038,7 @@ vec3 renderGlass(vec3 ro, vec3 rd, float t, vec3 sculpturePos, vec4 sculpturePar
     float totalDist = 0.0;
     for(int i=0; i<48; i++) { // Reduced from 96
         p_in = p + t_in * rd_in;
-        float d_in = mapSculpture(p_in, sculpturePos, iTime);
+        float d_in = map(p_in, sculpturePos, sculptureParams);
         if(d_in > -0.001) break; // Relaxed threshold
         float step = max(abs(d_in), 0.005); // Larger min step
         t_in += step;
