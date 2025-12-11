@@ -1,5 +1,84 @@
+// =====================================================================
+// ========================== SETTINGS =================================
+// =====================================================================
+
+// --- Shape Selection ---
+// 0 = glass sculpture only
+// 1 = carousel only  
+// 2 = both shapes side by side
+#define SHAPE_MODE 2
+
+// --- Raymarching Quality ---
+#define RAYMARCH_STEPS 80           // Main raymarching iterations (lower = faster)
+#define RAYMARCH_MAX_DIST 20.0      // Maximum ray distance
+#define RAYMARCH_HIT_THRESHOLD 0.0008
+#define INTERNAL_STEPS 48           // Interior glass marching iterations
+#define SHADOW_STEPS 24             // Shadow ray iterations
+#define SHADOW_SOFTNESS 10.0        // Higher = softer shadows
+
+// --- Camera ---
+#define CAM_ORBIT_SPEED 0.1         // Auto-orbit speed (0 to disable)
+#define CAM_DIST 3.0                // Distance from target
+#define CAM_HEIGHT 1.5              // Base camera height
+#define CAM_BOB_AMOUNT 0.3          // Vertical oscillation amplitude
+#define CAM_BOB_SPEED 0.15          // Vertical oscillation speed
+#define CAM_ZOOM 1.8                // Field of view (higher = more zoom)
+#define CAM_TARGET vec3(0.0, 0.4, 0.0)
+
+// --- Sculpture ---
+#define SCULPTURE_HEIGHT 0.5        // Y position of sculpture center
+#define SCULPTURE_SPACING 0.8       // X offset when showing both shapes
+
+// --- Glass Material ---
+#define GLASS_IOR 1.45              // Index of refraction (1.0 = no refraction)
+#define GLASS_TINT vec3(0.92, 0.95, 1.0)   // Glass color tint
+#define GLASS_ABSORB vec3(0.15, 0.18, 0.22) // Absorption coefficient (Beer-Lambert)
+#define GLASS_DISPERSION 0.025      // Chromatic aberration strength
+
+// --- Environment ---
+#define ENV_COLOR vec3(0.85, 0.88, 0.92)  // Ambient environment color
+
+// --- Text ---
+#define TEXT_SCALE 2.5              // Floor text size
+#define TEXT_REVEAL true            // Show text on floor
+
+// --- Lighting ---
+#define NUM_LIGHTS 6
+#define KEY_LIGHT_DIR vec3(0.4, -1.0, 0.3)
+#define KEY_LIGHT_COLOR vec3(1.3, 1.2, 1.05)
+#define FILL_LIGHT_DIR vec3(-0.7, -0.5, -0.4)
+#define FILL_LIGHT_COLOR vec3(0.25, 0.4, 0.8)
+#define ACCENT1_LIGHT_DIR vec3(0.6, -0.4, 0.8)
+#define ACCENT1_LIGHT_COLOR vec3(0.85, 0.55, 0.25)
+#define ACCENT2_LIGHT_DIR vec3(-0.4, -0.9, 0.3)
+#define ACCENT2_LIGHT_COLOR vec3(0.45, 0.2, 0.5)
+#define RIM_LIGHT_DIR vec3(-0.2, -0.3, -0.9)
+#define RIM_LIGHT_COLOR vec3(0.2, 0.6, 0.5)
+#define SIDE_LIGHT_DIR vec3(0.9, -0.2, -0.2)
+#define SIDE_LIGHT_COLOR vec3(0.7, 0.3, 0.4)
+
+// --- Point Lights (Bulbs) ---
+#define NUM_BULBS 4
+#define GLOW_PULSE_SPEED 0.8        // Pulsing speed
+
+// --- Post Processing ---
+#define VIGNETTE_STRENGTH 0.15      // Edge darkening (0 = none)
+#define GAMMA 0.95                  // Gamma correction
+
+// --- Animation Speeds ---
+#define CAROUSEL_SPIN_SPEED 0.5     // Carousel rotation speed
+#define HORSE_BOB_SPEED 2.0         // Horse up/down speed
+#define SCULPTURE_TWIST_SPEED 0.2   // Core twist animation
+#define RIBBON_SPEED 0.15           // Ribbon rotation
+#define DROPLET_ORBIT_SPEED 0.4     // Orbiting droplets
+#define CROWN_ROTATION_SPEED 0.08   // Crown petal rotation
+#define RING_WOBBLE_SPEED 0.6       // Torus ring animation
+
+// =====================================================================
+// ======================== END SETTINGS ===============================
+// =====================================================================
+
 // =============== SDF OPERATORS ===============
-float dot2( in vec3 v ) { return dot(v,v); }
 
 // Smooth minimum for organic blending
 float smin(float a, float b, float k) {
@@ -28,12 +107,6 @@ float sdTorus(vec3 p, vec2 t) {
     return length(q) - t.y;
 }
 
-float sdCappedTorus(vec3 p, vec2 sc, float ra, float rb) {
-    p.x = abs(p.x);
-    float k = (sc.y * p.x > sc.x * p.y) ? dot(p.xy, sc) : length(p.xy);
-    return sqrt(dot(p, p) + ra * ra - 2.0 * ra * k) - rb;
-}
-
 float sdRoundCone(vec3 p, float r1, float r2, float h) {
     float b = (r1 - r2) / h;
     float a = sqrt(1.0 - b * b);
@@ -44,43 +117,13 @@ float sdRoundCone(vec3 p, float r1, float r2, float h) {
     return dot(q, vec2(a, b)) - r1;
 }
 
-float sdOctahedron(vec3 p, float s) {
-    p = abs(p);
-    float m = p.x + p.y + p.z - s;
-    vec3 q;
-    if (3.0 * p.x < m) q = p.xyz;
-    else if (3.0 * p.y < m) q = p.yzx;
-    else if (3.0 * p.z < m) q = p.zxy;
-    else return m * 0.57735027;
-    float k = clamp(0.5 * (q.z - q.y + s), 0.0, s);
-    return length(vec3(q.x, q.y - s + k, q.z - k));
-}
-
-// Rotation matrices
-mat3 rotateX(float a) {
-    float c = cos(a), s = sin(a);
-    return mat3(1, 0, 0, 0, c, -s, 0, s, c);
-}
-
-mat3 rotateY(float a) {
-    float c = cos(a), s = sin(a);
-    return mat3(c, 0, s, 0, 1, 0, -s, 0, c);
-}
-
-mat3 rotateZ(float a) {
-    float c = cos(a), s = sin(a);
-    return mat3(c, -s, 0, s, c, 0, 0, 0, 1);
-}
-
 // =============== LIGHTING ===============
-#define NUM_LIGHTS 6
 struct DirLight {
     vec3 dir;   // direction pointing from light toward the scene
     vec3 color; // light radiance/tint
 };
 
 // Point bulbs - repositioned to better illuminate the sculpture
-#define NUM_BULBS 4
 const vec3 bulbPositions[NUM_BULBS] = vec3[](
     vec3(1.8, 0.6, 1.2),    // warm orange - front right
     vec3(-1.6, 1.4, -1.0),  // cool blue - back left high
@@ -94,11 +137,15 @@ const vec3 bulbColors[NUM_BULBS] = vec3[](
     vec3(0.2, 0.9, 0.9)     // cyan
 );
 
-// Legacy aliases for compatibility
-const vec3 bulbPosOrange = vec3(1.8, 0.6, 1.2);
-const vec3 bulbColorOrange = vec3(1.0, 0.55, 0.2);
-const vec3 bulbPosBlue = vec3(-1.6, 1.4, -1.0);
-const vec3 bulbColorBlue = vec3(0.15, 0.35, 1.4);
+// Directional lights: key + fill + rim + accent lights for dramatic effect
+const DirLight lights[NUM_LIGHTS] = DirLight[](
+    DirLight(normalize(vec3(0.4, -1.0, 0.3)), vec3(1.3, 1.2, 1.05)),   // key light - warm sun
+    DirLight(normalize(vec3(-0.7, -0.5, -0.4)), vec3(0.25, 0.4, 0.8)), // fill - cool blue
+    DirLight(normalize(vec3(0.6, -0.4, 0.8)), vec3(0.85, 0.55, 0.25)), // accent - warm orange
+    DirLight(normalize(vec3(-0.4, -0.9, 0.3)), vec3(0.45, 0.2, 0.5)),  // accent - purple
+    DirLight(normalize(vec3(-0.2, -0.3, -0.9)), vec3(0.2, 0.6, 0.5)),  // rim - teal from behind
+    DirLight(normalize(vec3(0.9, -0.2, -0.2)), vec3(0.7, 0.3, 0.4))    // side - rose/magenta
+);
 
 // =============== TEXT HELPERS ===============
 // OPTIMIZED: Minimal character set using simple SDFs
@@ -265,7 +312,6 @@ float renderChar(vec2 p, int c) {
 
 float getTextSDF(vec2 p) {
     float charW = 0.38;
-    float lineH = 0.75;
     
     // Early out - bounding box
     if (abs(p.x) > 4.5 || abs(p.y) > 3.5) return 1e5;
@@ -387,7 +433,6 @@ vec3 getPlaneColor(vec2 p, float textScale, bool revealText) {
     // Hexagonal pattern overlay
     vec2 hexUV = p * 1.5;
     vec2 hexGrid = vec2(hexUV.x + hexUV.y * 0.5, hexUV.y * 0.866);
-    vec2 hexId = floor(hexGrid);
     vec2 hexF = fract(hexGrid);
     float hexDist = min(min(length(hexF - vec2(0.5, 0.5)), 
                            length(hexF - vec2(0.0, 0.0))),
@@ -518,7 +563,7 @@ float mapCarousel(vec3 p, vec3 carouselPos, float time) {
     if (boundDist > 0.1) return boundDist;
     
     // Carousel rotation
-    float rotSpeed = time * 0.5;
+    float rotSpeed = time * CAROUSEL_SPIN_SPEED;
     float rc = cos(rotSpeed), rs = sin(rotSpeed);
     
     // === CENTRAL POLE ===
@@ -575,7 +620,7 @@ float mapCarousel(vec3 p, vec3 carouselPos, float time) {
         
         // Horse position on carousel
         float horseRadius = 0.32;
-        float horseY = 0.18 + sin(time * 2.0 + fi * 1.5) * 0.03; // Bobbing up/down
+        float horseY = 0.18 + sin(time * HORSE_BOB_SPEED + fi * 1.5) * 0.03; // Bobbing up/down
         
         vec3 horsePos = vec3(hc * horseRadius, horseY, hs * horseRadius);
         vec3 horseP = q - horsePos;
@@ -620,14 +665,13 @@ float mapSculpture(vec3 p, vec3 sculpturePos, float time) {
     
     // Precompute animation values once
     float t05 = time * 0.5;
-    float t03 = time * 0.3;
     float t025 = time * 0.25;
     float pulse = sin(t05) * 0.04;
     float breathe = sin(t025) * 0.03;
     
     // === CENTRAL CORE - twisted ellipsoid ===
     vec3 coreP = q;
-    float twistAmount = coreP.y * 0.8 + time * 0.2;
+    float twistAmount = coreP.y * 0.8 + time * SCULPTURE_TWIST_SPEED;
     float tc = cos(twistAmount), ts = sin(twistAmount);
     coreP.xz = rot2D(coreP.xz, tc, ts);
     coreP.y *= 1.6;
@@ -635,7 +679,7 @@ float mapSculpture(vec3 p, vec3 sculpturePos, float time) {
     
     // === FLOWING RIBBONS - 4 ribbons, optimized ===
     float ribbons = 1e5;
-    float ribbonBase = time * 0.15;
+    float ribbonBase = time * RIBBON_SPEED;
     float ribbonWave = time * 0.3;
     for (int i = 0; i < 4; i++) {
         float ribbonAngle = float(i) * 1.5708 + ribbonBase; // π/2
@@ -654,7 +698,7 @@ float mapSculpture(vec3 p, vec3 sculpturePos, float time) {
     
     // === ORBITING DROPLETS - 5 droplets, optimized ===
     float drops = 1e5;
-    float dropBase = time * 0.4;
+    float dropBase = time * DROPLET_ORBIT_SPEED;
     for (int i = 0; i < 5; i++) {
         float fi = float(i);
         float dropAngle = fi * 1.2566 + dropBase; // 2π/5
@@ -671,7 +715,7 @@ float mapSculpture(vec3 p, vec3 sculpturePos, float time) {
     // === CROWN - 8 petals, optimized rotation ===
     vec3 crownP = q - vec3(0.0, 0.38 + breathe, 0.0);
     float crown = 1e5;
-    float crownBase = time * 0.08;
+    float crownBase = time * CROWN_ROTATION_SPEED;
     for (int i = 0; i < 8; i++) {
         float fi = float(i);
         float petalAngle = fi * 0.7854 + crownBase; // π/4
@@ -704,13 +748,12 @@ float mapSculpture(vec3 p, vec3 sculpturePos, float time) {
         baseDrop = smin(baseDrop, sdRoundCone(dripP, 0.05, 0.015, dripLen), 0.08);
     }
     
-    // === TORUS RINGS - kept at 2, optimized ===
+    // === TORUS RINGS - 2 animated rings ===
     float rings = 1e5;
-    float ringTiltBase = sin(t03) * 0.1;
     for (int i = 0; i < 2; i++) {
         float fi = float(i);
-        float ringY = fi * 0.4 - 0.15 + sin(time * 0.6 + fi * 2.0) * 0.08;
-        float ringTilt = 0.15 + sin(time * 0.4 + fi) * 0.1;
+        float ringY = fi * 0.4 - 0.15 + sin(time * RING_WOBBLE_SPEED + fi * 2.0) * 0.08;
+        float ringTilt = 0.15 + sin(time * RING_WOBBLE_SPEED * 0.67 + fi) * 0.1;
         float ringSize = 0.42 - fi * 0.08 + pulse;
         
         vec3 ringP = q - vec3(0.0, ringY, 0.0);
@@ -740,24 +783,20 @@ float mapSculpture(vec3 p, vec3 sculpturePos, float time) {
     return d;
 }
 
-// Shape selection: 0 = glass sculpture, 1 = carousel, 2 = both
-#define SHAPE_MODE 2
-
-float map(vec3 p, vec3 sculpturePos, vec4 unusedParams) {
+float map(vec3 p, vec3 sculpturePos) {
     #if SHAPE_MODE == 0
         return mapSculpture(p, sculpturePos, iTime);
     #elif SHAPE_MODE == 1
         return mapCarousel(p, sculpturePos, iTime);
     #else
         // Both shapes side by side
-        float d1 = mapSculpture(p, sculpturePos - vec3(0.8, 0.0, 0.0), iTime);
-        float d2 = mapCarousel(p, sculpturePos + vec3(0.8, 0.0, 0.0), iTime);
+        float d1 = mapSculpture(p, sculpturePos - vec3(SCULPTURE_SPACING, 0.0, 0.0), iTime);
+        float d2 = mapCarousel(p, sculpturePos + vec3(SCULPTURE_SPACING, 0.0, 0.0), iTime);
         return min(d1, d2);
     #endif
 }
 
-vec3 calcNormal( in vec3 p, vec3 sculpturePos, vec4 unused )
-{
+vec3 calcNormal(vec3 p, vec3 sculpturePos) {
     const float h = 0.0003;
     const vec2 k = vec2(1,-1);
     #if SHAPE_MODE == 0
@@ -771,10 +810,10 @@ vec3 calcNormal( in vec3 p, vec3 sculpturePos, vec4 unused )
                           k.yxy*mapCarousel( p + k.yxy*h, sculpturePos, iTime ) + 
                           k.xxx*mapCarousel( p + k.xxx*h, sculpturePos, iTime ) );
     #else
-        return normalize( k.xyy*map( p + k.xyy*h, sculpturePos, unused ) + 
-                          k.yyx*map( p + k.yyx*h, sculpturePos, unused ) + 
-                          k.yxy*map( p + k.yxy*h, sculpturePos, unused ) + 
-                          k.xxx*map( p + k.xxx*h, sculpturePos, unused ) );
+        return normalize( k.xyy*map( p + k.xyy*h, sculpturePos ) + 
+                          k.yyx*map( p + k.yyx*h, sculpturePos ) + 
+                          k.yxy*map( p + k.yxy*h, sculpturePos ) + 
+                          k.xxx*map( p + k.xxx*h, sculpturePos ) );
     #endif
 }
 
@@ -783,23 +822,6 @@ float intersectPlane(vec3 ro, vec3 rd, float height) {
     float t = (height - ro.y) / rd.y;
     return t > 0.0 ? t : -1.0;
 }
-
-// Raymarch to plane y=0 using sphere tracing (more robust at grazing angles)
-float marchToPlane(vec3 ro, vec3 rd, float eps, float tmax) {
-    float t = 0.0;
-    for (int i = 0; i < 64; ++i) {
-        float h = ro.y + t * rd.y; // signed distance to plane y=0
-        float d = abs(h);
-        if (d < eps) return t;
-        t += max(d, 0.001);
-        if (t > tmax) break;
-    }
-    return -1.0;
-}
-
-
-
-
 
 // =============== RENDERING HELPERS ===============
 vec3 getRayDir(vec2 uv, vec3 ro, vec3 ta, float zoom) {
@@ -818,7 +840,7 @@ vec3 evalDiffuse(vec3 normal, DirLight lights[NUM_LIGHTS]) {
     return accum;
 }
 
-vec3 evalSpecular(vec3 normal, vec3 viewDir, DirLight lights[NUM_LIGHTS], float shininess) {
+vec3 evalSpecular(vec3 normal, vec3 viewDir, DirLight lights[NUM_LIGHTS]) {
     vec3 accum = vec3(0.0);
     for (int i = 0; i < NUM_LIGHTS; ++i) {
         vec3 r = reflect(lights[i].dir, normal);
@@ -834,20 +856,20 @@ vec3 evalSpecular(vec3 normal, vec3 viewDir, DirLight lights[NUM_LIGHTS], float 
     return accum;
 }
 
-// Soft shadow from sculpture onto the plane - OPTIMIZED
-float softShadow(vec3 ro, vec3 rd, vec3 sculpturePos, vec4 sculptureParams) {
+// Soft shadow from sculpture onto the plane
+float softShadow(vec3 ro, vec3 rd, vec3 sculpturePos) {
     // Early out if pointing away from sculpture
     vec3 toSculpt = sculpturePos - ro;
     if (dot(rd, toSculpt) < -0.5) return 1.0;
     
     float t = 0.08;
     float res = 1.0;
-    for (int i = 0; i < 24; ++i) { // Reduced from 48
+    for (int i = 0; i < SHADOW_STEPS; ++i) {
         vec3 p = ro + rd * t;
-        float h = map(p, sculpturePos, sculptureParams);
+        float h = map(p, sculpturePos);
         if (h < 0.002) return 0.0;
-        res = min(res, 10.0 * h / t);
-        t += clamp(h, 0.04, 0.4); // Larger steps
+        res = min(res, SHADOW_SOFTNESS * h / t);
+        t += clamp(h, 0.04, 0.4);
         if (t > 5.0 || res < 0.01) break;
     }
     return clamp(res, 0.0, 1.0);
@@ -895,7 +917,7 @@ vec3 bulbScatter(vec3 p, vec3 viewDir) {
     return scatter;
 }
 
-vec3 shadePlane(vec3 p, vec3 viewDir, float textScale, bool revealText, DirLight lights[NUM_LIGHTS], vec3 pillPos, vec4 pillParams, bool flipX, bool flipY) {
+vec3 shadePlane(vec3 p, vec3 viewDir, float textScale, bool revealText, vec3 sculpturePos, bool flipX, bool flipY) {
     vec2 uv = p.xz;
     // flipX/flipY control text orientation - when viewing through glass, 
     // refraction flips the image, so we pre-flip the text to make it readable
@@ -904,15 +926,15 @@ vec3 shadePlane(vec3 p, vec3 viewDir, float textScale, bool revealText, DirLight
     vec3 base = getPlaneColor(uv, textScale, revealText);
     vec3 n = vec3(0.0, 1.0, 0.0);
     
-    // OPTIMIZATION: Skip shadow if far from sculpture
-    float distToSculpt = length(p.xz - pillPos.xz);
+    // Skip shadow if far from sculpture
+    float distToSculpt = length(p.xz - sculpturePos.xz);
     float sunShadow = 1.0;
     if (distToSculpt < 3.0) {
-        sunShadow = softShadow(p + n * 0.01, -lights[0].dir, pillPos, pillParams);
+        sunShadow = softShadow(p + n * 0.01, -lights[0].dir, sculpturePos);
     }
     
     vec3 diffuse = lights[0].color * max(-lights[0].dir.y, 0.0) * sunShadow;
-    // Unrolled for performance (compiler may not unroll)
+    // Unrolled for performance
     diffuse += lights[1].color * max(-lights[1].dir.y, 0.0);
     diffuse += lights[2].color * max(-lights[2].dir.y, 0.0);
     diffuse += lights[3].color * max(-lights[3].dir.y, 0.0);
@@ -923,24 +945,24 @@ vec3 shadePlane(vec3 p, vec3 viewDir, float textScale, bool revealText, DirLight
     for (int i = 0; i < NUM_BULBS; i++) {
         accumulateBulb(p, viewDir, n, bulbPositions[i], bulbColors[i], diffuse, bulbSpec);
     }
-    vec3 spec = evalSpecular(n, viewDir, lights, 32.0);
+    vec3 spec = evalSpecular(n, viewDir, lights);
     return base * (0.55 + diffuse * 0.45) + spec * 0.06 + bulbSpec * 0.25;
 }
 
-bool castRay(vec3 ro, vec3 rd, vec3 sculpturePos, vec4 sculptureParams, out float t) {
+bool castRay(vec3 ro, vec3 rd, vec3 sculpturePos, out float t) {
     t = 0.0;
-    float tmax = 20.0;
+    float tmax = RAYMARCH_MAX_DIST;
     float minStep = 0.001;
     
-    // OPTIMIZATION: Start closer if we can
+    // Start closer if we can
     float boundHit = length(ro - sculpturePos) - 1.3;
     if (boundHit > 0.0) t = max(0.0, boundHit - 0.1);
     
-    for(int i=0; i<80; i++) { // Reduced from 128
+    for(int i=0; i<RAYMARCH_STEPS; i++) {
         vec3 p = ro + t*rd;
-        float d = map(p, sculpturePos, sculptureParams);
-        if(d < 0.0008) return true; // Slightly relaxed threshold
-        // Adaptive stepping: more aggressive when far
+        float d = map(p, sculpturePos);
+        if(d < RAYMARCH_HIT_THRESHOLD) return true;
+        // Adaptive stepping
         float step = d * (0.85 + 0.1 * smoothstep(0.0, 1.0, d));
         t += max(step, minStep);
         if(t > tmax) break;
@@ -948,12 +970,11 @@ bool castRay(vec3 ro, vec3 rd, vec3 sculpturePos, vec4 sculptureParams, out floa
     return false;
 }
 
-vec3 renderBackground(vec3 ro, vec3 rd, vec3 pillPos, vec4 pillParams, float textScale, DirLight lights[NUM_LIGHTS]) {
+vec3 renderBackground(vec3 ro, vec3 rd, vec3 sculpturePos, float textScale) {
     float t_plane = intersectPlane(ro, rd, 0.0);
     if (t_plane > 0.0) {
         vec3 p_plane = ro + t_plane * rd;
-        // Direct view of floor: show text but inverted (unreadable without glass lens)
-        vec3 col = shadePlane(p_plane, normalize(-rd), textScale, true, lights, pillPos, pillParams, false, false);
+        vec3 col = shadePlane(p_plane, normalize(-rd), textScale, true, sculpturePos, false, false);
         return col;
     }
     
@@ -1024,34 +1045,34 @@ vec3 renderBackground(vec3 ro, vec3 rd, vec3 pillPos, vec4 pillParams, float tex
     return skyCol;
 }
 
-vec3 renderGlass(vec3 ro, vec3 rd, float t, vec3 sculpturePos, vec4 sculptureParams, float glassIOR, vec3 glassTint, float textScale, vec3 envColor, vec3 absorbCoeff, float dispersion, DirLight lights[NUM_LIGHTS]) {
+vec3 renderGlass(vec3 ro, vec3 rd, float t, vec3 sculpturePos, float textScale) {
     vec3 p = ro + t*rd;
-    vec3 n = calcNormal(p, sculpturePos, sculptureParams);
-    vec3 rd_in = refract(rd, n, 1.0/glassIOR);
+    vec3 n = calcNormal(p, sculpturePos);
+    vec3 rd_in = refract(rd, n, 1.0/GLASS_IOR);
     
     // If total internal reflection at entry (shouldn't happen but safety)
     if (length(rd_in) == 0.0) rd_in = reflect(rd, n);
     
-    // March through the glass interior - OPTIMIZED
+    // March through the glass interior
     float t_in = 0.02; 
     vec3 p_in = p;
     float totalDist = 0.0;
-    for(int i=0; i<48; i++) { // Reduced from 96
+    for(int i=0; i<INTERNAL_STEPS; i++) {
         p_in = p + t_in * rd_in;
-        float d_in = map(p_in, sculpturePos, sculptureParams);
-        if(d_in > -0.001) break; // Relaxed threshold
-        float step = max(abs(d_in), 0.005); // Larger min step
+        float d_in = map(p_in, sculpturePos);
+        if(d_in > -0.001) break;
+        float step = max(abs(d_in), 0.005);
         t_in += step;
         totalDist += step;
-        if (t_in > 3.0) break; // Reduced max distance
+        if (t_in > 3.0) break;
     }
     
-    vec3 n_out = calcNormal(p_in, sculpturePos, sculptureParams);
+    vec3 n_out = calcNormal(p_in, sculpturePos);
     
     // Per-channel dispersion for exit direction (rainbow caustics)
-    float iorR = glassIOR * (1.0 - dispersion);
-    float iorG = glassIOR;
-    float iorB = glassIOR * (1.0 + dispersion);
+    float iorR = GLASS_IOR * (1.0 - GLASS_DISPERSION);
+    float iorG = GLASS_IOR;
+    float iorB = GLASS_IOR * (1.0 + GLASS_DISPERSION);
     vec3 rd_out_r = refract(rd_in, -n_out, iorR);
     vec3 rd_out_g = refract(rd_in, -n_out, iorG);
     vec3 rd_out_b = refract(rd_in, -n_out, iorB);
@@ -1061,33 +1082,32 @@ vec3 renderGlass(vec3 ro, vec3 rd, float t, vec3 sculpturePos, vec4 sculpturePar
     if (dot(rd_out_g, rd_out_g) < 0.001) rd_out_g = reflect(rd_in, -n_out);
     if (dot(rd_out_b, rd_out_b) < 0.001) rd_out_b = reflect(rd_in, -n_out);
 
-    // OPTIMIZED: Sample background once with green ray, offset for chromatic effect
-    vec3 col = envColor * (0.3 + evalDiffuse(vec3(0.0, 1.0, 0.0), lights) * 0.5);
+    // Sample background with green ray
+    vec3 col = ENV_COLOR * (0.3 + evalDiffuse(vec3(0.0, 1.0, 0.0), lights) * 0.5);
     
     float t_plane = intersectPlane(p_in, rd_out_g, 0.0);
     if (t_plane > 0.0) {
         vec3 p_plane = p_in + t_plane * rd_out_g;
         // Through glass: flip Y so refraction makes text readable
-        col = shadePlane(p_plane, normalize(-rd_out_g), textScale, true, lights, sculpturePos, sculptureParams, false, true);
+        col = shadePlane(p_plane, normalize(-rd_out_g), textScale, true, sculpturePos, false, true);
         
         // Approximate chromatic offset based on ray divergence
         vec3 rayDiff = (rd_out_b - rd_out_r) * t_plane;
         float chromaStrength = length(rayDiff) * 2.0;
-        // Subtle color shift to simulate dispersion without extra shade calls
         col.r *= 1.0 - chromaStrength * 0.15;
         col.b *= 1.0 + chromaStrength * 0.15;
     }
     
     // Add caustic-like patterns from internal bounces
-    col += bulbScatter(p_in, rd_out_g) * glassTint * 0.25;
+    col += bulbScatter(p_in, rd_out_g) * GLASS_TINT * 0.25;
     
-    // Beer-Lambert absorption - more dramatic for complex shapes
-    vec3 absorb = exp(-absorbCoeff * totalDist * 2.0);
-    col *= absorb * glassTint;
+    // Beer-Lambert absorption
+    vec3 absorb = exp(-GLASS_ABSORB * totalDist * 2.0);
+    col *= absorb * GLASS_TINT;
     
     // Internal glow effect - simulates subsurface scattering
     vec3 sss = vec3(0.1, 0.15, 0.2) * (1.0 - exp(-totalDist * 3.0));
-    col += sss * glassTint;
+    col += sss * GLASS_TINT;
     
     // Fresnel reflection
     float fresnelBase = 1.0 + dot(rd, n);
@@ -1096,14 +1116,13 @@ vec3 renderGlass(vec3 ro, vec3 rd, float t, vec3 sculpturePos, vec4 sculpturePar
     
     // Sample reflection
     vec3 rd_reflect = reflect(rd, n);
-    vec3 reflCol = envColor;
+    vec3 reflCol = ENV_COLOR;
     
-    // Check if reflection hits the floor - use analytic intersection
+    // Check if reflection hits the floor
     float t_refl = intersectPlane(p + rd_reflect * 0.02, rd_reflect, 0.0);
     if (t_refl > 0.0) {
         vec3 p_refl = p + rd_reflect * t_refl;
-        // Reflection: text visible but not flipped (appears inverted in reflection)
-        reflCol = shadePlane(p_refl, normalize(-rd_reflect), textScale, true, lights, sculpturePos, sculptureParams, false, false);
+        reflCol = shadePlane(p_refl, normalize(-rd_reflect), textScale, true, sculpturePos, false, false);
     } else {
         // Sky gradient for upward reflections - matches background
         float skyGrad = rd_reflect.y * 0.5 + 0.5;
@@ -1186,63 +1205,31 @@ void addBulbGlow(vec3 ro, vec3 ta, float camZoom, vec2 fragCoord, vec3 bulbPos, 
 
 void mainImage( out vec4 fragColor, in vec2 fragCoord )
 {
-    // ================= SETTINGS =================
-    // Camera - pulled back to see the sculpture
-    vec3 camPos = vec3(0.0, 1.5, 3.0);
-    float camZoom = 1.8;
-  
-    // Sculpture position
-    float sculptureHeight = 0.5;
-    vec4 sculptureParams = vec4(1.0); // unused but kept for compatibility
-    
-    // Glass Look - enhanced for complex sculpture
-    float glassIOR = 1.45; // slightly lower for more dramatic refraction
-    vec3 glassTint = vec3(0.92, 0.95, 1.0); // slight blue tint
-    vec3 envColor = vec3(0.85, 0.88, 0.92);
-    vec3 absorbCoeff = vec3(0.15, 0.18, 0.22); // subtle absorption
-    float dispersion = 0.025; // more chromatic aberration for rainbow effects
-
-    // Lighting: key + fill + rim + accent lights for dramatic effect
-    DirLight lights[NUM_LIGHTS];
-    lights[0] = DirLight(normalize(vec3(0.4, -1.0, 0.3)), vec3(1.3, 1.2, 1.05));  // key light - warm sun
-    lights[1] = DirLight(normalize(vec3(-0.7, -0.5, -0.4)), vec3(0.25, 0.4, 0.8)); // fill - cool blue
-    lights[2] = DirLight(normalize(vec3(0.6, -0.4, 0.8)), vec3(0.85, 0.55, 0.25)); // accent - warm orange
-    lights[3] = DirLight(normalize(vec3(-0.4, -0.9, 0.3)), vec3(0.45, 0.2, 0.5));  // accent - purple
-    lights[4] = DirLight(normalize(vec3(-0.2, -0.3, -0.9)), vec3(0.2, 0.6, 0.5));  // rim - teal from behind
-    lights[5] = DirLight(normalize(vec3(0.9, -0.2, -0.2)), vec3(0.7, 0.3, 0.4));   // side - rose/magenta
-    
-    // Text
-    float textScale = 2.5;
-    
-    // Bulb Glow Animation
-    float glowPulseSpeed = 0.8;
-    // ============================================
-
     vec2 uv = (fragCoord - 0.5 * iResolution.xy) / iResolution.y;
     
     // Camera orbits slowly around the sculpture
-    float camAngle = iTime * 0.1;
-    vec3 ro = vec3(sin(camAngle) * 3.0, 1.5 + sin(iTime * 0.15) * 0.3, cos(camAngle) * 3.0);
-    vec3 ta = vec3(0.0, 0.4, 0.0);
+    float camAngle = iTime * CAM_ORBIT_SPEED;
+    vec3 ro = vec3(sin(camAngle) * CAM_DIST, CAM_HEIGHT + sin(iTime * CAM_BOB_SPEED) * CAM_BOB_AMOUNT, cos(camAngle) * CAM_DIST);
+    vec3 ta = CAM_TARGET;
     
     // Mouse control overrides orbit
     if (iMouse.z > 0.0) {
-        float mouseX = (iMouse.x / iResolution.x - 0.5) * 6.28;
+        float mouseX = (iMouse.x / iResolution.x - 0.5) * TWO_PI;
         float mouseY = (iMouse.y / iResolution.y - 0.5) * 2.0;
-        ro = vec3(sin(mouseX) * 3.0, 1.5 + mouseY, cos(mouseX) * 3.0);
+        ro = vec3(sin(mouseX) * CAM_DIST, CAM_HEIGHT + mouseY, cos(mouseX) * CAM_DIST);
     }
     
-    vec3 sculpturePos = vec3(0.0, sculptureHeight, 0.0);
-    vec3 rd = getRayDir(uv, ro, ta, camZoom);
+    vec3 sculpturePos = vec3(0.0, SCULPTURE_HEIGHT, 0.0);
+    vec3 rd = getRayDir(uv, ro, ta, CAM_ZOOM);
 
     // Raymarch
     float t;
-    bool hitSculpture = castRay(ro, rd, sculpturePos, sculptureParams, t);
+    bool hitSculpture = castRay(ro, rd, sculpturePos, t);
     vec3 col;
     if (hitSculpture) {
-        col = renderGlass(ro, rd, t, sculpturePos, sculptureParams, glassIOR, glassTint, textScale, envColor, absorbCoeff, dispersion, lights);
+        col = renderGlass(ro, rd, t, sculpturePos, TEXT_SCALE);
     } else {
-        col = renderBackground(ro, rd, sculpturePos, sculptureParams, textScale, lights);
+        col = renderBackground(ro, rd, sculpturePos, TEXT_SCALE);
     }
 
     // Screen-space glow for all bulbs
@@ -1250,16 +1237,16 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
     vec3 uu = normalize(cross(ww, vec3(0.0, 1.0, 0.0)));
     vec3 vv = cross(uu, ww);
     for (int i = 0; i < NUM_BULBS; i++) {
-        float phase = float(i) * 1.5708; // π/2 offset per bulb
-        addBulbGlow(ro, ta, camZoom, fragCoord, bulbPositions[i], bulbColors[i], ww, uu, vv, col, phase, glowPulseSpeed);
+        float phase = float(i) * HALF_PI;
+        addBulbGlow(ro, ta, CAM_ZOOM, fragCoord, bulbPositions[i], bulbColors[i], ww, uu, vv, col, phase, GLOW_PULSE_SPEED);
     }
     
-    // Subtle vignette
-    col *= 1.0 - 0.15 * length(uv);
+    // Vignette
+    col *= 1.0 - VIGNETTE_STRENGTH * length(uv);
     
-    // Tone mapping for HDR
+    // Tone mapping and gamma
     col = col / (col + vec3(1.0));
-    col = pow(col, vec3(0.95)); // slight gamma adjustment
+    col = pow(col, vec3(GAMMA));
 
     fragColor = vec4(col, 1.0);
 }
