@@ -503,17 +503,20 @@ vec3 getPlaneColor(vec2 p, float textScale, bool revealText) {
     float rings = sin(dist * 3.0 - iTime * 0.5) * 0.5 + 0.5;
     rings = smoothstep(0.3, 0.7, rings);
     
-    // Color palette - elegant blue-gray tones
-    vec3 darkBlue = vec3(0.12, 0.15, 0.22);
-    vec3 midGray = vec3(0.35, 0.38, 0.45);
-    vec3 lightSilver = vec3(0.75, 0.78, 0.85);
+    // Color palette - high contrast for glass visibility
+    vec3 darkTile = vec3(0.08, 0.10, 0.18);      // Deep dark blue
+    vec3 lightTile = vec3(0.85, 0.82, 0.75);     // Bright cream/off-white
+    vec3 marbleLight = vec3(0.95, 0.92, 0.88);   // Bright marble vein color
+    vec3 marbleDark = vec3(0.15, 0.12, 0.10);    // Dark marble vein color
     vec3 warmAccent = vec3(0.5, 0.4, 0.35);
     
-    // Compose the pattern
-    vec3 col = mix(darkBlue, midGray, marbleVeins);
-    col = mix(col, lightSilver, checker * 0.4);
+    // Compose the pattern - checkerboard with visible marble veins
+    vec3 tileColor = mix(darkTile, lightTile, checker);
+    // Apply marble veins: add bright veins on dark tiles, dark veins on light tiles
+    vec3 veinColor = mix(marbleDark, marbleLight, checker);
+    vec3 col = mix(tileColor, veinColor, marbleVeins * 0.35);
     col = mix(col, col * 0.85, 1.0 - hexPattern); // Hex grid lines
-    col = mix(col, warmAccent, rings * 0.15); // Subtle warm rings
+    col = mix(col, warmAccent, rings * 0.1); // Subtle warm rings
     
     // Distance-based color shift (warmer near center, cooler at edges)
     float distFade = 1.0 - smoothstep(0.0, 12.0, dist);
@@ -534,9 +537,6 @@ vec3 getPlaneColor(vec2 p, float textScale, bool revealText) {
         float textAlpha = smoothstep(0.05 + textW, 0.04 - textW, d);
         // Glowing gold text
         vec3 textCol = mix(vec3(0.02), vec3(0.9, 0.75, 0.4), 0.8);
-        // Add subtle glow around text
-        float textGlow = smoothstep(0.2, 0.04, d) * 0.4;
-        col += vec3(0.4, 0.3, 0.15) * textGlow;
         col = mix(col, textCol, textAlpha);
     }
     return col;
