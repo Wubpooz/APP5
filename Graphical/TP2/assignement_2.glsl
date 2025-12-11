@@ -1,8 +1,16 @@
 /*
  * Glass Sculpture & Carousel Shader
- * ==================================
- * A raymarched scene featuring glass sculptures with realistic refraction,
- * chromatic dispersion, and a decorative carousel.
+ * ==========================================================
+ * A vibrant raymarched scene featuring glass sculptures with realistic refraction,
+ * chromatic dispersion, a decorative carousel, and a playful animated floor
+ *
+ * FEATURES:
+ * - Rainbow-tinted checkerboard tiles that shift over time
+ * - Disco ball reflections with bouncy animated light spots
+ * - Multi-colored confetti sparkles in three layers
+ * - Dancing rainbow swirls radiating from the center
+ * - Colorful twinkling stars with shooting stars across the sky
+ * - Shimmering rainbow-gold text that cycles through colors
  *
  * TABLE OF CONTENTS:
  * ------------------
@@ -10,12 +18,13 @@
  *   2. SDF OPERATORS (Line ~95)  - Smooth min/max and primitive SDFs
  *   3. LIGHTING (Line ~130)      - Light structs and global light arrays
  *   4. TEXT RENDERING (Line ~170)- Segment-based character rendering
- *   5. PROCEDURAL NOISE (Line ~400)- Hash, noise, and FBM functions
- *   6. FLOOR PATTERN (Line ~430) - Decorative floor with text
- *   7. 3D SHAPES (Line ~510)     - Carousel and glass sculpture SDFs
- *   8. RAYMARCHING (Line ~810)   - Map, normals, ray casting
- *   9. SHADING (Line ~870)       - Diffuse, specular, shadows
- *  10. RENDERING (Line ~980)     - Background, glass, and main loop
+ *   5. PROCEDURAL NOISE (Line ~440)- Hash, noise, and FBM functions
+ *   6. FLOOR PATTERN (Line ~470) - Rainbow tiles, disco ball, sparkles, dancing swirls
+ *   7. 3D SHAPES (Line ~580)     - Carousel and glass sculpture SDFs
+ *   8. RAYMARCHING (Line ~890)   - Map, normals, ray casting
+ *   9. SHADING (Line ~950)       - Diffuse, specular, shadows
+ *  10. RENDERING (Line ~1100)    - Background with colorful stars & shooting stars,
+ *                                  glass refraction, and main loop
  */
 
 // =====================================================================
@@ -52,7 +61,7 @@
 #define SCULPTURE_SPACING 0.8       // X offset when showing both shapes
 
 // --- Glass Material ---
-#define GLASS_IOR 1.45              // Index of refraction (1.0 = no refraction)
+#define GLASS_IOR 3.45              // Index of refraction (1.0 = no refraction)
 #define GLASS_TINT vec3(0.92, 0.95, 1.0)   // Glass color tint
 #define GLASS_ABSORB vec3(0.15, 0.18, 0.22) // Absorption coefficient (Beer-Lambert)
 #define GLASS_DISPERSION 0.025      // Chromatic aberration strength
