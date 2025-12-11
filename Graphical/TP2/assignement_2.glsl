@@ -115,17 +115,13 @@ float smin(float a, float b, float k) {
 }
 
 // Smooth maximum - inverse of smin, used for subtractive operations
-float smax(float a, float b, float k) {
-    return -smin(-a, -b, k);
-}
+float smax(float a, float b, float k) { return -smin(-a, -b, k); }
 
 // --- Primitive SDFs ---
 // Each returns signed distance: negative inside, positive outside
 
 // Sphere centered at origin with radius r
-float sdSphere(vec3 p, float r) {
-    return length(p) - r;
-}
+float sdSphere(vec3 p, float r) { return length(p) - r; }
 
 // Ellipsoid centered at origin with radii r.xyz
 float sdEllipsoid(vec3 p, vec3 r) {
@@ -136,8 +132,7 @@ float sdEllipsoid(vec3 p, vec3 r) {
 
 // Torus: t.x = major radius, t.y = minor radius
 float sdTorus(vec3 p, vec2 t) {
-    vec2 q = vec2(length(p.xz) - t.x, p.y);
-    return length(q) - t.y;
+    return length(vec2(length(p.xz) - t.x, p.y)) - t.y;
 }
 
 // Rounded cone: r1 = bottom radius, r2 = top radius, h = height
@@ -165,27 +160,27 @@ struct DirLight {
 // --- Point Light Bulbs ---
 // Colored point lights positioned around the scene for dramatic effect
 const vec3 bulbPositions[NUM_BULBS] = vec3[](
-    vec3( 1.8,  0.6,  1.2),  // Bulb 0: front right
-    vec3(-1.6,  1.4, -1.0),  // Bulb 1: back left (high)
-    vec3(-1.2,  0.3,  1.5),  // Bulb 2: front left (low)
-    vec3( 1.0,  1.8, -0.5)   // Bulb 3: top right back
+    vec3(1.8, 0.6, 1.2),   // Bulb 0: front right
+    vec3(-1.6, 1.4, -1.0), // Bulb 1: back left (high)
+    vec3(-1.2, 0.3, 1.5),  // Bulb 2: front left (low)
+    vec3(1.0, 1.8, -0.5)   // Bulb 3: top right back
 );
 const vec3 bulbColors[NUM_BULBS] = vec3[](
-    vec3(1.0, 0.55, 0.2),    // Warm orange
-    vec3(0.15, 0.35, 1.4),   // Cool blue
-    vec3(1.0, 0.3, 0.7),     // Magenta/pink
-    vec3(0.2, 0.9, 0.9)      // Cyan
+    vec3(1.0, 0.55, 0.2),  // Warm orange
+    vec3(0.15, 0.35, 1.4), // Cool blue
+    vec3(1.0, 0.3, 0.7),   // Magenta/pink
+    vec3(0.2, 0.9, 0.9)    // Cyan
 );
 
 // --- Directional Lights Array ---
 // Classic 3-point lighting setup extended with accent lights
 const DirLight lights[NUM_LIGHTS] = DirLight[](
-    DirLight(normalize(vec3( 0.4, -1.0,  0.3)), vec3(1.3, 1.2, 1.05)),  // [0] Key: warm sun
+    DirLight(normalize(vec3(0.4, -1.0, 0.3)), vec3(1.3, 1.2, 1.05)),   // [0] Key: warm sun
     DirLight(normalize(vec3(-0.7, -0.5, -0.4)), vec3(0.25, 0.4, 0.8)), // [1] Fill: cool blue
-    DirLight(normalize(vec3( 0.6, -0.4,  0.8)), vec3(0.85, 0.55, 0.25)),// [2] Accent: orange
-    DirLight(normalize(vec3(-0.4, -0.9,  0.3)), vec3(0.45, 0.2, 0.5)), // [3] Accent: purple
+    DirLight(normalize(vec3(0.6, -0.4, 0.8)), vec3(0.85, 0.55, 0.25)), // [2] Accent: orange
+    DirLight(normalize(vec3(-0.4, -0.9, 0.3)), vec3(0.45, 0.2, 0.5)),  // [3] Accent: purple
     DirLight(normalize(vec3(-0.2, -0.3, -0.9)), vec3(0.2, 0.6, 0.5)),  // [4] Rim: teal
-    DirLight(normalize(vec3( 0.9, -0.2, -0.2)), vec3(0.7, 0.3, 0.4))   // [5] Side: rose
+    DirLight(normalize(vec3(0.9, -0.2, -0.2)), vec3(0.7, 0.3, 0.4))    // [5] Side: rose
 );
 
 // =====================================================================
@@ -447,9 +442,7 @@ float getTextSDF(vec2 p) {
 // Pseudo-random functions for generating patterns and textures.
 
 // Simple hash function - returns pseudo-random value in [0,1]
-float hash(vec2 p) {
-    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
-}
+float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 
 float noise(vec2 p) {
     vec2 i = floor(p);
@@ -561,9 +554,7 @@ vec3 getPlaneColor(vec2 p, float textScale, bool revealText) {
 #define TWO_PI 6.28318530
 
 // 2D rotation helper - rotates point p by angle (c=cos, s=sin)
-vec2 rot2D(vec2 p, float c, float s) {
-    return vec2(p.x * c - p.y * s, p.x * s + p.y * c);
-}
+vec2 rot2D(vec2 p, float c, float s) { return vec2(p.x*c - p.y*s, p.x*s + p.y*c); }
 
 // --- Additional SDFs for Carousel ---
 
@@ -909,9 +900,9 @@ vec3 calcNormal(vec3 p, vec3 sculpturePos) {
 // Ray-plane intersection (horizontal plane at given height)
 // Returns -1.0 if no intersection or behind ray origin
 float intersectPlane(vec3 ro, vec3 rd, float height) {
-    if (abs(rd.y) < 0.0001) return -1.0;
+    if (abs(rd.y) < 1e-4) return -1.0;
     float t = (height - ro.y) / rd.y;
-    return t > 0.0 ? t : -1.0;
+    return (t > 0.0) ? t : -1.0;
 }
 
 
