@@ -503,20 +503,43 @@ vec3 getPlaneColor(vec2 p, float textScale, bool revealText) {
     float rings = sin(dist * 3.0 - iTime * 0.5) * 0.5 + 0.5;
     rings = smoothstep(0.3, 0.7, rings);
     
-    // Color palette - high contrast for glass visibility
-    vec3 darkTile = vec3(0.08, 0.10, 0.18);      // Deep dark blue
-    vec3 lightTile = vec3(0.85, 0.82, 0.75);     // Bright cream/off-white
-    vec3 marbleLight = vec3(0.95, 0.92, 0.88);   // Bright marble vein color
-    vec3 marbleDark = vec3(0.15, 0.12, 0.10);    // Dark marble vein color
-    vec3 warmAccent = vec3(0.5, 0.4, 0.35);
+    // Color palette - fun rainbow-tinted tiles!
+    float rainbowPhase = atan(p.y, p.x) * 0.5 + iTime * 0.3;
+    vec3 rainbow = 0.5 + 0.5 * cos(rainbowPhase + vec3(0.0, 2.1, 4.2));
+    vec3 darkTile = vec3(0.06, 0.08, 0.15) + rainbow * 0.08;  // Subtle rainbow dark
+    vec3 lightTile = vec3(0.82, 0.80, 0.75) + rainbow * 0.12; // Rainbow-kissed light
+    vec3 marbleLight = vec3(0.95, 0.92, 0.88);
+    vec3 marbleDark = vec3(0.15, 0.12, 0.10);
     
     // Compose the pattern - checkerboard with visible marble veins
     vec3 tileColor = mix(darkTile, lightTile, checker);
-    // Apply marble veins: add bright veins on dark tiles, dark veins on light tiles
     vec3 veinColor = mix(marbleDark, marbleLight, checker);
     vec3 col = mix(tileColor, veinColor, marbleVeins * 0.35);
     col = mix(col, col * 0.85, 1.0 - hexPattern); // Hex grid lines
-    col = mix(col, warmAccent, rings * 0.1); // Subtle warm rings
+    
+    // Disco ball reflections - bouncy light spots!
+    float disco = sin(p.x * 8.0 + iTime * 3.0) * sin(p.y * 8.0 - iTime * 2.5);
+    disco = pow(max(disco, 0.0), 8.0);
+    vec3 discoColor = 0.5 + 0.5 * cos(iTime * 2.0 + p.x * 3.0 + vec3(0.0, 2.0, 4.0));
+    col += disco * discoColor * 0.25;
+
+    // Rainbow swirl that dances around
+    float swirl = sin(atan(p.y, p.x) * 8.0 + iTime * 2.0 + dist * 2.0);
+    vec3 swirlColor = 0.5 + 0.5 * cos(iTime + atan(p.y, p.x) * 2.0 + vec3(0.0, 2.1, 4.2));
+    col += swirl * 0.08 * swirlColor;
+
+    // Party confetti sparkles - multiple colors!
+    for (int sp = 0; sp < 3; sp++) {
+        float spScale = 3.0 + float(sp) * 1.5;
+        vec2 sCell = floor(p * spScale);
+        vec2 sLocal = fract(p * spScale) - 0.5;
+        float sRand = hash(sCell + float(sp) * 50.0 + floor(iTime * 2.0));
+        float sparkle = step(0.992, sRand);
+        float twinkle = sin(iTime * (4.0 + sRand * 8.0)) * 0.5 + 0.5;
+        float sFalloff = smoothstep(0.2, 0.0, length(sLocal));
+        vec3 sparkleCol = 0.5 + 0.5 * cos(sRand * 6.28 + vec3(0.0, 2.0, 4.0));
+        col += sparkle * twinkle * sFalloff * sparkleCol * 0.6;
+    }
     
     // Distance-based color shift (warmer near center, cooler at edges)
     float distFade = 1.0 - smoothstep(0.0, 12.0, dist);
@@ -533,10 +556,14 @@ vec3 getPlaneColor(vec2 p, float textScale, bool revealText) {
     if (revealText) {
         vec2 tp = p * textScale;
         float d = getTextSDF(tp);
-        float textW = fwidth(d) * 1.5;
-        float textAlpha = smoothstep(0.05 + textW, 0.04 - textW, d);
-        // Glowing gold text
-        vec3 textCol = mix(vec3(0.02), vec3(0.9, 0.75, 0.4), 0.8);
+        float textW = fwidth(d);
+        float textAlpha = smoothstep(0.02 + textW, 0.0, d);
+        // Shimmering rainbow-gold text!
+        float textShimmer = sin(p.x * 15.0 + iTime * 4.0) * 0.5 + 0.5;
+        vec3 gold = vec3(1.0, 0.85, 0.4);
+        vec3 rose = vec3(1.0, 0.6, 0.7);
+        vec3 cyan = vec3(0.4, 0.9, 1.0);
+        vec3 textCol = mix(gold, mix(rose, cyan, sin(iTime * 1.5) * 0.5 + 0.5), textShimmer * 0.4);
         col = mix(col, textCol, textAlpha);
     }
     return col;
@@ -1118,22 +1145,39 @@ vec3 renderBackground(vec3 ro, vec3 rd, vec3 sculpturePos, float textScale) {
         skyCol += auroraCol * aurora * 0.25;
     }
     
-    // Stars
+    // Colorful twinkling stars!
     vec3 starDir = normalize(rd);
     vec2 starUV = vec2(atan(starDir.z, starDir.x), asin(starDir.y));
-    float stars = 0.0;
-    for (int layer = 0; layer < 2; layer++) {
-        vec2 starGrid = starUV * (150.0 + float(layer) * 100.0);
+    vec3 starTotal = vec3(0.0);
+    for (int layer = 0; layer < 3; layer++) {
+        vec2 starGrid = starUV * (120.0 + float(layer) * 80.0);
         vec2 starId = floor(starGrid);
         vec2 starF = fract(starGrid) - 0.5;
         float starRand = hash(starId + float(layer) * 100.0);
-        if (starRand > 0.97) {
+        if (starRand > 0.96) {
             float starDist = length(starF);
-            float twinkle = sin(iTime * (3.0 + starRand * 5.0) + starRand * 6.28) * 0.3 + 0.7;
-            stars += smoothstep(0.1, 0.0, starDist) * twinkle * (starRand - 0.97) * 33.0;
+            float twinkle = sin(iTime * (4.0 + starRand * 8.0) + starRand * 6.28) * 0.4 + 0.6;
+            float starBright = smoothstep(0.12, 0.0, starDist) * twinkle * (starRand - 0.96) * 25.0;
+            // Colorful stars!
+            vec3 starCol = 0.7 + 0.3 * cos(starRand * 6.28 + vec3(0.0, 1.5, 3.0));
+            starTotal += starCol * starBright;
         }
     }
-    skyCol += vec3(1.0, 0.95, 0.8) * stars * smoothstep(0.2, 0.6, skyGrad);
+    skyCol += starTotal * smoothstep(0.15, 0.5, skyGrad);
+    
+    // Shooting stars!
+    for (int sh = 0; sh < 2; sh++) {
+        float shTime = iTime * 0.5 + float(sh) * 3.14;
+        float shPhase = fract(shTime * 0.3);
+        float shAngle = hash(vec2(floor(shTime * 0.3), float(sh))) * 6.28;
+        vec2 shStart = vec2(cos(shAngle), sin(shAngle) * 0.3 + 0.5);
+        vec2 shDir = normalize(vec2(-0.7, -0.3));
+        vec2 shPos = shStart + shDir * shPhase * 1.5;
+        float shDist = length(starUV - shPos);
+        float shTrail = smoothstep(0.15, 0.0, shDist) * smoothstep(0.0, 0.3, shPhase) * smoothstep(1.0, 0.7, shPhase);
+        vec3 shCol = mix(vec3(1.0, 0.9, 0.7), vec3(0.5, 0.8, 1.0), shPhase);
+        skyCol += shCol * shTrail * 0.8 * smoothstep(0.3, 0.6, skyGrad);
+    }
     
     // Sun/moon glow
     float sunDot = max(dot(rd, -lights[0].dir), 0.0);
