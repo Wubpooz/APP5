@@ -105,16 +105,10 @@
 #define CROWN_ROTATION_SPEED 0.08   // Crown petal rotation
 #define RING_WOBBLE_SPEED 0.6       // Torus ring animation
 
-// =====================================================================
-//                           END SETTINGS
-// =====================================================================
-
 
 // =====================================================================
 //                           SDF OPERATORS
 // =====================================================================
-// Signed Distance Functions for constructing 3D shapes.
-// These are the building blocks for raymarching geometry.
 
 // Smooth minimum - blends two SDFs with a smooth transition
 // k controls the blend radius (larger k = smoother blend)
@@ -126,9 +120,9 @@ float smin(float a, float b, float k) {
 // Smooth maximum - inverse of smin, used for subtractive operations
 float smax(float a, float b, float k) { return -smin(-a, -b, k); }
 
-// --- Primitive SDFs ---
-// Each returns signed distance: negative inside, positive outside
-
+// =====================================================================
+//                           SDF Primitives
+// =====================================================================
 // Sphere centered at origin with radius r
 float sdSphere(vec3 p, float r) { return length(p) - r; }
 
@@ -162,7 +156,7 @@ float sdRoundCone(vec3 p, float r1, float r2, float h) {
 
 // Directional light structure
 struct DirLight {
-    vec3 dir;   // Direction FROM light TO scene (normalized)
+    vec3 dir;   // Direction from light to scene (normalized)
     vec3 color; // Light color/intensity (can be > 1.0 for HDR)
 };
 
@@ -192,11 +186,11 @@ const DirLight lights[NUM_LIGHTS] = DirLight[](
     DirLight(normalize(vec3(0.9, -0.2, -0.2)), vec3(0.7, 0.3, 0.4))    // [5] Side: rose
 );
 
+
 // =====================================================================
 //                          TEXT RENDERING
 // =====================================================================
 // Segment-based font rendering for floor text display.
-// Characters are built from line segments for sharp, resolution-independent text.
 
 // SDF for a 2D line segment from point a to point b
 float sdSegment(vec2 p, vec2 a, vec2 b) {
@@ -206,9 +200,7 @@ float sdSegment(vec2 p, vec2 a, vec2 b) {
 }
 
 // --- Character Definitions ---
-// Each character is built from line segments.
 // Characters are sized to fit in a ~0.24 x 0.5 bounding box.
-
 float charA(vec2 p) {
     float d = sdSegment(p, vec2(-0.12, -0.25), vec2(0.0, 0.25));
     d = min(d, sdSegment(p, vec2(0.0, 0.25), vec2(0.12, -0.25)));
@@ -363,20 +355,20 @@ float renderChar(vec2 p, int c) {
 }
 
 // --- Text Layout ---
-// Renders "Gödel's Incompleteness Theorem" and related text on floor
+// Renders "Gödel's Incompleteness Theorem"
 // Each line is an array of character IDs positioned at specific Y offsets
 float getTextSDF(vec2 p) {
     float charW = 0.38;  // Horizontal spacing between characters
-    
+
     // Early out - bounding box
     if (abs(p.x) > 4.5 || abs(p.y) > 3.5) return 1e5;
     
     float d = 1e5;
-    
+
     // Line 0: "GODEL" (y = 2.25)
     float ly0 = p.y - 2.25;
     if (abs(ly0) < 0.4) {
-        int chars0[5] = int[5](5,11,3,4,8); // G O D E L
+        int chars0[5] = int[5](5,11,3,4,8);
         float startX = -float(5-1) * charW * 0.5;
         for (int i = 0; i < 5; i++) {
             vec2 cp = vec2(p.x - startX - float(i) * charW, ly0);
@@ -387,7 +379,7 @@ float getTextSDF(vec2 p) {
     // Line 1: "INCOMPLETENESS" (y = 1.5)
     float ly1 = p.y - 1.5;
     if (abs(ly1) < 0.4) {
-        int chars1[14] = int[14](7,10,2,11,9,12,8,4,15,4,10,4,14,14); // I N C O M P L E T E N E S S
+        int chars1[14] = int[14](7,10,2,11,9,12,8,4,15,4,10,4,14,14);
         float startX = -float(14-1) * charW * 0.5;
         for (int i = 0; i < 14; i++) {
             vec2 cp = vec2(p.x - startX - float(i) * charW, ly1);
@@ -398,7 +390,7 @@ float getTextSDF(vec2 p) {
     // Line 2: "THEOREM I" (y = 0.75)
     float ly2 = p.y - 0.75;
     if (abs(ly2) < 0.4) {
-        int chars2[9] = int[9](15,6,4,11,13,4,9,0,7); // T H E O R E M _ I
+        int chars2[9] = int[9](15,6,4,11,13,4,9,0,7);
         float startX = -float(9-1) * charW * 0.5;
         for (int i = 0; i < 9; i++) {
             vec2 cp = vec2(p.x - startX - float(i) * charW, ly2);
@@ -411,7 +403,7 @@ float getTextSDF(vec2 p) {
     // Line 4: "NO SYSTEM CAN" (y = -0.75)
     float ly4 = p.y + 0.75;
     if (abs(ly4) < 0.4) {
-        int chars4[13] = int[13](10,11,0,14,19,14,15,4,9,0,2,1,10); // N O _ S Y S T E M _ C A N
+        int chars4[13] = int[13](10,11,0,14,19,14,15,4,9,0,2,1,10);
         float startX = -float(13-1) * charW * 0.5;
         for (int i = 0; i < 13; i++) {
             vec2 cp = vec2(p.x - startX - float(i) * charW, ly4);
@@ -422,7 +414,7 @@ float getTextSDF(vec2 p) {
     // Line 5: "PROVE ITS OWN" (y = -1.5)
     float ly5 = p.y + 1.5;
     if (abs(ly5) < 0.4) {
-        int chars5[13] = int[13](12,13,11,17,4,0,7,15,14,0,11,18,10); // P R O V E _ I T S _ O W N
+        int chars5[13] = int[13](12,13,11,17,4,0,7,15,14,0,11,18,10);
         float startX = -float(13-1) * charW * 0.5;
         for (int i = 0; i < 13; i++) {
             vec2 cp = vec2(p.x - startX - float(i) * charW, ly5);
@@ -433,7 +425,7 @@ float getTextSDF(vec2 p) {
     // Line 6: "CONSISTENCY" (y = -2.25)
     float ly6 = p.y + 2.25;
     if (abs(ly6) < 0.4) {
-        int chars6[11] = int[11](2,11,10,14,7,14,15,4,10,2,19); // C O N S I S T E N C Y
+        int chars6[11] = int[11](2,11,10,14,7,14,15,4,10,2,19);
         float startX = -float(11-1) * charW * 0.5;
         for (int i = 0; i < 11; i++) {
             vec2 cp = vec2(p.x - startX - float(i) * charW, ly6);
@@ -448,8 +440,6 @@ float getTextSDF(vec2 p) {
 // =====================================================================
 //                         PROCEDURAL NOISE
 // =====================================================================
-// Pseudo-random functions for generating patterns and textures.
-
 // Simple hash function - returns pseudo-random value in [0,1]
 float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 
@@ -478,8 +468,6 @@ float fbm(vec2 p) {
 // =====================================================================
 //                          FLOOR PATTERN
 // =====================================================================
-// Decorative floor with layered patterns and optional text overlay.
-
 vec3 getPlaneColor(vec2 p, float textScale, bool revealText) {
     // Layered floor pattern combining multiple techniques:
     // 1. Marble-like veins (FBM noise)
@@ -526,7 +514,7 @@ vec3 getPlaneColor(vec2 p, float textScale, bool revealText) {
     vec3 col = mix(tileColor, veinColor, marbleVeins * 0.35);
     col = mix(col, col * 0.85, 1.0 - hexPattern); // Hex grid lines
     
-    // Disco ball reflections - bouncy light spots!
+    // Disco ball reflections - bouncy light spots
     float disco = sin(p.x * 8.0 + iTime * 3.0) * sin(p.y * 8.0 - iTime * 2.5);
     disco = pow(max(disco, 0.0), 8.0);
     vec3 discoColor = 0.5 + 0.5 * cos(iTime * 2.0 + p.x * 3.0 + vec3(0.0, 2.0, 4.0));
@@ -537,7 +525,7 @@ vec3 getPlaneColor(vec2 p, float textScale, bool revealText) {
     vec3 swirlColor = 0.5 + 0.5 * cos(iTime + atan(p.y, p.x) * 2.0 + vec3(0.0, 2.1, 4.2));
     col += swirl * 0.08 * swirlColor;
 
-    // Party confetti sparkles - multiple colors!
+    // Party confetti sparkles - multiple colors
     for (int sp = 0; sp < 3; sp++) {
         float spScale = 3.0 + float(sp) * 1.5;
         vec2 sCell = floor(p * spScale);
@@ -567,7 +555,6 @@ vec3 getPlaneColor(vec2 p, float textScale, bool revealText) {
         float d = getTextSDF(tp);
         float textW = fwidth(d);
         float textAlpha = smoothstep(0.02 + textW, 0.0, d);
-        // Shimmering rainbow-gold text!
         float textShimmer = sin(p.x * 15.0 + iTime * 4.0) * 0.5 + 0.5;
         vec3 gold = vec3(1.0, 0.85, 0.4);
         vec3 rose = vec3(1.0, 0.6, 0.7);
@@ -582,8 +569,6 @@ vec3 getPlaneColor(vec2 p, float textScale, bool revealText) {
 // =====================================================================
 //                           3D SHAPES
 // =====================================================================
-// SDFs for the main scene objects: carousel and glass sculpture.
-
 // Mathematical constants
 #define PI 3.14159265
 #define HALF_PI 1.5707963
@@ -593,7 +578,6 @@ vec3 getPlaneColor(vec2 p, float textScale, bool revealText) {
 vec2 rot2D(vec2 p, float c, float s) { return vec2(p.x*c - p.y*s, p.x*s + p.y*c); }
 
 // --- Additional SDFs for Carousel ---
-
 // Vertical cylinder: r = radius, h = half-height
 float sdCylinder(vec3 p, float r, float h) {
     vec2 d = abs(vec2(length(p.xz), p.y)) - vec2(r, h);
@@ -613,7 +597,6 @@ float sdCone(vec3 p, vec2 c, float h) {
 }
 
 // --- Carousel Horse ---
-// Simplified horse shape built from smooth-blended primitives
 float sdHorse(vec3 p) {
     // Body: elongated ellipsoid
     vec3 bodyP = p;
@@ -696,7 +679,6 @@ float mapCarousel(vec3 p, vec3 carouselPos, float time) {
     // Small stem
     float finialStem = sdCylinder(q - vec3(0.0, 0.68, 0.0), 0.015, 0.04);
     
-    // === BASE PLATFORM ===
     // Main circular base
     vec3 baseP = q - vec3(0.0, -0.05, 0.0);
     float base = sdCylinder(baseP, 0.5, 0.06);
@@ -709,7 +691,7 @@ float mapCarousel(vec3 p, vec3 carouselPos, float time) {
     vec3 lowerP = q - vec3(0.0, -0.15, 0.0);
     float lowerBase = sdCylinder(lowerP, 0.42, 0.04);
     
-    // === HORSES - 4 carousel horses ===
+    // ===  4 carousel horses ===
     float horses = 1e5;
     for (int i = 0; i < 4; i++) {
         float fi = float(i);
@@ -736,7 +718,6 @@ float mapCarousel(vec3 p, vec3 carouselPos, float time) {
         horses = min(horses, horsePole);
     }
     
-    // === COMBINE ALL ===
     float d = pole;
     d = min(d, ridges);
     d = smin(d, roof, 0.02);
@@ -782,7 +763,7 @@ float mapSculpture(vec3 p, vec3 sculpturePos, float time) {
     coreP.y *= 1.6;
     float core = sdSphere(coreP, 0.32 + pulse + breathe);
     
-    // === FLOWING RIBBONS - 4 ribbons, optimized ===
+    // === FLOWING RIBBONS - 4 ribbons ===
     float ribbons = 1e5;
     float ribbonBase = time * RIBBON_SPEED;
     float ribbonWave = time * 0.3;
@@ -801,7 +782,7 @@ float mapSculpture(vec3 p, vec3 sculpturePos, float time) {
         ribbons = smin(ribbons, length(ribbonP) - 0.08, 0.12);
     }
     
-    // === ORBITING DROPLETS - 5 droplets, optimized ===
+    // === ORBITING DROPLETS - 5 droplets ===
     float drops = 1e5;
     float dropBase = time * DROPLET_ORBIT_SPEED;
     for (int i = 0; i < 5; i++) {
@@ -817,7 +798,7 @@ float mapSculpture(vec3 p, vec3 sculpturePos, float time) {
         drops = smin(drops, length(dropP) - dropSize, 0.18);
     }
     
-    // === CROWN - 8 petals, optimized rotation ===
+    // === CROWN - 8 petals ===
     vec3 crownP = q - vec3(0.0, 0.38 + breathe, 0.0);
     float crown = 1e5;
     float crownBase = time * CROWN_ROTATION_SPEED;
@@ -841,7 +822,7 @@ float mapSculpture(vec3 p, vec3 sculpturePos, float time) {
         crown = smin(crown, sdEllipsoid(petalP, vec3(0.12, 0.08, 0.04)), 0.1);
     }
     
-    // === BASE - dripping stalactite ===
+    // === dripping stalactite ===
     vec3 baseP = vec3(q.x, -q.y - 0.35, q.z);
     float baseDrop = sdRoundCone(baseP, 0.18, 0.03, 0.35);
     
@@ -869,12 +850,12 @@ float mapSculpture(vec3 p, vec3 sculpturePos, float time) {
         rings = smin(rings, sdTorus(ringP, vec2(ringSize, 0.025 + fi * 0.01)), 0.08);
     }
     
-    // === INNER VOID - simplified ===
+    // === INNER VOID ===
     vec3 voidP = q;
     voidP.y *= 1.3;
     float innerVoid = length(voidP) - (0.12 + sin(time * 0.8) * 0.02);
     
-    // === COMBINE ALL ELEMENTS ===
+
     float d = core;
     d = smin(d, ribbons, 0.15);
     d = smin(d, drops, 0.2);
@@ -892,8 +873,6 @@ float mapSculpture(vec3 p, vec3 sculpturePos, float time) {
 // =====================================================================
 //                          RAYMARCHING
 // =====================================================================
-// Core raymarching functions: scene SDF, normals, and ray casting.
-
 // Main scene SDF - selects shape(s) based on SHAPE_MODE setting
 float map(vec3 p, vec3 sculpturePos) {
     #if SHAPE_MODE == 0
@@ -945,8 +924,6 @@ float intersectPlane(vec3 ro, vec3 rd, float height) {
 // =====================================================================
 //                            SHADING
 // =====================================================================
-// Lighting calculations, shadows, and material shading.
-
 // Construct camera ray direction from UV coordinates
 vec3 getRayDir(vec2 uv, vec3 ro, vec3 ta, float zoom) {
     vec3 ww = normalize(ta - ro);                      // Forward
@@ -1003,8 +980,8 @@ float softShadow(vec3 ro, vec3 rd, vec3 sculpturePos) {
     return clamp(res, 0.0, 1.0);
 }
 
-// --- Point Light (Bulb) Helpers ---
 
+// --- Point Light (Bulb) Helpers ---
 // Accumulate diffuse and specular from a single point light
 void accumulateBulb(vec3 p, vec3 viewDir, vec3 n, vec3 pos, vec3 color, inout vec3 diffuse, inout vec3 specAcc) {
     vec3 lb = pos - p;
@@ -1111,8 +1088,6 @@ bool castRay(vec3 ro, vec3 rd, vec3 sculpturePos, out float t) {
 // =====================================================================
 //                           RENDERING
 // =====================================================================
-// Final rendering: background, glass material, and main entry point.
-
 // Render background (floor + sky)
 vec3 renderBackground(vec3 ro, vec3 rd, vec3 sculpturePos, float textScale) {
     // Check for floor intersection first
@@ -1123,8 +1098,7 @@ vec3 renderBackground(vec3 ro, vec3 rd, vec3 sculpturePos, float textScale) {
         return col;
     }
     
-    // === DRAMATIC SKY BACKGROUND ===
-    
+    // === SKY BACKGROUND ===
     // Base gradient - deep blue to warm horizon
     float skyGrad = rd.y * 0.5 + 0.5;
     vec3 zenith = vec3(0.05, 0.08, 0.18);      // Deep night blue
@@ -1154,7 +1128,7 @@ vec3 renderBackground(vec3 ro, vec3 rd, vec3 sculpturePos, float textScale) {
         skyCol += auroraCol * aurora * 0.25;
     }
     
-    // Colorful twinkling stars!
+    // Colorful twinkling stars
     vec3 starDir = normalize(rd);
     vec2 starUV = vec2(atan(starDir.z, starDir.x), asin(starDir.y));
     vec3 starTotal = vec3(0.0);
@@ -1167,14 +1141,14 @@ vec3 renderBackground(vec3 ro, vec3 rd, vec3 sculpturePos, float textScale) {
             float starDist = length(starF);
             float twinkle = sin(iTime * (4.0 + starRand * 8.0) + starRand * 6.28) * 0.4 + 0.6;
             float starBright = smoothstep(0.12, 0.0, starDist) * twinkle * (starRand - 0.96) * 25.0;
-            // Colorful stars!
+            // Colorful stars
             vec3 starCol = 0.7 + 0.3 * cos(starRand * 6.28 + vec3(0.0, 1.5, 3.0));
             starTotal += starCol * starBright;
         }
     }
     skyCol += starTotal * smoothstep(0.15, 0.5, skyGrad);
     
-    // Shooting stars!
+    // Shooting stars
     for (int sh = 0; sh < 2; sh++) {
         float shTime = iTime * 0.5 + float(sh) * 3.14;
         float shPhase = fract(shTime * 0.3);
@@ -1208,7 +1182,6 @@ vec3 renderBackground(vec3 ro, vec3 rd, vec3 sculpturePos, float textScale) {
 }
 
 // Render glass material with refraction, dispersion, and Fresnel
-// This is the core of the glass appearance:
 // 1. Refract ray into glass
 // 2. March through interior
 // 3. Refract out with per-channel dispersion (chromatic aberration)
@@ -1313,7 +1286,7 @@ vec3 renderGlass(vec3 ro, vec3 rd, float t, vec3 sculpturePos, float textScale) 
         reflCol += vec3(1.0, 0.9, 0.8) * pow(sunDot, 128.0) * 1.5;
     }
     
-    // Specular highlights - OPTIMIZED
+    // Specular highlights
     vec3 specHighlights = vec3(0.0);
     
     // Combined directional + sun highlight
@@ -1379,8 +1352,6 @@ void addBulbGlow(vec3 ro, vec3 ta, float camZoom, vec2 fragCoord, vec3 bulbPos, 
 // =====================================================================
 //                           MAIN ENTRY
 // =====================================================================
-// Shadertoy entry point - called once per pixel per frame.
-
 void mainImage(out vec4 fragColor, in vec2 fragCoord)
 {
     // --- Setup ---
