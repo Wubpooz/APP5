@@ -14,4 +14,20 @@ model Book {
   id          String @id @default(uuid())
   title       String
   description String
+  authors     BookAuthor[]
+}
+
+model Author {
+  id    String @id @default(uuid())
+  name  String
+  books BookAuthor[]
+}
+
+model BookAuthor {
+  bookId   String
+  authorId String
+  book     Book   @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  author   Author @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@id([bookId, authorId])
 }
