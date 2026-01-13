@@ -1,5 +1,5 @@
-import {Album, JazzMusician, Music, Musician, RockStar} from './Musician';
-import display from './Display';
+import {Album, JazzMusician, Music, Musician, RockStar} from '../src/Musician';
+import display from '../src/Display';
 import SpyInstance = jest.SpyInstance;
 
 

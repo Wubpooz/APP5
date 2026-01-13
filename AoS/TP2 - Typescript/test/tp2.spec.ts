@@ -1,4 +1,4 @@
-import {displayPeopleAndLength, returnPeopleAndLength} from './tp2';
+import {displayPeopleAndLength, returnPeopleAndLength} from '../src/tp2';
 
 const spy = jest.spyOn(console, 'log');
 

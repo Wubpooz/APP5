@@ -1,4 +1,4 @@
-import {Album, display, JazzMusician, Music, Musician, RockStar} from './tp3';
+import {Album, display, JazzMusician, Music, Musician, RockStar} from '../src/tp3';
 import SpyInstance = jest.SpyInstance;
 
 describe('TP3', () => {
