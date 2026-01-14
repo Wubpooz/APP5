@@ -6,6 +6,7 @@ import socket
 import socketserver
 import threading
 import argparse
+import abc
 
 NODE_COUNT = 6
 MAX_CONN_RETRIES = 3  # Nombre maximum de tentatives de connexion à un pair
@@ -21,12 +22,16 @@ PURPLE = "\033[35m"
 class States(Enum):
   BLUE = "BLUE"
   RED = "RED"
+  
+class Algorithms(Enum):
+  SNOWFLAKE = "SNOWFLAKE"
+  SNOWBALL = "SNOWBALL"
 
-class Node:
-  def __init__(self, id, port=None, initial_state=None, neighbor_ports=None, crash_prob=0.0):
+class Node(abc.ABC):
+  def __init__(self, id, port=None, initial_state=None, neighbor_ports=None, crash_prob=0.0, host="127.0.0.1"):
     # Configuration
     self.id = id
-    self.host = "127.0.0.1"
+    self.host = host
     self.port = port if port is not None else 5000 + id
     self.neighbors: dict[int, dict] = {}
     if neighbor_ports is not None:
@@ -64,6 +69,11 @@ class Node:
     
 
 
+  @abc.abstractmethod
+  def consensus_algorithm(self, state_counts: dict[str, int]) -> None:
+    """Updates self.state and self.counter based on the received state counts."""
+    pass
+
   def loop(self) -> None:
     """Boucle principale de l'algorithme Snowflake."""
     import random
@@ -88,33 +98,9 @@ class Node:
           self.server.shutdown()
         break
       
-      maj = False
-      for state, count in state_counts.items():
-        print(f"[Node {self.id}] État {state}: {count}")
-        if count >= self.acceptance_threshold:
-          maj = True
-          if self.state.value == state:
-            with self.counter_lock:
-              self.counter += 1
-          else:
-            with self.state_lock, self.counter_lock:
-              self.state = States(state)
-              self.counter = 1
-          if self.counter >= self.consecutive_success_threshold:
-            with self.decided_lock:
-              self.decided = True
-            print(f"{PURPLE}[Node {self.id}] Décidé sur l'état {self.state.value}{RESET}")
-            # Grâce : rester disponible pour que les autres noeuds puissent décider
-            import time
-            print(f"{LIGHT_BLUE}[Node {self.id}] Grâce : je reste disponible 5s pour les autres...{RESET}")
-            time.sleep(5)
-            if self.server:
-              self.server.shutdown()
-            return
-      if not maj:
-        with self.counter_lock:
-          self.counter = 0 
-
+      self.consensus_algorithm(state_counts)
+        
+      
       threading.Event().wait(1)  # Pause avant la prochaine itération
       
 
@@ -184,10 +170,70 @@ class Node:
     return state_counts
 
 
+class SnowFlakeNode(Node):
+  def consensus_algorithm(self, state_counts: dict[str, int]) -> None:
+    maj = False
+    for state, count in state_counts.items():
+      print(f"[Node {self.id}] État {state}: {count}")
+      if count >= self.acceptance_threshold:
+        maj = True
+        if self.state.value == state:
+          with self.counter_lock:
+            self.counter += 1
+        else:
+          with self.state_lock, self.counter_lock:
+            self.state = States(state)
+            self.counter = 1
+        if self.counter >= self.consecutive_success_threshold:
+          with self.decided_lock:
+            self.decided = True
+          print(f"{PURPLE}[Node {self.id}] Décidé sur l'état {self.state.value}{RESET}")
+          # Grâce : rester disponible pour que les autres noeuds puissent décider
+          import time
+          print(f"{LIGHT_BLUE}[Node {self.id}] Grâce : je reste disponible 5s pour les autres...{RESET}")
+          time.sleep(5)
+          if self.server:
+            self.server.shutdown()
+          return
+    if not maj:
+      with self.counter_lock:
+        self.counter = 0 
+
+
+class SnowBallNode(Node):
+  def consensus_algorithm(self, state_counts: dict[str, int]) -> None:
+    maj = False
+    for state, count in state_counts.items():
+      print(f"[Node {self.id}] État {state}: {count}")
+      if count >= self.acceptance_threshold:
+        maj = True
+        if self.state.value == state:
+          with self.counter_lock:
+            self.counter += 1
+        else:
+          with self.state_lock, self.counter_lock:
+            self.state = States(state)
+            self.counter = 1
+        if self.counter >= self.consecutive_success_threshold:
+          with self.decided_lock:
+            self.decided = True
+          print(f"{PURPLE}[Node {self.id}] Décidé sur l'état {self.state.value}{RESET}")
+          # Grâce : rester disponible pour que les autres noeuds puissent décider
+          import time
+          print(f"{LIGHT_BLUE}[Node {self.id}] Grâce : je reste disponible 5s pour les autres...{RESET}")
+          time.sleep(5)
+          if self.server:
+            self.server.shutdown()
+          return
+    if not maj:
+      with self.counter_lock:
+        self.counter = 0 
+
+  
 
 class Network:
-  def __init__(self, node_count: int):
-    self.nodes: list[Node] = [Node(i) for i in range(node_count)]
+  def __init__(self, node_count: int, NodeClass=SnowFlakeNode):
+    self.nodes: list[Node] = [NodeClass(i) for i in range(node_count)]
     self.threads: list[threading.Thread] = []
 
   def start(self) -> None:
@@ -216,8 +262,6 @@ python snowflake.py <node_id>
 - Pour lancer tous les noeuds ensemble (dans le même processus/terminal):
 python snowflake.py
 """
-
-
 if __name__ == "__main__":
   import sys
   
@@ -225,14 +269,17 @@ if __name__ == "__main__":
     # Mode: lancer un seul noeud (pour simulation manuelle)
     parser = argparse.ArgumentParser(description='Lancer un noeud Snowflake')
     parser.add_argument('node_id', type=int, help='ID du noeud')
+    parser.add_argument('--algorithm', type=str, choices=['SNOWFLAKE', 'SNOWBALL'], default='SNOWFLAKE', help='Algorithme de consensus (défaut: SNOWFLAKE)')
     parser.add_argument('--port', type=int, help='Port du noeud (défaut: 5000 + node_id)')
     parser.add_argument('--color', type=str, choices=['BLUE', 'RED'], help='Couleur initiale (défaut: aléatoire)')
     parser.add_argument('--neighbors', type=int, nargs='+', help='Liste des ports des voisins (défaut: tous les autres noeuds)')
     parser.add_argument('--crash-prob', type=float, default=0.0, help='Probabilité de panne aléatoire à chaque itération (0.0 = jamais, 0.05 = 5%)')
+    parser.add_argument('--host', type=str, default='127.0.0.1', help='Adresse IP du noeud (défaut: 127.0.0.1)')
     
     args = parser.parse_args()
     
-    node = Node(
+    node_class = SnowFlakeNode if args.algorithm == 'SNOWFLAKE' else SnowBallNode
+    node = node_class(
       id=args.node_id,
       port=args.port,
       initial_state=args.color,

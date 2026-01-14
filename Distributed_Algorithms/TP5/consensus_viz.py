@@ -148,6 +148,14 @@ class MainWindow(QMainWindow):
         self.timing_spin.setRange(10, 5000)
         self.timing_spin.setValue(REFRESH_RATE_MS)
 
+        # Algorithm selection
+        self.algo_label = QLabel("Algorithm:")
+        from PyQt6.QtWidgets import QComboBox
+        self.algo_combo = QComboBox()
+        self.algo_combo.addItems(["Snowflake", "Snowball"])
+        self.selected_algorithm = "SNOWFLAKE"
+        self.algo_combo.currentIndexChanged.connect(self._on_algo_changed)
+
         controls_layout = QHBoxLayout()
         controls_layout.addWidget(self.step_button)
         controls_layout.addWidget(self.run_checkbox)
@@ -156,6 +164,8 @@ class MainWindow(QMainWindow):
         controls_layout.addWidget(self.nodecount_spin)
         controls_layout.addWidget(self.timing_label)
         controls_layout.addWidget(self.timing_spin)
+        controls_layout.addWidget(self.algo_label)
+        controls_layout.addWidget(self.algo_combo)
         controls_layout.addStretch()
 
         # Central widget layout
@@ -181,6 +191,31 @@ class MainWindow(QMainWindow):
         self.edge_items = {}  # (src_idx, dst_idx): QGraphicsLineItem
         self._node_count = self.nodecount_spin.value()
         self.nodecount_spin.valueChanged.connect(self._on_nodecount_changed)
+        
+        # Init
+        self.setup_simulation()
+        
+    def _on_algo_changed(self, idx):
+        self.selected_algorithm = "SNOWFLAKE" if idx == 0 else "SNOWBALL"
+        # Show waiting overlay and disable controls
+        self.waiting_overlay.resize(self.centralWidget().size()) # type: ignore
+        self.waiting_overlay.move(0, self.window().height()//3) # type: ignore
+        self.waiting_overlay.setVisible(True)
+        self.waiting_overlay.raise_()
+        self.step_button.setEnabled(False)
+        self.run_checkbox.setEnabled(False)
+        self.reset_button.setEnabled(False)
+        self.timing_spin.setEnabled(False)
+        QApplication.processEvents()
+
+        self.setup_simulation()
+
+        # Hide waiting overlay and re-enable controls
+        self.waiting_overlay.setVisible(False)
+        self.step_button.setEnabled(True)
+        self.run_checkbox.setEnabled(True)
+        self.reset_button.setEnabled(True)
+        self.timing_spin.setEnabled(True)
 
         # Connect signal for thread-safe arrow drawing
         self.query_arrow_signal.connect(self._draw_query_arrow)
@@ -219,8 +254,8 @@ class MainWindow(QMainWindow):
     def reset_simulation(self):
         # Show waiting overlay and disable controls
         # Cover the central widget
-        self.waiting_overlay.resize(self.centralWidget().size())
-        self.waiting_overlay.move(0, self.window().height()//3)
+        self.waiting_overlay.resize(self.centralWidget().size()) # type: ignore
+        self.waiting_overlay.move(0, self.window().height()//3) # type: ignore
         self.waiting_overlay.setVisible(True)
         self.waiting_overlay.raise_()
         self.step_button.setEnabled(False)
@@ -293,7 +328,10 @@ class MainWindow(QMainWindow):
         except Exception:
             pass
         for i in range(count):
-            node = snowflake.Node(i, port=5000+i)
+            if getattr(self, 'selected_algorithm', 'SNOWFLAKE') == 'SNOWFLAKE':
+                node = snowflake.SnowFlakeNode(i, port=5000+i)
+            else:
+                node = snowflake.SnowBallNode(i, port=5000+i)
             self.nodes_logic.append(node)
 
         # B. Create Visual Elements (Circle Layout)
