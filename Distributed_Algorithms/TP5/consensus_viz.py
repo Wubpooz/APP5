@@ -58,6 +58,7 @@ class VisualNode(QGraphicsEllipseItem):
         state_txt = "UNK"
         count = 0
         decided = False
+        crashed = False
         
         # We assume the logic object has locks, but for simple visualization reading 
         # atomic types like bool/int is often "safe enough" for display. 
@@ -67,30 +68,39 @@ class VisualNode(QGraphicsEllipseItem):
         
         with self.node_logic.counter_lock:
             count = self.node_logic.counter
-            
+        
         with self.node_logic.decided_lock:
             decided = self.node_logic.decided
+
+        # Fault visualization: check if node is crashed (no server running)
+        crashed = getattr(self.node_logic, 'crashed', False)
 
         # Update Text
         display_text = f"ID: {self.node_logic.id}\n{state_txt}\nConf: {count}"
         if decided:
             display_text += "\n[DECIDED]"
+        if crashed:
+            display_text += "\n[CRASHED]"
         
         self.text_item.setPlainText(display_text)
         self.text_item.setFont(QFont("Arial", 8, QFont.Weight.Bold))
         self.center_text()
 
         # Update Color based on State
-        if decided:
+        if crashed:
+            self.setPen(QPen(QColor("#8e44ad"), 5, Qt.PenStyle.DotLine))
+            self.setBrush(QBrush(QColor("#d2b4de")))
+        elif decided:
             self.setPen(QPen(QColor("gold"), 5))
         else:
             self.setPen(QPen(Qt.GlobalColor.black, 2))
-        if state_txt == "BLUE":
-            self.setBrush(QBrush(COLOR_BLUE))
-        elif state_txt == "RED":
-            self.setBrush(QBrush(COLOR_RED))
-        else:
-            self.setBrush(QBrush(COLOR_DEFAULT))
+        if not crashed:
+            if state_txt == "BLUE":
+                self.setBrush(QBrush(COLOR_BLUE))
+            elif state_txt == "RED":
+                self.setBrush(QBrush(COLOR_RED))
+            else:
+                self.setBrush(QBrush(COLOR_DEFAULT))
 
     def mousePressEvent(self, event):
         # Only allow color change before simulation starts (before first step or auto-run)
@@ -149,27 +159,69 @@ class MainWindow(QMainWindow):
 
         # Algorithm selection
         self.algo_label = QLabel("Algorithm:")
-        from PyQt6.QtWidgets import QComboBox
+        from PyQt6.QtWidgets import QComboBox, QDoubleSpinBox
         self.algo_combo = QComboBox()
         self.algo_combo.addItems(["Snowflake", "Snowball"])
         self.selected_algorithm = "SNOWFLAKE"
         self.algo_combo.currentIndexChanged.connect(self._on_algo_changed)
 
-        controls_layout = QHBoxLayout()
-        controls_layout.addWidget(self.step_button)
-        controls_layout.addWidget(self.run_checkbox)
-        controls_layout.addWidget(self.reset_button)
-        controls_layout.addWidget(self.nodecount_label)
-        controls_layout.addWidget(self.nodecount_spin)
-        controls_layout.addWidget(self.timing_label)
-        controls_layout.addWidget(self.timing_spin)
-        controls_layout.addWidget(self.algo_label)
-        controls_layout.addWidget(self.algo_combo)
-        controls_layout.addStretch()
+        # Crash probability control
+        self.crash_label = QLabel("Crash Prob:")
+        self.crash_spin = QDoubleSpinBox()
+        self.crash_spin.setRange(0.0, 1.0)
+        self.crash_spin.setSingleStep(0.01)
+        self.crash_spin.setValue(0.0)
+        self.crash_spin.setDecimals(2)
+
+        self.sample_label = QLabel("Sample size:")
+        self.sample_spin = QSpinBox()
+        self.sample_spin.setRange(1, 40)
+        self.sample_spin.setValue(3)
+
+        self.accept_label = QLabel("Acceptance threshold:")
+        self.accept_spin = QSpinBox()
+        self.accept_spin.setRange(1, 40)
+        self.accept_spin.setValue(2)
+
+        self.cons_label = QLabel("Consecutive success:")
+        self.cons_spin = QSpinBox()
+        self.cons_spin.setRange(1, 100)
+        self.cons_spin.setValue(10)
+
+        self.validate_button = QPushButton("Validate Parameters")
+
+
+
+        # --- Organize controls into two rows (top: run/step/reset/timing/algo, bottom: all params) ---
+        controls_layout_top = QHBoxLayout()
+        controls_layout_top.addWidget(self.step_button)
+        controls_layout_top.addWidget(self.run_checkbox)
+        controls_layout_top.addWidget(self.reset_button)
+        controls_layout_top.addWidget(self.timing_label)
+        controls_layout_top.addWidget(self.timing_spin)
+        controls_layout_top.addWidget(self.algo_label)
+        controls_layout_top.addWidget(self.algo_combo)
+        controls_layout_top.addStretch()
+
+        controls_layout_bottom = QHBoxLayout()
+        controls_layout_bottom.addStretch()
+        controls_layout_bottom.addWidget(self.nodecount_label)
+        controls_layout_bottom.addWidget(self.nodecount_spin)
+        controls_layout_bottom.addWidget(self.sample_label)
+        controls_layout_bottom.addWidget(self.sample_spin)
+        controls_layout_bottom.addWidget(self.accept_label)
+        controls_layout_bottom.addWidget(self.accept_spin)
+        controls_layout_bottom.addWidget(self.cons_label)
+        controls_layout_bottom.addWidget(self.cons_spin)
+        controls_layout_bottom.addWidget(self.crash_label)
+        controls_layout_bottom.addWidget(self.crash_spin)
+        controls_layout_bottom.addWidget(self.validate_button)
+        controls_layout_bottom.addStretch()
 
         # Central widget layout
         layout = QVBoxLayout()
-        layout.addLayout(controls_layout)
+        layout.addLayout(controls_layout_top)
+        layout.addLayout(controls_layout_bottom)
         layout.addWidget(self.view)
         central_widget = QWidget()
         central_widget.setLayout(layout)
@@ -191,6 +243,12 @@ class MainWindow(QMainWindow):
         self._node_count = self.nodecount_spin.value()
         self.nodecount_spin.valueChanged.connect(self._on_nodecount_changed)
         
+        # --- Connect Controls (moved from _on_algo_changed to here) ---
+        self.step_button.clicked.connect(self.step_once)
+        self.run_checkbox.stateChanged.connect(self.toggle_run_mode)
+        self.timing_spin.valueChanged.connect(self.update_timer_interval)
+        self.reset_button.clicked.connect(self.reset_simulation)
+
         # Init
         self.setup_simulation()
         
@@ -216,22 +274,13 @@ class MainWindow(QMainWindow):
         self.reset_button.setEnabled(True)
         self.timing_spin.setEnabled(True)
 
-        # Connect signal for thread-safe arrow drawing
+        # Connect signal for thread-safe arrow drawing (keep this here)
         self.query_arrow_signal.connect(self._draw_query_arrow)
 
         # 3. Start the GUI Update Loop
         self.timer = QTimer()
         self.timer.timeout.connect(self.update_ui)
         self.timer.start(self.timing_spin.value())
-
-        # --- Connect Controls ---
-        self.step_button.clicked.connect(self.step_once)
-        self.run_checkbox.stateChanged.connect(self.toggle_run_mode)
-        self.timing_spin.valueChanged.connect(self.update_timer_interval)
-        self.reset_button.clicked.connect(self.reset_simulation)
-
-        # Initial simulation setup
-        self.setup_simulation()
 
     def _on_nodecount_changed(self, value):
         self._node_count = value
@@ -326,11 +375,12 @@ class MainWindow(QMainWindow):
             snowy.NODE_COUNT = count
         except Exception:
             pass
+        crash_prob = self.crash_spin.value()
         for i in range(count):
             if getattr(self, 'selected_algorithm', 'SNOWFLAKE') == 'SNOWFLAKE':
-                node = snowy.SnowFlakeNode(i, port=5000+i)
+                node = snowy.SnowFlakeNode(i, port=5000+i, crash_prob=crash_prob)
             else:
-                node = snowy.SnowBallNode(i, port=5000+i)
+                node = snowy.SnowBallNode(i, port=5000+i, crash_prob=crash_prob)
             self.nodes_logic.append(node)
 
         # B. Create Visual Elements (Circle Layout)

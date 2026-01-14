@@ -131,7 +131,10 @@ class Node(abc.ABC):
 
   def query_peers(self) -> dict[str, int]:
     """Interroge un échantillon aléatoire de pairs et retourne le compte des états reçus."""
-    peers: list[int] = sample([port for port, info in self.neighbors.items() if not info["broken_link"]], k=self.sample_size)
+    # Graceful degradation of the sample size if not enough neighbors are available
+    actual_sample_size = min(self.sample_size, len([port for port, info in self.neighbors.items() if not info["broken_link"]]))
+    
+    peers: list[int] = sample([port for port, info in self.neighbors.items() if not info["broken_link"]], k=actual_sample_size)
     responses: list[dict] = []
 
     if not peers:
