@@ -66,7 +66,7 @@ describe('TP3', () => {
 
         display(musicians);
 
-        expect(spy).toBeCalledTimes(2);
+        expect(spy).toHaveBeenCalledTimes(2);
         expect(spy.mock.calls[0][0]).toBe('Miles Davis plays JAZZ');
         expect(spy.mock.calls[1][0]).toBe('Mick Jagger plays ROCK');
     });
@@ -76,7 +76,7 @@ describe('TP3', () => {
 
         display(albums);
 
-        expect(spy).toBeCalledTimes(2);
+        expect(spy).toHaveBeenCalledTimes(2);
         expect(spy.mock.calls[0][0]).toBe('Kind Of Blue');
         expect(spy.mock.calls[1][0]).toBe('Tutu');
     });

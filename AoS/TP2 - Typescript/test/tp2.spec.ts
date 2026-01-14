@@ -30,20 +30,20 @@ describe('TP2', () => {
 
     it('displayPeopleAndLength without literals and more than 9 characters', () => {
         displayPeopleAndLength(['Emmanuel', 'Jean-Pierre']);
-        expect(spy).toBeCalledWith('Emmanuel contient 8 caractères');
-        expect(spy).toBeCalledWith('Jean-Pierre contient 11 caractères');
+        expect(spy).toHaveBeenCalledWith('Emmanuel contient 8 caractères');
+        expect(spy).toHaveBeenCalledWith('Jean-Pierre contient 11 caractères');
     });
 
     it('displayPeopleAndLength without arguments', () => {
         displayPeopleAndLength();
-        expect(spy).toBeCalledWith('Miles contient 5 caractères');
-        expect(spy).toBeCalledWith('Mick contient 4 caractères');
+        expect(spy).toHaveBeenCalledWith('Miles contient 5 caractères');
+        expect(spy).toHaveBeenCalledWith('Mick contient 4 caractères');
     });
 
     it('displayPeopleAndLength with table and literal in parameter', () => {
         displayPeopleAndLength(['Zenika', 'ZenikaZenika'], true);
         expect(spy).toHaveBeenCalledTimes(1);
-        expect(spy).toBeCalledWith('Zenika contient six caractères');
+        expect(spy).toHaveBeenCalledWith('Zenika contient six caractères');
     });
 
 });
