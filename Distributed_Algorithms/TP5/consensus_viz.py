@@ -4,7 +4,7 @@ import threading
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QGraphicsScene, 
                              QGraphicsView, QGraphicsEllipseItem, QGraphicsLineItem, 
                              QGraphicsTextItem, QVBoxLayout, QWidget, QGraphicsItem)
-from PyQt6.QtCore import QTimer, Qt, QPointF, QRectF
+from PyQt6.QtCore import QTimer, Qt, QPointF, QRectF, pyqtSignal
 from PyQt6.QtGui import QBrush, QPen, QColor, QFont
 
 # Import your simulation logic
@@ -110,11 +110,21 @@ class VisualNode(QGraphicsEllipseItem):
 from PyQt6.QtWidgets import QPushButton, QHBoxLayout, QLabel, QSpinBox, QCheckBox
 
 class MainWindow(QMainWindow):
+    query_arrow_signal = pyqtSignal(int, int)
     # For query visualization
     QUERY_HIGHLIGHT_COLOR = QColor("#f1c40f")
     QUERY_HIGHLIGHT_MS = 400
     def __init__(self):
         super().__init__()
+        self.waiting_overlay = QLabel("Resetting... Please wait.")
+        self.waiting_overlay.setStyleSheet("background: rgba(255,255,255,0.85); color: #333; font-size: 32px; font-weight: bold; border: 2px solid #888; border-radius: 10px; padding: 40px;")
+        self.waiting_overlay.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.waiting_overlay.setVisible(False)
+        self.waiting_overlay.setMargin(20)
+        self.waiting_overlay.setMinimumSize(400, 100)
+        self.waiting_overlay.setMaximumHeight(200)
+        self.waiting_overlay.setWordWrap(True)
+        # Will be parented to central widget after it's created
         self.setWindowTitle("Snowflake Consensus Visualization")
         self.resize(WINDOW_WIDTH, WINDOW_HEIGHT)
 
@@ -147,6 +157,10 @@ class MainWindow(QMainWindow):
         central_widget = QWidget()
         central_widget.setLayout(layout)
         self.setCentralWidget(central_widget)
+        # Parent overlay to central widget and cover the view
+        self.waiting_overlay.setParent(central_widget)
+        self.waiting_overlay.resize(central_widget.size())
+        self.waiting_overlay.move(0, 0)
 
         # 2. Initialize the Simulation Data
         self.nodes_logic = []      # List of snowflake.Node objects
@@ -158,6 +172,8 @@ class MainWindow(QMainWindow):
         self.allow_initial_color_change = True
         self.edge_items = {}  # (src_idx, dst_idx): QGraphicsLineItem
 
+        # Connect signal for thread-safe arrow drawing
+        self.query_arrow_signal.connect(self._draw_query_arrow)
         self.setup_simulation()
 
         # 3. Start the GUI Update Loop
@@ -185,7 +201,31 @@ class MainWindow(QMainWindow):
         self.timer.setInterval(value)
 
     def reset_simulation(self):
+        # Show waiting overlay and disable controls
+        # Cover the central widget
+        self.waiting_overlay.resize(self.centralWidget().size())
+        self.waiting_overlay.move(0, self.window().height()//3)
+        self.waiting_overlay.setVisible(True)
+        self.waiting_overlay.raise_()
+        self.step_button.setEnabled(False)
+        self.run_checkbox.setEnabled(False)
+        self.reset_button.setEnabled(False)
+        self.timing_spin.setEnabled(False)
+        QApplication.processEvents()
+
         self._should_reset = True
+        # Gracefully shutdown all node servers
+        for node in self.nodes_logic:
+            try:
+                if hasattr(node, 'server') and node.server:
+                    node.server.shutdown()
+                    node.server.server_close()
+                    node.server = None
+            except Exception:
+                pass
+        # Wait a bit to ensure sockets are released
+        import time
+        time.sleep(0.2)
         self.scene.clear()
         self.nodes_logic.clear()
         self.visual_nodes.clear()
@@ -196,6 +236,13 @@ class MainWindow(QMainWindow):
         self.allow_initial_color_change = True
         self.edge_items.clear()
         self.setup_simulation()
+
+        # Hide waiting overlay and re-enable controls
+        self.waiting_overlay.setVisible(False)
+        self.step_button.setEnabled(True)
+        self.run_checkbox.setEnabled(True)
+        self.reset_button.setEnabled(True)
+        self.timing_spin.setEnabled(True)
 
 
 
@@ -275,8 +322,9 @@ class MainWindow(QMainWindow):
             port_to_idx = {5000 + i: i for i in range(len(self.nodes_logic))}
             for peer_port in sampled_ports:
                 j = port_to_idx.get(peer_port)
-                if j is not None and (idx, j) in self.edge_items:
-                    self.highlight_edge(idx, j)
+                if j is not None:
+                    # Emit signal to main thread to draw arrow
+                    self.query_arrow_signal.emit(idx, j)
             # --- End query visualization ---
             state_counts = node.query_peers()
             if all(count == 0 for count in state_counts.values()):
@@ -310,17 +358,53 @@ class MainWindow(QMainWindow):
                 with node.counter_lock:
                     node.counter = 0
 
-    def highlight_edge(self, src_idx, dst_idx):
-        # Highlight the edge for QUERY_HIGHLIGHT_MS ms
-        line = self.edge_items.get((src_idx, dst_idx))
-        if not line:
+
+    def _draw_query_arrow(self, src_idx, dst_idx):
+        # Draw a temporary arrow from src to dst (main thread only)
+        # Remove old arrows if too many
+        if not hasattr(self, 'arrow_items'):
+            self.arrow_items = []
+        src_node = self.visual_nodes[src_idx]
+        dst_node = self.visual_nodes[dst_idx]
+        x1, y1 = src_node.x(), src_node.y()
+        x2, y2 = dst_node.x(), dst_node.y()
+        dx, dy = x2 - x1, y2 - y1
+        dist = math.hypot(dx, dy)
+        if dist == 0:
             return
-        orig_pen = line.pen()
-        highlight_pen = QPen(self.QUERY_HIGHLIGHT_COLOR, 3)
-        line.setPen(highlight_pen)
-        def restore():
-            line.setPen(orig_pen)
-        QTimer.singleShot(self.QUERY_HIGHLIGHT_MS, restore)
+        shrink = NODE_RADIUS * 0.9
+        x1a = x1 + dx * shrink / dist
+        y1a = y1 + dy * shrink / dist
+        x2a = x2 - dx * shrink / dist
+        y2a = y2 - dy * shrink / dist
+        pen = QPen(self.QUERY_HIGHLIGHT_COLOR, 3)
+        line = QGraphicsLineItem(x1a, y1a, x2a, y2a)
+        line.setPen(pen)
+        line.setZValue(1)
+        self.scene.addItem(line)
+        angle = math.atan2(y2a - y1a, x2a - x1a)
+        arrow_size = 18
+        angle1 = angle + math.pi / 8
+        angle2 = angle - math.pi / 8
+        x3 = x2a - arrow_size * math.cos(angle1)
+        y3 = y2a - arrow_size * math.sin(angle1)
+        x4 = x2a - arrow_size * math.cos(angle2)
+        y4 = y2a - arrow_size * math.sin(angle2)
+        arrow1 = QGraphicsLineItem(x2a, y2a, x3, y3)
+        arrow2 = QGraphicsLineItem(x2a, y2a, x4, y4)
+        for arr in (arrow1, arrow2):
+            arr.setPen(pen)
+            arr.setZValue(1)
+            self.scene.addItem(arr)
+        src_node.setPen(QPen(self.QUERY_HIGHLIGHT_COLOR, 5))
+        self.arrow_items.append((line, arrow1, arrow2, src_node))
+        def cleanup():
+            for item in (line, arrow1, arrow2):
+                self.scene.removeItem(item)
+            with src_node.node_logic.decided_lock:
+                if not src_node.node_logic.decided:
+                    src_node.setPen(QPen(Qt.GlobalColor.black, 2))
+        QTimer.singleShot(self.QUERY_HIGHLIGHT_MS, cleanup)
 
 
 
