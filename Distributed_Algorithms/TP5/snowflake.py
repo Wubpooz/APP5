@@ -58,11 +58,14 @@ class Node:
 
   def loop(self) -> None:
     """Boucle principale de l'algorithme Snowflake."""
+    loop = 0
     while True:
       with self.decided_lock:
         if self.decided:
           break
       
+      loop += 1
+      print(f"{YELLOW}[Node {self.id}] Itération {loop}, état actuel: {self.state.value}, compteur: {self.counter}{RESET}")
       state_counts = self.query_peers()
       # If all counts are zero, all neighbors are gone
       if all(count == 0 for count in state_counts.values()):
