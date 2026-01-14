@@ -10,6 +10,9 @@ import abc
 
 NODE_COUNT = 6
 MAX_CONN_RETRIES = 3  # Nombre maximum de tentatives de connexion à un pair
+SAMPLE_SIZE = 3  # Taille de l'échantillon de pairs à interroger
+ACCEPTANCE_THRESHOLD = 2  # Seuil d'acceptation (> SAMPLE_SIZE / 2)
+CONSECUTIVE_SUCCESS_THRESHOLD = 10  # Nombre de succès consécutifs pour décider
 
 # ANSI color codes
 RESET = "\033[0m"
@@ -27,8 +30,11 @@ class Algorithms(Enum):
   SNOWFLAKE = "SNOWFLAKE"
   SNOWBALL = "SNOWBALL"
 
+
 class Node(abc.ABC):
-  def __init__(self, id, port=None, initial_state=None, neighbor_ports=None, crash_prob=0.0, host="127.0.0.1"):
+  def __init__(self, id, port=None, initial_state=None, neighbor_ports=None, crash_prob=0.0, 
+               sample_size=SAMPLE_SIZE, acceptance_threshold=ACCEPTANCE_THRESHOLD, consecutive_success_threshold=CONSECUTIVE_SUCCESS_THRESHOLD,
+               host="127.0.0.1"):
     # Configuration
     self.id = id
     self.host = host
@@ -52,9 +58,9 @@ class Node(abc.ABC):
     self.decided = False
     
     # Algorithm parameters
-    self.sample_size = 3
-    self.acceptance_threshold = 2 # > sample_size / 2
-    self.consecutive_success_threshold = 10
+    self.sample_size = sample_size if sample_size < len(self.neighbors) else len(self.neighbors)//2
+    self.acceptance_threshold = acceptance_threshold
+    self.consecutive_success_threshold = consecutive_success_threshold
     
     # Crash simulation probability
     self.crash_prob = crash_prob
@@ -299,6 +305,9 @@ if __name__ == "__main__":
     parser.add_argument('--color', type=str, choices=['BLUE', 'RED'], help='Couleur initiale (défaut: aléatoire)')
     parser.add_argument('--neighbors', type=int, nargs='+', help='Liste des ports des voisins (défaut: tous les autres noeuds)')
     parser.add_argument('--crash-prob', type=float, default=0.0, help='Probabilité de panne aléatoire à chaque itération (0.0 = jamais, 0.05 = 5%)')
+    parser.add_argument('--sample-size', type=int, default=SAMPLE_SIZE, help='Taille de l\'échantillon de pairs à interroger < node_count (défaut: 3)')
+    parser.add_argument('--acceptance-threshold', type=int, default=ACCEPTANCE_THRESHOLD, help='Seuil d\'acceptation (> sample_size / 2) (défaut: 2)')
+    parser.add_argument('--consecutive-success-threshold', type=int, default=CONSECUTIVE_SUCCESS_THRESHOLD, help='Nombre de succès consécutifs pour décider (défaut: 10)')
     parser.add_argument('--host', type=str, default='127.0.0.1', help='Adresse IP du noeud (défaut: 127.0.0.1)')
     
     args = parser.parse_args()
@@ -309,7 +318,11 @@ if __name__ == "__main__":
       port=args.port,
       initial_state=args.color,
       neighbor_ports=args.neighbors,
-      crash_prob=args.crash_prob
+      crash_prob=args.crash_prob,
+      sample_size=args.sample_size,
+      acceptance_threshold=args.acceptance_threshold,
+      consecutive_success_threshold=args.consecutive_success_threshold,
+      host=args.host
     )
     
     # Afficher l'état initial

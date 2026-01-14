@@ -3,7 +3,7 @@
 
 ## Comment lancer mes programmes
 - Pour lancer un seul noeud avec configuration personnalisée:
-  `python snowy.py <node_id> --port <port> --color <BLUE|RED> --crash-prob <prob> --neighbors <port1> <port2> <port3> ... --host <ip> --algorithm <SNOWFLAKE|SNOWBALL>`
+  `python snowy.py <node_id> --port <port> --color <BLUE|RED> --crash-prob <prob> --neighbors <port1> <port2> <port3> ... --host <ip> --algorithm <SNOWFLAKE|SNOWBALL> --sample-size <size> --acceptance-threshold <threshold> --consecutive-success-threshold <count>`
 - Pour lancer un seul noeud avec valeurs par défaut:
   `python snowy.py <node_id>`
 - Pour lancer tous les noeuds ensemble (dans le même processus/terminal):
@@ -23,12 +23,20 @@ Options supplémentaires:
   - `launch_conflict_network.bat [N]`:  Script pour lancer N noeuds avec un conflit initial de couleurs.
   - `launch_crash_network.bat [N] [CRASH_PROB]`: Script pour lancer N noeuds avec simulation de pannes.
   - `launch_snowball_network.bat [N]`: Script pour lancer N noeuds Snowball dans des terminaux séparés.
-
+  - `launch_full_config_network.bat`: Script pour tester une configuration complète avec 10 noeuds (localhost).
 
 &nbsp;  
 - Pour lancer une visualisation en temps réel:
   `python consensus_viz.py`
   On peut choisir l'algorithme, augmenter le nombre de noeuds, régler la vitesse, réinitialiser le réseau, etc.
+
+
+&nbsp;  
+&nbsp;  
+## Notes
+On peut facilement changer les états ou en ajouter en modifiant l'énumération `States` dans `snowy.py`.  
+On peut aussi ajuster les paramètres de l'algorithme (k, alpha, beta) dans la classe `Node` de `snowy.py`.  
+On peut aussi ajouter un nouveau algorithme de consensus en créant une nouvelle classe héritant de `Node` et en implémentant la méthode `consensus_algorithm()`.  
 
 
 &nbsp;  
