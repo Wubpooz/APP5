@@ -4,7 +4,7 @@ import threading
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QGraphicsScene, 
                              QGraphicsView, QGraphicsEllipseItem, QGraphicsLineItem, 
                              QGraphicsTextItem, QVBoxLayout, QWidget, QGraphicsItem)
-from PyQt6.QtCore import QTimer, Qt, QPointF, QRectF, pyqtSignal
+from PyQt6.QtCore import QTimer, Qt, QPointF, QRectF, pyqtSignal, QObject
 from PyQt6.QtGui import QBrush, QPen, QColor, QFont
 
 import snowy as snowy
@@ -118,6 +118,9 @@ class VisualNode(QGraphicsEllipseItem):
 
 from PyQt6.QtWidgets import QPushButton, QHBoxLayout, QLabel, QSpinBox, QCheckBox
 
+class UpdateUISignaler(QObject):
+    update_ui_signal = pyqtSignal()
+
 class MainWindow(QMainWindow):
     query_arrow_signal = pyqtSignal(int, int)
     # For query visualization
@@ -162,6 +165,10 @@ class MainWindow(QMainWindow):
         from PyQt6.QtWidgets import QComboBox, QDoubleSpinBox
         self.algo_combo = QComboBox()
         self.algo_combo.addItems(["Snowflake", "Snowball"])
+        # Create a signaler object for thread-safe UI updates
+        self.ui_signaler = UpdateUISignaler()
+        self.ui_signaler.update_ui_signal.connect(self.update_ui)
+
         self.selected_algorithm = "SNOWFLAKE"
         self.algo_combo.currentIndexChanged.connect(self._on_algo_changed)
 
@@ -236,7 +243,7 @@ class MainWindow(QMainWindow):
         self.visual_nodes = []     # List of VisualNode items
         self.threads = []          # Keep track of threads
         self._step_event = threading.Event()
-        self._step_mode = True
+        self._step_mode = not self.run_checkbox.isChecked()
         self._should_reset = False
         self.allow_initial_color_change = True
         self.edge_items = {}  # (src_idx, dst_idx): QGraphicsLineItem
@@ -296,7 +303,7 @@ class MainWindow(QMainWindow):
         self.allow_initial_color_change = False
         self._step_event.set()
         # Force UI update after step
-        self.update_ui()
+        self.ui_signaler.update_ui_signal.emit()
 
     def toggle_run_mode(self, state):
         self._step_mode = not self.run_checkbox.isChecked()
@@ -439,6 +446,8 @@ class MainWindow(QMainWindow):
                 self._step_event.clear()
             else:
                 threading.Event().wait(self.timing_spin.value() / 1000.0)
+                # Force UI update after each auto step
+                self.ui_signaler.update_ui_signal.emit()
             if self._should_reset:
                 break
             # --- Copy of node.loop() body, but only one iteration per call ---
