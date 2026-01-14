@@ -1,3 +1,24 @@
+# TP5 - Implémentation de l'algorithme Snowflake
+**Mathieu WAHARTE - APP5**
+
+## Comment lancer mes programmes
+- Pour lancer un seul noeud avec configuration personnalisée:
+  `python snowflake.py <node_id> --port <port> --color <BLUE|RED> --crash-prob <prob> --neighbors <port1> <port2> <port3> ...`
+- Pour lancer un seul noeud avec valeurs par défaut:
+  `python snowflake.py <node_id>`
+- Pour lancer tous les noeuds ensemble (dans le même processus/terminal):
+  `python snowflake.py`
+
+&nbsp;  
+
+- Pour lancer des réseaux automatisés, utilisez les scripts batch:
+  - `launch_network.bat [N]`: Script pour lancer N noeuds dans des terminaux séparés.
+  - `launch_conflict_network.bat [N]`:  Script pour lancer N noeuds avec un conflit initial de couleurs.
+  - `launch_crash_network.bat [N] [CRASH_PROB]`: Script pour lancer N noeuds avec simulation de pannes.
+
+
+&nbsp;  
+&nbsp;  
 ## TODO
 - [x] Configuration : chaque nœud reçoit au démarrage son propre port et la liste des ports de tous les autres nœuds du réseau (connaissance statique pour simplifier la découverte).
 - [x] Définir la classe principale de votre nœud et son état interne. Cet état sera accédé par

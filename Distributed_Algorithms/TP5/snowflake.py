@@ -208,7 +208,7 @@ class Network:
 
 """Usage example:
 - Pour lancer un seul noeud avec configuration personnalisée:
-python snowflake.py <node_id> --port <port> --color <BLUE|RED> --neighbors <port1> <port2> <port3> ...
+python snowflake.py <node_id> --port <port> --color <BLUE|RED> --crash-prob <prob> --neighbors <port1> <port2> <port3> ...
 
 - Pour lancer un seul noeud avec valeurs par défaut:
 python snowflake.py <node_id>
