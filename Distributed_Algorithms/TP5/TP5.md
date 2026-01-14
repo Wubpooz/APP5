@@ -38,5 +38,8 @@ comptes des couleurs reçues (ex : `{’R’: 2, ’B’: 1}`).
 ### Bonus
 - [x] Scripts d'automatisation
 - [ ] Visualisation en temps réel
+  - [ ] window with nodes with the states (labels optionals), names as labels, edges as connections and current state/decision + end decision as text.
+  - [ ] later: add nodes button, reset, change color by clicking on nodes, etc.
+
 - [x] Robustesse aux pannes
 - [ ] Snowball
