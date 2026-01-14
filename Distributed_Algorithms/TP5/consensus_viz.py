@@ -91,6 +91,9 @@ class VisualNode(QGraphicsEllipseItem):
         else:
             self.setBrush(QBrush(COLOR_DEFAULT))
 
+
+from PyQt6.QtWidgets import QPushButton, QHBoxLayout, QLabel, QSpinBox, QCheckBox
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -101,9 +104,27 @@ class MainWindow(QMainWindow):
         self.scene = QGraphicsScene()
         self.view = QGraphicsView(self.scene)
         self.view.setRenderHint(self.view.renderHints().Antialiasing)
-        
+
+        # --- Controls ---
+        self.step_button = QPushButton("Step")
+        self.run_checkbox = QCheckBox("Auto-run")
+        self.reset_button = QPushButton("Reset")
+        self.timing_label = QLabel("Step Time (ms):")
+        self.timing_spin = QSpinBox()
+        self.timing_spin.setRange(10, 5000)
+        self.timing_spin.setValue(REFRESH_RATE_MS)
+
+        controls_layout = QHBoxLayout()
+        controls_layout.addWidget(self.step_button)
+        controls_layout.addWidget(self.run_checkbox)
+        controls_layout.addWidget(self.reset_button)
+        controls_layout.addWidget(self.timing_label)
+        controls_layout.addWidget(self.timing_spin)
+        controls_layout.addStretch()
+
         # Central widget layout
         layout = QVBoxLayout()
+        layout.addLayout(controls_layout)
         layout.addWidget(self.view)
         central_widget = QWidget()
         central_widget.setLayout(layout)
@@ -113,13 +134,47 @@ class MainWindow(QMainWindow):
         self.nodes_logic = []      # List of snowflake.Node objects
         self.visual_nodes = []     # List of VisualNode items
         self.threads = []          # Keep track of threads
+        self._step_event = threading.Event()
+        self._step_mode = True
+        self._should_reset = False
 
         self.setup_simulation()
 
         # 3. Start the GUI Update Loop
         self.timer = QTimer()
         self.timer.timeout.connect(self.update_ui)
-        self.timer.start(REFRESH_RATE_MS)
+        self.timer.start(self.timing_spin.value())
+
+        # --- Connect Controls ---
+        self.step_button.clicked.connect(self.step_once)
+        self.run_checkbox.stateChanged.connect(self.toggle_run_mode)
+        self.timing_spin.valueChanged.connect(self.update_timer_interval)
+        self.reset_button.clicked.connect(self.reset_simulation)
+
+    def step_once(self):
+        self._step_event.set()
+
+    def toggle_run_mode(self, state):
+        self._step_mode = not self.run_checkbox.isChecked()
+        if not self._step_mode:
+            self._step_event.set()  # Unblock if waiting
+
+    def update_timer_interval(self, value):
+        self.timer.setInterval(value)
+
+    def reset_simulation(self):
+        self._should_reset = True
+        # Stop all threads and clear scene
+        self.scene.clear()
+        self.nodes_logic.clear()
+        self.visual_nodes.clear()
+        self.threads.clear()
+        self._step_event = threading.Event()
+        self._step_mode = not self.run_checkbox.isChecked()
+        self._should_reset = False
+        self.setup_simulation()
+
+
 
     def setup_simulation(self):
         """Initializes the snowflake network and creates graphic items."""
@@ -170,20 +225,77 @@ class MainWindow(QMainWindow):
             t_listen = threading.Thread(target=node.listener, daemon=True)
             t_listen.start()
             self.threads.append(t_listen)
-            
-            # 2. Loop Thread
-            t_loop = threading.Thread(target=node.loop, daemon=True)
+            t_loop = threading.Thread(target=self.node_loop_stepper, args=(node,), daemon=True)
             t_loop.start()
             self.threads.append(t_loop)
+
+    def node_loop_stepper(self, node):
+        import random
+        loop = 0
+        while True:
+            with node.decided_lock:
+                if node.decided:
+                    break
+            # Step mode: wait for event
+            if self._step_mode:
+                self._step_event.wait()
+                self._step_event.clear()
+            else:
+                # Auto-run: sleep for timing interval
+                threading.Event().wait(self.timing_spin.value() / 1000.0)
+            if self._should_reset:
+                break
+            # --- Copy of node.loop() body, but only one iteration per call ---
+            # Simulation de panne aléatoire
+            if node.crash_prob > 0 and random.random() < node.crash_prob:
+                print(f"[Node {node.id}] PANNE SIMULÉE ! Le processus s'arrête brutalement.")
+                import os
+                os._exit(1)
+            loop += 1
+            print(f"[Node {node.id}] Itération {loop}, état actuel: {node.state.value}, compteur: {node.counter}")
+            state_counts = node.query_peers()
+            if all(count == 0 for count in state_counts.values()):
+                print(f"[Node {node.id}] Aucun voisin ne répond, arrêt du noeud.")
+                if node.server:
+                    node.server.shutdown()
+                break
+            maj = False
+            for state, count in state_counts.items():
+                print(f"[Node {node.id}] État {state}: {count}")
+                if count >= node.acceptance_threshold:
+                    maj = True
+                    if node.state.value == state:
+                        with node.counter_lock:
+                            node.counter += 1
+                    else:
+                        with node.state_lock, node.counter_lock:
+                            node.state = snowflake.States(state)
+                            node.counter = 1
+                    if node.counter >= node.consecutive_success_threshold:
+                        with node.decided_lock:
+                            node.decided = True
+                        print(f"[Node {node.id}] Décidé sur l'état {node.state.value}")
+                        import time
+                        print(f"[Node {node.id}] Grâce : je reste disponible 5s pour les autres...")
+                        time.sleep(5)
+                        if node.server:
+                            node.server.shutdown()
+                        return
+            if not maj:
+                with node.counter_lock:
+                    node.counter = 0
+
+
 
     def update_ui(self):
         """Called periodically by QTimer to refresh node visuals."""
         for v_node in self.visual_nodes:
             v_node.update_label_text()
 
+
+
     def closeEvent(self, event):
-        """Cleanup when closing the window."""
-        # Optional: Shutdown logic if needed
+        self._should_reset = True
         super().closeEvent(event)
 
 if __name__ == "__main__":
