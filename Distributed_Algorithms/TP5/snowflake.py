@@ -43,6 +43,9 @@ class Node:
     self.counter_lock = threading.Lock()
     self.decided_lock = threading.Lock()
     
+    # Server
+    self.server = None
+    
     # Initialize neighbors' ports
     for i in range(NODE_COUNT):
       if i != self.id:
@@ -74,6 +77,9 @@ class Node:
             with self.decided_lock:
               self.decided = True
             print(f"{PURPLE}[Node {self.id}] Décidé sur l'état {self.state.value}{RESET}")
+            # Arrêter le serveur
+            if self.server:
+              self.server.shutdown()
             return
       if not maj:
         with self.counter_lock:
@@ -95,9 +101,11 @@ class Node:
               response = json.dumps({"state": node.state.value, "counter": node.counter})
             self.wfile.write((response + "\n").encode())
     
-    with socketserver.ThreadingTCPServer((self.host, self.port), QueryHandler) as server:
-      print(f"[Node {self.id}] Écoute sur {self.host}:{self.port}")
-      server.serve_forever()
+    self.server = socketserver.ThreadingTCPServer((self.host, self.port), QueryHandler)
+    self.server.allow_reuse_address = True
+    print(f"[Node {self.id}] Écoute sur {self.host}:{self.port}")
+    self.server.serve_forever()
+    print(f"[Node {self.id}] Serveur arrêté")
 
   def query_peers(self) -> dict[str, int]:
     """Interroge un échantillon aléatoire de pairs et retourne le compte des états reçus."""
@@ -153,12 +161,20 @@ class Network:
       thread.join()
 
 
+"""Usage example:
+- Pour lancer un seul noeud (simulation manuelle, un par terminal):
+python snowflake.py <node_id>
+
+- Pour lancer tous les noeuds ensemble (dans le même processus/terminal):
+python snowflake.py
+"""
+
 
 if __name__ == "__main__":
   import sys
   
   if len(sys.argv) > 1:
-    # Mode: lancer un seul nœud (pour simulation manuelle)
+    # Mode: lancer un seul noeud (pour simulation manuelle)
     node_id = int(sys.argv[1])
     node = Node(node_id)
     
@@ -178,7 +194,7 @@ if __name__ == "__main__":
     # Afficher l'état final et terminer
     print(f"{YELLOW}[Node {node.id}] État final: {node.state.value}{RESET}")
   else:
-    # Mode: lancer tous les nœuds ensemble (pour tests automatiques)
-    print(f"{YELLOW}Démarrage du réseau avec {NODE_COUNT} nœuds...{RESET}")
+    # Mode: lancer tous les noeuds ensemble (pour tests automatiques)
+    print(f"{YELLOW}Démarrage du réseau avec {NODE_COUNT} noeuds...{RESET}")
     network = Network(NODE_COUNT)
     network.start()
