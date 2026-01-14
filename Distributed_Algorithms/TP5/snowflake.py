@@ -87,7 +87,10 @@ class Node:
             with self.decided_lock:
               self.decided = True
             print(f"{PURPLE}[Node {self.id}] Décidé sur l'état {self.state.value}{RESET}")
-            # Arrêter le serveur
+            # Grâce : rester disponible pour que les autres noeuds puissent décider
+            import time
+            print(f"{LIGHT_BLUE}[Node {self.id}] Grâce : je reste disponible 5s pour les autres...{RESET}")
+            time.sleep(5)
             if self.server:
               self.server.shutdown()
             return
