@@ -1,5 +1,9 @@
-import {Album, JazzMusician, Music, Musician, RockStar} from '../src/Musician';
+import { Musician } from '../src/Musician';
 import display from '../src/Display';
+import Album from '../src/Album';
+import { Music } from '../src/Utils';
+import { JazzMusician } from '../src/JazzMusician';
+import { RockStar } from '../src/RockStar';
 import SpyInstance = jest.SpyInstance;
 
 
@@ -23,8 +27,8 @@ describe('TP4', () => {
     });
 
     it('Enum Music testing', () => {
-        expect(Music[0]).toBe('JAZZ');
-        expect(Music[1]).toBe('ROCK');
+        expect(Music[Music.JAZZ]).toBe('JAZZ');
+        expect(Music[Music.ROCK]).toBe('ROCK');
     });
 
     it('Musician properties testing', () => {
