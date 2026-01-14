@@ -201,19 +201,37 @@ class SnowFlakeNode(Node):
 
 
 class SnowBallNode(Node):
+  def __init__(self, *args, **kwargs):
+    super().__init__(*args, **kwargs)
+
+    self.d_counts: dict[str, int] = {state.value: 0 for state in States}
+    self.last_state: States = self.state
+
+    self.d_counts_lock = threading.Lock()
+    self.last_state_lock = threading.Lock()
+
+
   def consensus_algorithm(self, state_counts: dict[str, int]) -> None:
     maj = False
     for state, count in state_counts.items():
       print(f"[Node {self.id}] État {state}: {count}")
       if count >= self.acceptance_threshold:
         maj = True
-        if self.state.value == state:
+        with self.d_counts_lock:
+          self.d_counts[state] += 1
+        
+        if self.d_counts[state] > self.d_counts[self.state.value]:
+          with self.state_lock:
+            self.state = States(state)
+            
+        if state != self.last_state.value:
+          self.last_state = States(state)
+          with self.counter_lock:
+            self.counter = 1
+        else:
           with self.counter_lock:
             self.counter += 1
-        else:
-          with self.state_lock, self.counter_lock:
-            self.state = States(state)
-            self.counter = 1
+
         if self.counter >= self.consecutive_success_threshold:
           with self.decided_lock:
             self.decided = True
@@ -227,9 +245,9 @@ class SnowBallNode(Node):
           return
     if not maj:
       with self.counter_lock:
-        self.counter = 0 
+        self.counter = 0
 
-  
+
 
 class Network:
   def __init__(self, node_count: int, NodeClass=SnowFlakeNode):
