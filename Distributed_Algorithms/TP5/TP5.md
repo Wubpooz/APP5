@@ -26,6 +26,12 @@ Options supplémentaires:
 
 
 &nbsp;  
+- Pour lancer une visualisation en temps réel:
+  `python consensus_viz.py`
+  On peut choisir l'algorithme, augmenter le nombre de noeuds, régler la vitesse, réinitialiser le réseau, etc.
+
+
+&nbsp;  
 &nbsp;  
 ## TODO
 - [x] Configuration : chaque nœud reçoit au démarrage son propre port et la liste des ports de tous les autres nœuds du réseau (connaissance statique pour simplifier la découverte).

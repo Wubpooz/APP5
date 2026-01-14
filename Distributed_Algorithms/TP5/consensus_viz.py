@@ -7,8 +7,7 @@ from PyQt6.QtWidgets import (QApplication, QMainWindow, QGraphicsScene,
 from PyQt6.QtCore import QTimer, Qt, QPointF, QRectF, pyqtSignal
 from PyQt6.QtGui import QBrush, QPen, QColor, QFont
 
-# Import your simulation logic
-import Distributed_Algorithms.TP5.snowy as snowy
+import snowy as snowy
 
 # --- Configuration ---
 WINDOW_WIDTH = 800
