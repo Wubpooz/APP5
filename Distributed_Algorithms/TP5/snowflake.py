@@ -6,7 +6,7 @@ import socket
 import socketserver
 import threading
 
-NODE_COUNT = 10
+NODE_COUNT = 6
 
 # ANSI color codes
 RESET = "\033[0m"
@@ -151,3 +151,34 @@ class Network:
 
     for thread in self.threads:
       thread.join()
+
+
+
+if __name__ == "__main__":
+  import sys
+  
+  if len(sys.argv) > 1:
+    # Mode: lancer un seul nœud (pour simulation manuelle)
+    node_id = int(sys.argv[1])
+    node = Node(node_id)
+    
+    # Afficher l'état initial
+    print(f"{YELLOW}[Node {node.id}] État initial: {node.state.value}{RESET}")
+    
+    # Lancer le listener dans un thread
+    listener_thread = threading.Thread(target=node.listener, daemon=True)
+    listener_thread.start()
+    
+    # Attendre un peu que tous les noeuds démarrent
+    threading.Event().wait(2)
+    
+    # Lancer la boucle principale
+    node.loop()
+    
+    # Afficher l'état final et terminer
+    print(f"{YELLOW}[Node {node.id}] État final: {node.state.value}{RESET}")
+  else:
+    # Mode: lancer tous les nœuds ensemble (pour tests automatiques)
+    print(f"{YELLOW}Démarrage du réseau avec {NODE_COUNT} nœuds...{RESET}")
+    network = Network(NODE_COUNT)
+    network.start()
