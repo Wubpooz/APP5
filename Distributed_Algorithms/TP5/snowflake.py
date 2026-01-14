@@ -8,6 +8,7 @@ import threading
 import argparse
 
 NODE_COUNT = 6
+MAX_CONN_RETRIES = 3  # Nombre maximum de tentatives de connexion à un pair
 
 # ANSI color codes
 RESET = "\033[0m"
@@ -27,7 +28,15 @@ class Node:
     self.id = id
     self.host = "127.0.0.1"
     self.port = port if port is not None else 5000 + id
-    self.neighbors_ports: list[int] = neighbor_ports if neighbor_ports is not None else []
+    self.neighbors: dict[int, dict] = {}
+    if neighbor_ports is not None:
+      for port in neighbor_ports:
+        self.neighbors[port] = {"port": port, "broken_link": False}
+    else:
+      for i in range(NODE_COUNT):
+        if i != self.id:
+          neighbor_port = 5000 + i
+          self.neighbors[neighbor_port] = {"port": neighbor_port, "broken_link": False}
     
     # State
     if initial_state:
@@ -53,11 +62,7 @@ class Node:
     # Server
     self.server = None
     
-    # Initialize neighbors' ports (défaut: tous les autres nœuds)
-    if not self.neighbors_ports:
-      for i in range(NODE_COUNT):
-        if i != self.id:
-          self.neighbors_ports.append(5000 + i)
+
 
   def loop(self) -> None:
     """Boucle principale de l'algorithme Snowflake."""
@@ -134,29 +139,44 @@ class Node:
 
   def query_peers(self) -> dict[str, int]:
     """Interroge un échantillon aléatoire de pairs et retourne le compte des états reçus."""
-    peers: list[int] = sample(self.neighbors_ports, k=self.sample_size)
+    peers: list[int] = sample([port for port, info in self.neighbors.items() if not info["broken_link"]], k=self.sample_size)
     responses: list[dict] = []
 
+    if not peers:
+      print(f"{RED}[Node {self.id}] Aucun pair disponible pour l'interrogation.{RESET}")
+      return {state.value: 0 for state in States}
+
     for peer_port in peers:
-      try:
-        with socket.create_connection((self.host, peer_port), timeout=2) as s:
-          s.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
-          s.sendall(b"QUERY\n")
-          s.settimeout(2.0)
-          buffer: bytes = b""
-          while True:
-            data: bytes = s.recv(4096)
-            if not data:
-              break
-            buffer += data
-            if b"\n" in buffer:
-              line, _ = buffer.split(b"\n", 1)
-              msg_str: str = line.decode('utf-8')
-              msg_obj: dict = json.loads(msg_str)
-              responses.append(msg_obj)
-              break
-      except (ConnectionRefusedError, ConnectionResetError, TimeoutError, OSError, Exception) as e:
-        print(f"{ORANGE}[DEBUG] Erreur de connexion au pair {peer_port}: {e}{RESET}")
+      retry = 0
+      while retry < MAX_CONN_RETRIES:
+        try:
+          with socket.create_connection((self.host, peer_port), timeout=2) as s:
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+            s.sendall(b"QUERY\n")
+            s.settimeout(2.0)
+            buffer: bytes = b""
+            while True:
+              data: bytes = s.recv(4096)
+              if not data:
+                break
+              buffer += data
+              if b"\n" in buffer:
+                line, _ = buffer.split(b"\n", 1)
+                msg_str: str = line.decode('utf-8')
+                msg_obj: dict = json.loads(msg_str)
+                responses.append(msg_obj)
+                break
+          break  # Succès, sortir de la boucle de retry
+        except (ConnectionRefusedError, ConnectionResetError, TimeoutError, OSError) as e:
+          retry += 1
+          if retry >= MAX_CONN_RETRIES:
+            print(f"{RED}[Node {self.id}] Abandon connexion au pair {peer_port} après {MAX_CONN_RETRIES} tentatives: {e}{RESET}")
+            self.neighbors[peer_port]["broken_link"] = True
+          else:
+            print(f"{ORANGE}[Node {self.id}] Tentative {retry}/{MAX_CONN_RETRIES} échouée vers pair {peer_port}: {e}{RESET}")
+        except Exception as e:
+          print(f"{ORANGE}[DEBUG] Erreur de connexion au pair {peer_port}: {e}{RESET}")
+          break
 
     state_counts: dict[str, int] = {state.value: 0 for state in States}
     for response in responses:
@@ -222,7 +242,7 @@ if __name__ == "__main__":
     
     # Afficher l'état initial
     print(f"{YELLOW}[Node {node.id}] Port: {node.port}, État initial: {node.state.value}{RESET}")
-    print(f"{YELLOW}[Node {node.id}] Voisins: {node.neighbors_ports}{RESET}")
+    print(f"{YELLOW}[Node {node.id}] Voisins: {list(node.neighbors.keys())}{RESET}")
     
     # Lancer le listener dans un thread
     listener_thread = threading.Thread(target=node.listener, daemon=True)
