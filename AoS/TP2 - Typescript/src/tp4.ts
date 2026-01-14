@@ -1,4 +1,27 @@
-// Utilisez la méthode  log  du fichier  Log.ts  pour afficher un message d’accueil :'Bienvenue dans ma première application TypeScript.'Créez une liste de 2 musiciens (un  JazzMusician  et un  RockStar ).
-// TP 4 : Les Modules
-// Ajoutez 2 albums au  JazzMusician .Affichez la liste des musiciens et la liste des albums ( Display.ts ).Bouclez sur la liste des musiciens et affichez  I’m swinging!  /  I’m shouting!
-// selon leur type.Compilez votre code et exécutez-le dans un environnement node à l'aide de ts-node :vous devez voir le message d’accueil, les deux listes et ce que les musiciens ont à dire.
+import Album from "./Album";
+import { JazzMusician } from "./JazzMusician";
+import log from "./Log";
+import { RockStar } from "./RockStar";
+
+log("Bienvenue dans ma première application TypeScript.");
+
+const musicians = [new JazzMusician("Dude", "Jaa", 23), new RockStar("Mister", "AZa", 12)];
+
+musicians[0].addAlbum(new Album("Rooock"));
+musicians[0].addAlbum(new Album("Jazzzz"));
+
+
+for(const musician of musicians) {
+  console.log(musician.toString());
+  console.log("Albums:");
+  for(const album of musician.albums) {
+    console.log(` - ${album.toString()}`);
+  }
+  if(musician instanceof JazzMusician) {
+    musician.swing();
+  } else if(musician instanceof RockStar) {
+    musician.shout();
+  }
+}
+
+// Run with : npx ts-node src/tp4.ts
