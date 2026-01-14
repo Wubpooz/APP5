@@ -133,18 +133,27 @@ class Node(abc.ABC):
 
   def query_peers(self) -> dict[str, int]:
     """Interroge un échantillon aléatoire de pairs et retourne le compte des états reçus."""
-    # Graceful degradation of the sample size if not enough neighbors are available
-    actual_sample_size = min(self.sample_size, len([port for port, info in self.neighbors.items() if not info["broken_link"]]))
-    
-    peers: list[int] = sample([port for port, info in self.neighbors.items() if not info["broken_link"]], k=actual_sample_size)
-    responses: list[dict] = []
-
-    if not peers:
-      print(f"{RED}[Node {self.id}] Aucun pair disponible pour l'interrogation.{RESET}")
+    # Only consider neighbors that are not broken
+    available_peers = [port for port, info in self.neighbors.items() if not info["broken_link"]]
+    if not available_peers:
+      print(f"{RED}[Node {self.id}] Aucun pair disponible pour l'interrogation. Tous les liens sont cassés.{RESET}")
       return {state.value: 0 for state in States}
+
+    actual_sample_size = min(self.sample_size, len(available_peers))
+    # If sample size is 0, return zeros
+    if actual_sample_size == 0:
+      print(f"{RED}[Node {self.id}] Aucun pair disponible pour l'interrogation (sample size 0).{RESET}")
+      return {state.value: 0 for state in States}
+
+    # Sample only from available peers
+    peers: list[int] = sample(available_peers, k=actual_sample_size)
+    responses: list[dict] = []
 
     for peer_port in peers:
       retry = 0
+      # If a peer is marked as broken, skip it (should not happen, but double check)
+      if self.neighbors[peer_port]["broken_link"]:
+        continue
       while retry < MAX_CONN_RETRIES:
         try:
           with socket.create_connection((self.host, peer_port), timeout=2) as s:
@@ -169,6 +178,8 @@ class Node(abc.ABC):
           if retry >= MAX_CONN_RETRIES:
             print(f"{RED}[Node {self.id}] Abandon connexion au pair {peer_port} après {MAX_CONN_RETRIES} tentatives: {e}{RESET}")
             self.neighbors[peer_port]["broken_link"] = True
+            # Once broken, never retry this peer again in future rounds
+            break
           else:
             print(f"{ORANGE}[Node {self.id}] Tentative {retry}/{MAX_CONN_RETRIES} échouée vers pair {peer_port}: {e}{RESET}")
         except Exception as e:

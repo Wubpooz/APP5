@@ -391,11 +391,21 @@ class MainWindow(QMainWindow):
         except Exception:
             pass
         crash_prob = self.crash_spin.value()
+        sample_size = int(self.sample_spin.value())
+        acceptance_threshold = int(self.accept_spin.value())
+        consecutive_success_threshold = int(self.cons_spin.value())
         for i in range(count):
+            node_args = {
+                "port": 5000 + i,
+                "crash_prob": crash_prob,
+                "sample_size": sample_size,
+                "acceptance_threshold": acceptance_threshold,
+                "consecutive_success_threshold": consecutive_success_threshold
+            }
             if getattr(self, 'selected_algorithm', 'SNOWFLAKE') == 'SNOWFLAKE':
-                node = snowy.SnowFlakeNode(i, port=5000+i, crash_prob=crash_prob)
+                node = snowy.SnowFlakeNode(i, **node_args)
             else:
-                node = snowy.SnowBallNode(i, port=5000+i, crash_prob=crash_prob)
+                node = snowy.SnowBallNode(i, **node_args)
             self.nodes_logic.append(node)
 
         # B. Create Visual Elements (Circle Layout)
