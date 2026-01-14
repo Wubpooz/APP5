@@ -7,7 +7,7 @@ import socketserver
 import threading
 import argparse
 
-NODE_COUNT = 15
+NODE_COUNT = 6
 MAX_CONN_RETRIES = 3  # Nombre maximum de tentatives de connexion à un pair
 
 # ANSI color codes

@@ -140,8 +140,8 @@ class MainWindow(QMainWindow):
 
         self.nodecount_label = QLabel("Node count:")
         self.nodecount_spin = QSpinBox()
-        self.nodecount_spin.setRange(2, 20)
-        self.nodecount_spin.setValue(getattr(snowflake, 'NODE_COUNT', 6))
+        self.nodecount_spin.setRange(2, 40)
+        self.nodecount_spin.setValue(11)
 
         self.timing_label = QLabel("Step Time (ms):")
         self.timing_spin = QSpinBox()
