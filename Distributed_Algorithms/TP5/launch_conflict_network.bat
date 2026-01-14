@@ -32,7 +32,7 @@ for /L %%i in (0,1,%NODE_COUNT%) do (
                 )
             )
         )
-        start "Node %%i" cmd /k "python snowflake.py %%i --color !COLOR! --neighbors!NEIGHBORS!"
+        start "Node %%i" cmd /k "python snowy.py %%i --color !COLOR! --neighbors!NEIGHBORS!"
         timeout /t 1 /nobreak >nul
         endlocal
     )

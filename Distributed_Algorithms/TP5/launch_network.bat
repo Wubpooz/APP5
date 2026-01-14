@@ -24,7 +24,7 @@ for /L %%i in (0,1,%NODE_COUNT%) do (
             if %%j NEQ %%i if %%j LSS %NODE_COUNT% set "NEIGHBORS=!NEIGHBORS! 500%%j"
         )
         REM Lancer le noeud avec la liste complète des voisins
-        start "Node %%i" cmd /k "python snowflake.py %%i --neighbors!NEIGHBORS!"
+        start "Node %%i" cmd /k "python snowy.py %%i --neighbors!NEIGHBORS!"
         timeout /t 1 /nobreak >nul
         endlocal
     )

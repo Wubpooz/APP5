@@ -3,11 +3,11 @@
 
 ## Comment lancer mes programmes
 - Pour lancer un seul noeud avec configuration personnalisée:
-  `python snowflake.py <node_id> --port <port> --color <BLUE|RED> --crash-prob <prob> --neighbors <port1> <port2> <port3> ... --host <ip> --algorithm <SNOWFLAKE|SNOWBALL>`
+  `python snowy.py <node_id> --port <port> --color <BLUE|RED> --crash-prob <prob> --neighbors <port1> <port2> <port3> ... --host <ip> --algorithm <SNOWFLAKE|SNOWBALL>`
 - Pour lancer un seul noeud avec valeurs par défaut:
-  `python snowflake.py <node_id>`
+  `python snowy.py <node_id>`
 - Pour lancer tous les noeuds ensemble (dans le même processus/terminal):
-  `python snowflake.py`
+  `python snowy.py`
 
 Options supplémentaires:
 - `--host <ip>` : Adresse IP du noeud (défaut: 127.0.0.1)

@@ -8,7 +8,7 @@ from PyQt6.QtCore import QTimer, Qt, QPointF, QRectF, pyqtSignal
 from PyQt6.QtGui import QBrush, QPen, QColor, QFont
 
 # Import your simulation logic
-import snowflake
+import Distributed_Algorithms.TP5.snowy as snowy
 
 # --- Configuration ---
 WINDOW_WIDTH = 800
@@ -324,14 +324,14 @@ class MainWindow(QMainWindow):
         count = self._node_count
         # Update global NODE_COUNT for snowflake.py logic if possible
         try:
-            snowflake.NODE_COUNT = count
+            snowy.NODE_COUNT = count
         except Exception:
             pass
         for i in range(count):
             if getattr(self, 'selected_algorithm', 'SNOWFLAKE') == 'SNOWFLAKE':
-                node = snowflake.SnowFlakeNode(i, port=5000+i)
+                node = snowy.SnowFlakeNode(i, port=5000+i)
             else:
-                node = snowflake.SnowBallNode(i, port=5000+i)
+                node = snowy.SnowBallNode(i, port=5000+i)
             self.nodes_logic.append(node)
 
         # B. Create Visual Elements (Circle Layout)
@@ -422,7 +422,7 @@ class MainWindow(QMainWindow):
                             node.counter += 1
                     else:
                         with node.state_lock, node.counter_lock:
-                            node.state = snowflake.States(state)
+                            node.state = snowy.States(state)
                             node.counter = 1
                     if node.counter >= node.consecutive_success_threshold:
                         with node.decided_lock:

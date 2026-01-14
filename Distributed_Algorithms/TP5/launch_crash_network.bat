@@ -25,7 +25,7 @@ for /L %%i in (0,1,%NODE_COUNT%) do (
         for /L %%j in (0,1,%NODE_COUNT%) do (
             if %%j NEQ %%i if %%j LSS %NODE_COUNT% set "NEIGHBORS=!NEIGHBORS! 500%%j"
         )
-        start "Node %%i" cmd /k "python snowflake.py %%i --neighbors!NEIGHBORS! --crash-prob %CRASH_PROB%"
+        start "Node %%i" cmd /k "python snowy.py %%i --neighbors!NEIGHBORS! --crash-prob %CRASH_PROB%"
         timeout /t 1 /nobreak >nul
         endlocal
     )
