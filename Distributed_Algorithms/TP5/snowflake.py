@@ -5,6 +5,7 @@ from enum import Enum
 import socket
 import socketserver
 import threading
+import argparse
 
 NODE_COUNT = 6
 
@@ -21,15 +22,18 @@ class States(Enum):
   RED = "RED"
 
 class Node:
-  def __init__(self, id):
+  def __init__(self, id, port=None, initial_state=None, neighbor_ports=None):
     # Configuration
     self.id = id
     self.host = "127.0.0.1"
-    self.port = 5000 + id
-    self.neighbors_ports: list[int] = []
+    self.port = port if port is not None else 5000 + id
+    self.neighbors_ports: list[int] = neighbor_ports if neighbor_ports is not None else []
     
     # State
-    self.state = choice(list(States))
+    if initial_state:
+      self.state = States[initial_state]
+    else:
+      self.state = choice(list(States))
     self.counter = 1
     self.decided = False
     
@@ -46,11 +50,11 @@ class Node:
     # Server
     self.server = None
     
-    # Initialize neighbors' ports
-    for i in range(NODE_COUNT):
-      if i != self.id:
-        
-        self.neighbors_ports.append(5000 + i)
+    # Initialize neighbors' ports (défaut: tous les autres nœuds)
+    if not self.neighbors_ports:
+      for i in range(NODE_COUNT):
+        if i != self.id:
+          self.neighbors_ports.append(5000 + i)
 
   def loop(self) -> None:
     """Boucle principale de l'algorithme Snowflake."""
@@ -162,7 +166,10 @@ class Network:
 
 
 """Usage example:
-- Pour lancer un seul noeud (simulation manuelle, un par terminal):
+- Pour lancer un seul noeud avec configuration personnalisée:
+python snowflake.py <node_id> --port <port> --color <BLUE|RED> --neighbors <port1> <port2> <port3> ...
+
+- Pour lancer un seul noeud avec valeurs par défaut:
 python snowflake.py <node_id>
 
 - Pour lancer tous les noeuds ensemble (dans le même processus/terminal):
@@ -175,11 +182,24 @@ if __name__ == "__main__":
   
   if len(sys.argv) > 1:
     # Mode: lancer un seul noeud (pour simulation manuelle)
-    node_id = int(sys.argv[1])
-    node = Node(node_id)
+    parser = argparse.ArgumentParser(description='Lancer un noeud Snowflake')
+    parser.add_argument('node_id', type=int, help='ID du noeud')
+    parser.add_argument('--port', type=int, help='Port du noeud (défaut: 5000 + node_id)')
+    parser.add_argument('--color', type=str, choices=['BLUE', 'RED'], help='Couleur initiale (défaut: aléatoire)')
+    parser.add_argument('--neighbors', type=int, nargs='+', help='Liste des ports des voisins (défaut: tous les autres noeuds)')
+    
+    args = parser.parse_args()
+    
+    node = Node(
+      id=args.node_id,
+      port=args.port,
+      initial_state=args.color,
+      neighbor_ports=args.neighbors
+    )
     
     # Afficher l'état initial
-    print(f"{YELLOW}[Node {node.id}] État initial: {node.state.value}{RESET}")
+    print(f"{YELLOW}[Node {node.id}] Port: {node.port}, État initial: {node.state.value}{RESET}")
+    print(f"{YELLOW}[Node {node.id}] Voisins: {node.neighbors_ports}{RESET}")
     
     # Lancer le listener dans un thread
     listener_thread = threading.Thread(target=node.listener, daemon=True)
