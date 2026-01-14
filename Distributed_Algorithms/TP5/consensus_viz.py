@@ -241,7 +241,10 @@ class MainWindow(QMainWindow):
         self.allow_initial_color_change = True
         self.edge_items = {}  # (src_idx, dst_idx): QGraphicsLineItem
         self._node_count = self.nodecount_spin.value()
-        self.nodecount_spin.valueChanged.connect(self._on_nodecount_changed)
+        # Remove auto-update on spin change; only update on validate
+
+        # Connect validate button
+        self.validate_button.clicked.connect(self._on_validate_parameters)
         
         # --- Connect Controls (moved from _on_algo_changed to here) ---
         self.step_button.clicked.connect(self.step_once)
@@ -282,13 +285,18 @@ class MainWindow(QMainWindow):
         self.timer.timeout.connect(self.update_ui)
         self.timer.start(self.timing_spin.value())
 
-    def _on_nodecount_changed(self, value):
-        self._node_count = value
-        self.setup_simulation()
+
+    def _on_validate_parameters(self):
+        # Update all parameters from the UI
+        self._node_count = self.nodecount_spin.value()
+        # (Other params are read directly in setup_simulation)
+        self.reset_simulation()
 
     def step_once(self):
         self.allow_initial_color_change = False
         self._step_event.set()
+        # Force UI update after step
+        self.update_ui()
 
     def toggle_run_mode(self, state):
         self._step_mode = not self.run_checkbox.isChecked()
