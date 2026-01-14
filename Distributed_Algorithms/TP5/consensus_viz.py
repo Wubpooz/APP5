@@ -453,8 +453,10 @@ class MainWindow(QMainWindow):
             # --- Copy of node.loop() body, but only one iteration per call ---
             if node.crash_prob > 0 and random.random() < node.crash_prob:
                 print(f"[Node {node.id}] PANNE SIMULÉE ! Le processus s'arrête brutalement.")
-                import os
-                os._exit(1)
+                node.crashed = True
+                if node.server:
+                    node.server.shutdown()
+                break
             loop += 1
             print(f"[Node {node.id}] Itération {loop}, état actuel: {node.state.value}, compteur: {node.counter}")
             # --- Query visualization ---
