@@ -3,11 +3,18 @@
 
 ## Comment lancer mes programmes
 - Pour lancer un seul noeud avec configuration personnalisée:
-  `python snowflake.py <node_id> --port <port> --color <BLUE|RED> --crash-prob <prob> --neighbors <port1> <port2> <port3> ...`
+  `python snowflake.py <node_id> --port <port> --color <BLUE|RED> --crash-prob <prob> --neighbors <port1> <port2> <port3> ... --host <ip> --algorithm <SNOWFLAKE|SNOWBALL>`
 - Pour lancer un seul noeud avec valeurs par défaut:
   `python snowflake.py <node_id>`
 - Pour lancer tous les noeuds ensemble (dans le même processus/terminal):
   `python snowflake.py`
+
+Options supplémentaires:
+- `--host <ip>` : Adresse IP du noeud (défaut: 127.0.0.1)
+- `--algorithm <SNOWFLAKE|SNOWBALL>` : Algorithme de consensus utilisé par le noeud (défaut: SNOWFLAKE)
+
+- Pour lancer un réseau Snowball automatisé:
+  `launch_snowball_network.bat [N]`: Script pour lancer N noeuds Snowball dans des terminaux séparés.
 
 &nbsp;  
 
@@ -15,6 +22,7 @@
   - `launch_network.bat [N]`: Script pour lancer N noeuds dans des terminaux séparés.
   - `launch_conflict_network.bat [N]`:  Script pour lancer N noeuds avec un conflit initial de couleurs.
   - `launch_crash_network.bat [N] [CRASH_PROB]`: Script pour lancer N noeuds avec simulation de pannes.
+  - `launch_snowball_network.bat [N]`: Script pour lancer N noeuds Snowball dans des terminaux séparés.
 
 
 &nbsp;  
@@ -38,8 +46,7 @@ comptes des couleurs reçues (ex : `{’R’: 2, ’B’: 1}`).
 ### Bonus
 - [x] Scripts d'automatisation
 - [ ] Visualisation en temps réel
-  - [ ] window with nodes with the states (labels optionals), names as labels, edges as connections and current state/decision + end decision as text.
-  - [ ] later: add nodes button, reset, change color by clicking on nodes, etc.
-
+  - [x] window with nodes with the states (labels optionals), names as labels, edges as connections and current state/decision + end decision as text.
+  - [x] later: add nodes button, reset, change color by clicking on nodes, etc.
 - [x] Robustesse aux pannes
-- [ ] Snowball
+- [x] Snowball

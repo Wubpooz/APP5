@@ -214,7 +214,7 @@ class SnowBallNode(Node):
   def consensus_algorithm(self, state_counts: dict[str, int]) -> None:
     maj = False
     for state, count in state_counts.items():
-      print(f"[Node {self.id}] État {state}: {count}")
+      print(f"[Node {self.id}] État {state}: {count} et d_count: {self.d_counts[state]}")
       if count >= self.acceptance_threshold:
         maj = True
         with self.d_counts_lock:
@@ -272,13 +272,20 @@ class Network:
 
 """Usage example:
 - Pour lancer un seul noeud avec configuration personnalisée:
-python snowflake.py <node_id> --port <port> --color <BLUE|RED> --crash-prob <prob> --neighbors <port1> <port2> <port3> ...
+python snowflake.py <node_id> --port <port> --color <BLUE|RED> --crash-prob <prob> --neighbors <port1> <port2> <port3> ... --host <ip> --algorithm <SNOWFLAKE|SNOWBALL>
 
 - Pour lancer un seul noeud avec valeurs par défaut:
 python snowflake.py <node_id>
 
 - Pour lancer tous les noeuds ensemble (dans le même processus/terminal):
 python snowflake.py
+ 
+Options supplémentaires:
+- --host <ip> : Adresse IP du noeud (défaut: 127.0.0.1)
+- --algorithm <SNOWFLAKE|SNOWBALL> : Algorithme de consensus utilisé par le noeud (défaut: SNOWFLAKE)
+ 
+ - Pour lancer un réseau Snowball automatisé:
+ launch_snowball_network.bat [N]: Script pour lancer N noeuds Snowball dans des terminaux séparés.
 """
 if __name__ == "__main__":
   import sys
