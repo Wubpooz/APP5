@@ -22,7 +22,7 @@ class States(Enum):
   RED = "RED"
 
 class Node:
-  def __init__(self, id, port=None, initial_state=None, neighbor_ports=None):
+  def __init__(self, id, port=None, initial_state=None, neighbor_ports=None, crash_prob=0.0):
     # Configuration
     self.id = id
     self.host = "127.0.0.1"
@@ -42,6 +42,9 @@ class Node:
     self.acceptance_threshold = 2 # > sample_size / 2
     self.consecutive_success_threshold = 10
     
+    # Crash simulation probability
+    self.crash_prob = crash_prob
+    
     # Locks
     self.state_lock = threading.Lock()
     self.counter_lock = threading.Lock()
@@ -58,11 +61,17 @@ class Node:
 
   def loop(self) -> None:
     """Boucle principale de l'algorithme Snowflake."""
+    import random
     loop = 0
     while True:
       with self.decided_lock:
         if self.decided:
           break
+      # Simulation de panne aléatoire
+      if self.crash_prob > 0 and random.random() < self.crash_prob:
+        print(f"{RED}[Node {self.id}] PANNE SIMULÉE ! Le processus s'arrête brutalement.{RESET}")
+        import os
+        os._exit(1)
       
       loop += 1
       print(f"{YELLOW}[Node {self.id}] Itération {loop}, état actuel: {self.state.value}, compteur: {self.counter}{RESET}")
@@ -146,7 +155,7 @@ class Node:
               msg_obj: dict = json.loads(msg_str)
               responses.append(msg_obj)
               break
-      except Exception as e:
+      except (ConnectionRefusedError, ConnectionResetError, TimeoutError, OSError, Exception) as e:
         print(f"{ORANGE}[DEBUG] Erreur de connexion au pair {peer_port}: {e}{RESET}")
 
     state_counts: dict[str, int] = {state.value: 0 for state in States}
@@ -199,6 +208,7 @@ if __name__ == "__main__":
     parser.add_argument('--port', type=int, help='Port du noeud (défaut: 5000 + node_id)')
     parser.add_argument('--color', type=str, choices=['BLUE', 'RED'], help='Couleur initiale (défaut: aléatoire)')
     parser.add_argument('--neighbors', type=int, nargs='+', help='Liste des ports des voisins (défaut: tous les autres noeuds)')
+    parser.add_argument('--crash-prob', type=float, default=0.0, help='Probabilité de panne aléatoire à chaque itération (0.0 = jamais, 0.05 = 5%)')
     
     args = parser.parse_args()
     
@@ -206,7 +216,8 @@ if __name__ == "__main__":
       id=args.node_id,
       port=args.port,
       initial_state=args.color,
-      neighbor_ports=args.neighbors
+      neighbor_ports=args.neighbors,
+      crash_prob=args.crash_prob
     )
     
     # Afficher l'état initial
