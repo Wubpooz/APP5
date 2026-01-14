@@ -64,6 +64,12 @@ class Node:
           break
       
       state_counts = self.query_peers()
+      # If all counts are zero, all neighbors are gone
+      if all(count == 0 for count in state_counts.values()):
+        print(f"{RED}[Node {self.id}] Aucun voisin ne répond, arrêt du noeud.{RESET}")
+        if self.server:
+          self.server.shutdown()
+        break
       
       maj = False
       for state, count in state_counts.items():
