@@ -137,6 +137,12 @@ class MainWindow(QMainWindow):
         self.step_button = QPushButton("Step")
         self.run_checkbox = QCheckBox("Auto-run")
         self.reset_button = QPushButton("Reset")
+
+        self.nodecount_label = QLabel("Node count:")
+        self.nodecount_spin = QSpinBox()
+        self.nodecount_spin.setRange(2, 20)
+        self.nodecount_spin.setValue(getattr(snowflake, 'NODE_COUNT', 6))
+
         self.timing_label = QLabel("Step Time (ms):")
         self.timing_spin = QSpinBox()
         self.timing_spin.setRange(10, 5000)
@@ -146,6 +152,8 @@ class MainWindow(QMainWindow):
         controls_layout.addWidget(self.step_button)
         controls_layout.addWidget(self.run_checkbox)
         controls_layout.addWidget(self.reset_button)
+        controls_layout.addWidget(self.nodecount_label)
+        controls_layout.addWidget(self.nodecount_spin)
         controls_layout.addWidget(self.timing_label)
         controls_layout.addWidget(self.timing_spin)
         controls_layout.addStretch()
@@ -171,10 +179,11 @@ class MainWindow(QMainWindow):
         self._should_reset = False
         self.allow_initial_color_change = True
         self.edge_items = {}  # (src_idx, dst_idx): QGraphicsLineItem
+        self._node_count = self.nodecount_spin.value()
+        self.nodecount_spin.valueChanged.connect(self._on_nodecount_changed)
 
         # Connect signal for thread-safe arrow drawing
         self.query_arrow_signal.connect(self._draw_query_arrow)
-        self.setup_simulation()
 
         # 3. Start the GUI Update Loop
         self.timer = QTimer()
@@ -186,6 +195,13 @@ class MainWindow(QMainWindow):
         self.run_checkbox.stateChanged.connect(self.toggle_run_mode)
         self.timing_spin.valueChanged.connect(self.update_timer_interval)
         self.reset_button.clicked.connect(self.reset_simulation)
+
+        # Initial simulation setup
+        self.setup_simulation()
+
+    def _on_nodecount_changed(self, value):
+        self._node_count = value
+        self.setup_simulation()
 
     def step_once(self):
         self.allow_initial_color_change = False
@@ -248,8 +264,34 @@ class MainWindow(QMainWindow):
 
     def setup_simulation(self):
         """Initializes the snowflake network and creates graphic items."""
-        count = snowflake.NODE_COUNT
-        # A. Create Logic Nodes (from your snowflake.py)
+        # Gracefully shutdown all node servers before clearing
+        for node in getattr(self, 'nodes_logic', []):
+            try:
+                if hasattr(node, 'server') and node.server:
+                    node.server.shutdown()
+                    node.server.server_close()
+                    node.server = None
+            except Exception:
+                pass
+        # Wait a bit to ensure sockets are released
+        import time
+        time.sleep(0.5)
+
+        # Clear previous scene and data
+        self.scene.clear()
+        self.nodes_logic.clear()
+        self.visual_nodes.clear()
+        self.threads.clear()
+        self.edge_items.clear()
+        if hasattr(self, 'arrow_items'):
+            self.arrow_items.clear()
+
+        count = self._node_count
+        # Update global NODE_COUNT for snowflake.py logic if possible
+        try:
+            snowflake.NODE_COUNT = count
+        except Exception:
+            pass
         for i in range(count):
             node = snowflake.Node(i, port=5000+i)
             self.nodes_logic.append(node)
