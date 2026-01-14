@@ -48,6 +48,8 @@ class Node(abc.ABC):
         if i != self.id:
           neighbor_port = 5000 + i
           self.neighbors[neighbor_port] = {"port": neighbor_port, "broken_link": False}
+  
+    self.crashed = False
     
     # State
     if initial_state:
@@ -91,8 +93,8 @@ class Node(abc.ABC):
       # Simulation de panne aléatoire
       if self.crash_prob > 0 and random.random() < self.crash_prob:
         print(f"{RED}[Node {self.id}] PANNE SIMULÉE ! Le processus s'arrête brutalement.{RESET}")
-        import os
-        os._exit(1)
+        self.crashed = True
+        break
       
       loop += 1
       print(f"{YELLOW}[Node {self.id}] Itération {loop}, état actuel: {self.state.value}, compteur: {self.counter}{RESET}")
