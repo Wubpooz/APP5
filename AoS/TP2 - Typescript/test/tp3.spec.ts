@@ -21,8 +21,8 @@ describe('TP3', () => {
     });
 
     it('Enum Music testing', () => {
-        expect(Music[0]).toBe('JAZZ');
-        expect(Music[1]).toBe('ROCK');
+        expect(Music[Music.JAZZ]).toBe('JAZZ');
+        expect(Music[Music.ROCK]).toBe('ROCK');
     });
 
     it('Musician properties testing', () => {
