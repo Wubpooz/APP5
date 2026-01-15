@@ -1,0 +1,69 @@
+import { Music } from './Utils';
+import Album from './Album';
+
+interface IMusician {
+  addAlbum(album: Album): void;
+}
+
+export class Musician implements IMusician {
+  private _firstName!: string;
+  private _lastName!: string;
+  private _age!: number;
+  private _style: Music|undefined;
+  private _albums: Album[] = [];
+
+  constructor(firstName: string, lastName: string, age: number, style?: Music) {
+    this._firstName = firstName;
+    this._lastName = lastName;
+    this._age = age;
+    this._style = style;
+  }
+
+  public addAlbum(album: Album): void {
+    this._albums.push(album);
+  }
+
+  public toString(): string {
+    if(this._style) {
+      return `${this.firstName} ${this._lastName} plays ${this._style}`;
+    }
+    return `${this.firstName} ${this._lastName}`;
+  }
+
+  public get firstName() : string {
+    return this._firstName;
+  }
+  public set firstName(name: string) {
+    this._firstName = name;
+  }
+
+  public get lastName() : string {
+    return this._lastName;
+  }
+  public set lastName(name: string) {
+    this._lastName = name;
+  }
+
+  public get age() : number {
+    return this._age;
+  }
+  public set age(age: number) {
+    this._age = age;
+  }
+
+  public get style() : Music|undefined {
+    return this._style;
+  }
+  public set style(style: Music) {
+    this._style = style;
+  }
+
+  public get albums(): Album[] {
+    return this._albums;
+  }
+
+  public set albums(albums: Album[]) {
+    this._albums = albums;
+  }
+}
+

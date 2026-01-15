@@ -11,3 +11,12 @@
 **/venv/
 **/__pycache__/
 *.pyc
+
+
+**/node_modules/
+**/dist/
+**/package-lock.json
+
+**/venv/
+**/__pycache__/
+*.pyc
