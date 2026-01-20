@@ -29,7 +29,7 @@ On peut obtenir la liste des algorithmes supportés par openssl avec la commande
     openssl dgst -blake2b512 modif > modified_hash
     diff original_hash modified_hash
     ```
-    Après avoir exécuté ces commandes, nous constatons que les deux hash sont différents (je les aies exécutés sur un autre fichier car WSL n'as pas /boot/vmlinuz).  
+    Après avoir exécuté ces commandes, nous constatons que les deux hash sont différents (je les ai exécutés sur un autre fichier car WSL n'a pas /boot/vmlinuz).  
     ![Hash comparison](images/q2_hash_comparison.png)
     On peut conclure que même un petit changement dans le fichier source (comme l'ajout d'une ligne) entraîne un changement significatif dans le hash calculé. Cela démontre l'efficacité de la fonction de hachage pour détecter les modifications dans les données.
 
@@ -135,7 +135,7 @@ L'utilisation du salage et d'un nombre d'itérations permettent d'augmenter la s
 &nbsp;  
 &nbsp;  
 ## Partie 4 : Chiffrement asymétrique
-On va chiffrer 2 fichiers avec la clé publique générée à la question précedente avec `openssl rsautl -pubin -inkey public_f.pem -encrypt  -oaep -out secret1` et `openssl rsautl -pubin -inkey public_f.pem -encrypt -oaep -out secret2`:
+On va chiffrer 2 fichiers avec la clé publique générée à la question précédente avec `openssl rsautl -pubin -inkey public_f.pem -encrypt  -oaep -out secret1` et `openssl rsautl -pubin -inkey public_f.pem -encrypt -oaep -out secret2`:
 ![secret1](images/q12_secret1.png)
 ![secret2](images/q12_secret2.png)
 
@@ -173,7 +173,7 @@ On va chiffrer 2 fichiers avec la clé publique générée à la question préce
 On signe le fichier /etc/passwd avec la clé privée générée précédemment avec la commande `openssl dgst -sha256 -out passwd.sig -sign private_f.pem /etc/passwd` :  
 ![passwd sig](images/q14_passwd_sig.png)
 
-On peut vérfier la signature avec la clé publique avec la commande `openssl dgst -sha256 -signature passwd.sig -verify public_f.pem /etc/passwd` :  
+On peut vérifier la signature avec la clé publique avec la commande `openssl dgst -sha256 -signature passwd.sig -verify public_f.pem /etc/passwd` :  
 ![passwd verify](images/q14_passwd_verify.png)
 
 &nbsp;  
