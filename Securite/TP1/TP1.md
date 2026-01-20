@@ -1,4 +1,4 @@
-# TP1
+# TP1 - Sécurité et Confidentialité
 **Mathieu WAHARTE - APP5**
 
 &nbsp;  
@@ -20,19 +20,22 @@ On peut obtenir la liste des algorithmes supportés par openssl avec la commande
 &nbsp;  
 
 
-2) 
-On se propose de vérifier la détection du changement du fichier source, pour cela faire :
-`cp /boot/vmlinuz modif`
-echo 1 >>modif
-Recalculer le hash du fichier modifié et comparer avec le fichier original (à algorithme égal bien évidemment)
-Quelle conclusion sur les deux résultats? **TODO**
+2) Nous allons vérifier la détection du changement du fichier source. Pour cela, nous allons copier le fichier `/boot/vmlinuz` dans un nouveau fichier `modif`, puis ajouter une ligne à la fin de ce fichier. Ensuite, nous allons recalculer le hash du fichier modifié et le comparer avec le hash du fichier original en utilisant le même algorithme.  
+    Voici les commandes utilisées :
+    ```bash
+    cp /boot/vmlinuz modif
+    echo 1>>modif
+    openssl dgst -blake2b512 /boot/vmlinuz > original_hash
+    openssl dgst -blake2b512 modif > modified_hash
+    diff original_hash modified_hash
+    ```
+    Après avoir exécuté ces commandes, nous constatons que les deux hash sont différents (je les aies exécutés sur un autre fichier car WSL n'as pas /boot/vmlinuz).  
+    ![Hash comparison](images/q2_hash_comparison.png)
+    On peut conclure que même un petit changement dans le fichier source (comme l'ajout d'une ligne) entraîne un changement significatif dans le hash calculé. Cela démontre l'efficacité de la fonction de hachage pour détecter les modifications dans les données.
 
 
 &nbsp;  
 
-
-
-&nbsp;  
 
 3) Vérifions les deux représentations hexadécimales.  
     Leur taille est bien de 128 octets :
@@ -135,7 +138,7 @@ On va chiffrer 2 fichiers avec la clé publique générée à la question préce
 &nbsp;  
 
 12) La taille du fichier chiffré est de 128 octets (1024 bits) car la taille du bloc chiffré avec RSA est égale à la taille de la clé RSA. Par contre si le message à chiffrer est plus grand que la taille de la clé, `rsault` ne pourra pas le chiffrer.  
-**TODO image**
+![Taille secret1](images/q12_taille_secret1.png)
 
 &nbsp;  
 
