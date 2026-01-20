@@ -48,9 +48,9 @@ On peut obtenir la liste des algorithmes supportés par openssl avec la commande
 
 &nbsp;  
 
-4) Les deux blocs sont différents mais leur clés md5 sont identiques. Cela signifie qu'il y a eu une collision de la fonction de hachage md5.  
-  ![same hash value](images/q4_hash_collision.png)
-  La valeur de collision est : `79054025255fb1a26e4bc422aef54eb4`.  
+4) Les deux blocs sont différents mais leurs empreintes MD5 sont identiques. Cela signifie qu'il y a eu une collision de la fonction de hachage MD5.  
+    ![same hash value](images/q4_hash_collision.png)
+    La valeur de collision est : `79054025255fb1a26e4bc422aef54eb4`.  
 
 &nbsp;  
 
@@ -141,7 +141,7 @@ On va chiffrer 2 fichiers avec la clé publique générée à la question préce
 
 &nbsp;  
 
-12) La taille du fichier chiffré est de 128 octets (1024 bits) car la taille du bloc chiffré avec RSA est égale à la taille de la clé RSA. Par contre si le message à chiffrer est plus grand que la taille de la clé, `rsault` ne pourra pas le chiffrer.  
+12) La taille du fichier chiffré est de 128 octets (1024 bits) car la taille du bloc chiffré avec RSA est égale à la taille de la clé RSA. Par contre si le message à chiffrer est plus grand que la taille de la clé, `rsautl` ne pourra pas le chiffrer.  
 ![Taille secret1](images/q12_taille_secret1.png)
 
 &nbsp;  
@@ -182,7 +182,7 @@ On peut vérfier la signature avec la clé publique avec la commande `openssl dg
 
 &nbsp;  
 
-16) Si on modifie le fichier /etc/passwd et qu'on vérfie à nouveau la signature, on obtient le message d'erreur suivant :    
+16) Si on modifie le fichier /etc/passwd et qu'on vérifie à nouveau la signature, on obtient le message d'erreur suivant :    
     ![invalid signature](images/q15_invalid_signature.png)
     Le message indique que la signature n'est pas valide pour le fichier modifié. En effet, la signature est calculée à partir du contenu du fichier original, donc si le fichier est modifié, la signature ne correspond plus au nouveau contenu. Cela montre l'intégrité du fichier, car toute modification du fichier entraîne une invalidation de la signature.
 
