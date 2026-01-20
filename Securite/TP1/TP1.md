@@ -9,9 +9,9 @@
 
 1) 
     **TODO**
-    ![alt text](images/image.png)
+    ![alt text](images/q1_blake_time.png)
 
-    ![alt text](images/image-1.png)
+    ![alt text](images/q1_sha3_time.png)
 
     ![alt text](images/image-3.png)
 
@@ -179,23 +179,35 @@ On peut vérfier la signature avec la clé publique avec la commande `openssl dg
          cp public_f.pem destination/   # Clé publique du destinataire pour chiffrer
          cp public_f.pem source/       # Clé publique de l'expéditeur pour vérification de signature
          ```
+
+          Ces commande crée les répertoires `source` et `destination` pour organiser les fichiers de l'expéditeur et du destinataire.  
+          Puis copie la clé publique du destinataire dans le répertoire `destination` (permet à l'expéditeur de chiffrer pour le destinataire).  
+          Et enfin copie la clé publique de l'expéditeur dans `source` (utile pour que le destinataire puisse vérifier les signatures de l'expéditeur).  
       2. L'expéditeur chiffre le fichier avec la clé publique du destinataire : 
          ```bash
          openssl rsautl -encrypt -oaep -pubin -inkey destination/public_f.pem -in source/monfichier.txt -out source/monfichier.txt.enc
          ```
+
+          Cette commande chiffre `monfichier.txt` avec la clé publique du destinataire en utilisant le padding OAEP, et produit `monfichier.txt.enc`.  
       3. L'expéditeur signe le fichier original avec la clé privée de l'expéditeur (garantit son authenticité et son intégrité) : 
          ```bash
          openssl dgst -sha256 -sign source/private_f.pem -out source/monfichier.txt.sig source/monfichier.txt
          ```
+
+          Cette commande calcule le haché SHA-256 du fichier et signe ce haché avec la clé privée de l'expéditeur, écrivant la signature dans `monfichier.txt.sig`.  
       4. On Transfère le fichier chiffré et la signature : 
          ```bash
          cp source/monfichier.txt.enc destination/
          cp source/monfichier.txt.sig destination/
          ```
+
+          Ces commandes transfèrent respectivement le fichier chiffré et la signature vers le répertoire du destinataire.  
       5. Le destinataire déchiffre le fichier avec sa clé privée : 
          ```bash
          openssl rsautl -decrypt -oaep -inkey destination/private_f.pem -in destination/monfichier.txt.enc -out destination/monfichier.txt
          ```
+
+          Cette commande utilise la clé privée du destinataire pour déchiffrer `monfichier.txt.enc` et restaurer le fichier original.  
 
 
 
@@ -209,13 +221,19 @@ puis vérifier cette signature sont les suivantes :
         openssl dgst -sha256 -sign source/private_f.pem -out source/monfichier.txt.sig source/monfichier.txt
         ```
 
+      Cette commande calcule le digest SHA-256 de `monfichier.txt` et signe ce digest avec la clé privée `source/private_f.pem`, produisant la signature `monfichier.txt.sig`.  
+
      2. On transférer la signature et la clé publique de l'expéditeur :
         ```bash
         cp source/monfichier.txt.sig destination/
         cp source/public_f.pem destination/
         ```
+
+         Ces commandes transfèrent la signature et la clé publique de l'expéditeur vers le destinataire afin que celui-ci puisse vérifier la signature.  
      3. Le destinaire vérifier la signature avec la clé publique de l'expéditeur :
         ```bash
         openssl dgst -sha256 -verify destination/public_f.pem -signature destination/monfichier.txt.sig destination/monfichier.txt
         ```
          La signature est valide si la commande retourne "Verified OK". Cela signifie que le fichier n'a pas été modifié depuis qu'il a été signé par l'expéditeur, garantissant ainsi son intégrité et son authenticité.
+
+         Cette commande vérifie la signature en recalculant le haché SHA-256 du fichier reçu et en utilisant la clé publique fournie pour valider que la signature provient bien de la clé privée associée.  
