@@ -81,7 +81,7 @@ On peut obtenir la liste des algorithmes de chiffrement symétrique supportés p
 
 &nbsp;  
 
-1) Comme on s'en doutait, en utilisant `-nosalt` on obtient la même valeur de salt et key à chaque exécution de la commande avec le même mot de passe (ici `password123`) :  
+7) Comme on s'en doutait, en utilisant `-nosalt` on obtient la même valeur de salt et key à chaque exécution de la commande avec le même mot de passe (ici `password123`) :  
   ![nosalt](images/q7_nosalt.png)
 
 &nbsp;  
