@@ -54,16 +54,20 @@ On peut obtenir la liste des algorithmes supportés par openssl avec la commande
 
 &nbsp;  
 
-5) La concatenation des deux fichiers donne le même résultat que la concaténation dans l'autre ordre.  
-    On peut le démontrer avec la commande suivante :  
-    - `cat binary_hash1 binary_hash2 | md5sum` et `cat binary_hash2 binary_hash2 | md5sum` sont identiques :   
-      ![same hash](images/q5_hash_12_22.png)
-
-    - Et inversement : `cat binary_hash2 binary_hash1 | md5sum` et `cat binary_hash1 binary_hash1 | md5sum` sont identiques :  
-      ![same hash](images/q5_hash_21_11.png)
+5) On constate que l'on peut générer de nouvelles collisions en concaténant un même suffixe aux deux blocs collisionnaires :  
+    - Commande 1 : `cat binary_hash1 binary_hash1 | md5sum`
+    - Commande 2 : `cat binary_hash2 binary_hash1 | md5sum`
+    ![same hash](images/q5_hash_21_11.png)
+    &nbsp;  
+    En changeant le suffixe :  
+    - Commande 1 : `cat binary_hash1 binary_hash2 | md5sum`
+    - Commande 2 : `cat binary_hash2 binary_hash2 | md5sum`
+    ![same hash](images/q5_hash_12_22.png)
 
     &nbsp;  
-    On peut le prouver mathématiquement en utilisant les propriétés de l'opération XOR utilisée dans le calcul des fonctions de hachage : $H(M_1 || M_2) = H(M_1) \oplus H(M_2)$ (avec $||$ la concatenation et $\oplus$ l'opération XOR). Cela implique que seulement l'élément final importe et pas l'ordre des messages intermédiaires (mais ils doivent tous avoir le même hash).
+    Les résultats des 2 commandes sont identiques par suffixe. On a donc bien généré de nouvelles collisions en ajoutant un suffixe commun aux deux blocs initiaux.    
+    &nbsp;  
+    En cherchant, on trouve que MD5 est une fonction itérative qui maintient un état interne mis à jour bloc par bloc. Si deux blocs distincts (ici `binary_hash1` et `binary_hash2`) laissent l'algorithme dans le même état interne après leur traitement (c'est la collision observée), alors tout suffixe commun ajouté ensuite sera traité à partir du même état et produira le même haché final. Ce comportement n'est pas dû à une propriété commutative (l'ordre des blocs compte en général), mais au fait que l'état interne est identique avant le traitement du suffixe.
 
 
 &nbsp;  
@@ -119,7 +123,7 @@ L'utilisation du salage et d'un nombre d'itérations permettent d'augmenter la s
 
 &nbsp;  
 
-11)   Les nombres premiers sont de taille 512 bits car la taille de la clé RSA est de 1024 bits et que la clé RSA est le produit de deux nombres premiers de taille égale.  
+11) Les nombres premiers sont de taille 512 bits car la taille de la clé RSA est de 1024 bits et que la clé RSA est le produit de deux nombres premiers de taille égale.  
   On chiffre la clé avec DES3 en utilisant la commande `openssl rsa -in private_f.pem -des3 -out private_f_des3.pem`:
   ![private key des3](images/q11_private_key_des3.png)   
   &nbsp;  
@@ -191,69 +195,74 @@ On peut vérfier la signature avec la clé publique avec la commande `openssl dg
 &nbsp;  
 &nbsp;  
 ## Partie 6 : Echange de fichiers chiffrés et signés
-18) Supposons que le fichier à transférer est `monfichier.txt` depuis `source/` vers `destination/`. Voici les commandes utilisées pour préparer le fichier à envoyer et pour le recevoir :  
-      1. Préparation des répertoires et des clés :
-         ```bash
-         mkdir source destination
-         # Copier les clés publiques nécessaires dans chaque répertoire
-         cp public_f.pem destination/   # Clé publique du destinataire pour chiffrer
-         cp public_f.pem source/       # Clé publique de l'expéditeur pour vérification de signature
-         ```
+18) Supposons que le fichier à transférer est `monfichier.txt` depuis `source/` vers `destination/`. Voici les commandes utilisées pour préparer le fichier à envoyer et pour le recevoir, en créant une paire de clés propre au destinataire (séparation claire des identités) :  
+    1. Préparation des répertoires et génération (si nécessaire) des clés du destinataire :
+        ```bash
+        mkdir -p source destination
+        # Générer une paire de clés pour le destinataire (destination)
+        openssl genrsa -out destination/private_dest.pem 1024
+        openssl rsa -in destination/private_dest.pem -pubout -out destination/public_dest.pem
 
-          Ces commande crée les répertoires `source` et `destination` pour organiser les fichiers de l'expéditeur et du destinataire.  
-          Puis copie la clé publique du destinataire dans le répertoire `destination` (permet à l'expéditeur de chiffrer pour le destinataire).  
-          Et enfin copie la clé publique de l'expéditeur dans `source` (utile pour que le destinataire puisse vérifier les signatures de l'expéditeur).  
-      2. L'expéditeur chiffre le fichier avec la clé publique du destinataire : 
-         ```bash
-         openssl rsautl -encrypt -oaep -pubin -inkey destination/public_f.pem -in source/monfichier.txt -out source/monfichier.txt.enc
-         ```
+        # Copier la clé publique du destinataire dans le répertoire de l'expéditeur
+        cp destination/public_dest.pem source/
 
-          Cette commande chiffre `monfichier.txt` avec la clé publique du destinataire en utilisant le padding OAEP, et produit `monfichier.txt.enc`.  
-      3. L'expéditeur signe le fichier original avec la clé privée de l'expéditeur (garantit son authenticité et son intégrité) : 
-         ```bash
-         openssl dgst -sha256 -sign source/private_f.pem -out source/monfichier.txt.sig source/monfichier.txt
-         ```
+        # Copier la clé publique de l'expéditeur (générée précédemment : public_f.pem)
+        # dans le répertoire du destinataire pour vérification des signatures
+        cp public_f.pem destination/
+        ```
+       Ces commandes créent les répertoires `source` et `destination`, génèrent une paire de clés propre au destinataire (`private_dest.pem` / `public_dest.pem`), puis distribuent les clés publiques nécessaires : la clé publique du destinataire est copiée dans `source/` pour permettre à l'expéditeur de chiffrer pour le destinataire, et la clé publique de l'expéditeur (`public_f.pem`) est copiée dans `destination/` pour permettre la vérification des signatures.  
+       &nbsp;  
+    2. L'expéditeur chiffre le fichier avec la clé publique du destinataire (précédemment copiée dans `source/`) : 
+        ```bash
+        openssl rsautl -encrypt -oaep -pubin -inkey source/public_dest.pem -in source/monfichier.txt -out source/monfichier.txt.enc
+        ```
 
-          Cette commande calcule le haché SHA-256 du fichier et signe ce haché avec la clé privée de l'expéditeur, écrivant la signature dans `monfichier.txt.sig`.  
-      4. On Transfère le fichier chiffré et la signature : 
-         ```bash
-         cp source/monfichier.txt.enc destination/
-         cp source/monfichier.txt.sig destination/
-         ```
-
-          Ces commandes transfèrent respectivement le fichier chiffré et la signature vers le répertoire du destinataire.  
-      5. Le destinataire déchiffre le fichier avec sa clé privée : 
-         ```bash
-         openssl rsautl -decrypt -oaep -inkey destination/private_f.pem -in destination/monfichier.txt.enc -out destination/monfichier.txt
-         ```
-
-          Cette commande utilise la clé privée du destinataire pour déchiffrer `monfichier.txt.enc` et restaurer le fichier original.  
-
-
-
-&nbsp;  
-&nbsp;  
-
-19) Les commandes utilisées pour signer le fichier, envoyer la signature
-puis vérifier cette signature sont les suivantes :
-     1. L'expéditeur signe le fichier avec sa clé privée :
+       Cette commande chiffre `monfichier.txt` avec la clé publique du destinataire en utilisant le padding OAEP, et produit `monfichier.txt.enc`.  
+       &nbsp;  
+    3. L'expéditeur signe le fichier original avec sa clé privée (garantit son authenticité et son intégrité) : 
         ```bash
         openssl dgst -sha256 -sign source/private_f.pem -out source/monfichier.txt.sig source/monfichier.txt
         ```
 
-      Cette commande calcule le digest SHA-256 de `monfichier.txt` et signe ce digest avec la clé privée `source/private_f.pem`, produisant la signature `monfichier.txt.sig`.  
+       Cette commande calcule le haché SHA-256 du fichier et signe ce haché avec la clé privée de l'expéditeur, écrivant la signature dans `monfichier.txt.sig`.  
+       &nbsp;  
+    4. On transfère le fichier chiffré et la signature : 
+        ```bash
+        cp source/monfichier.txt.enc destination/
+        cp source/monfichier.txt.sig destination/
+        ```
 
-     2. On transférer la signature et la clé publique de l'expéditeur :
+       Ces commandes transfèrent respectivement le fichier chiffré et la signature vers le répertoire du destinataire.
+       &nbsp;  
+    5. Le destinataire déchiffre le fichier avec sa clé privée : 
+        ```bash
+        openssl rsautl -decrypt -oaep -inkey destination/private_dest.pem -in destination/monfichier.txt.enc -out destination/monfichier.txt
+        ```
+
+       Cette commande utilise la clé privée du destinataire (`private_dest.pem`) pour déchiffrer `monfichier.txt.enc` et restaurer le fichier original.
+
+
+&nbsp;  
+&nbsp;  
+
+19) Les commandes utilisées pour signer le fichier, envoyer la signature puis vérifier cette signature sont les suivantes :
+    1. L'expéditeur signe le fichier avec sa clé privée :
+        ```bash
+        openssl dgst -sha256 -sign source/private_f.pem -out source/monfichier.txt.sig source/monfichier.txt
+        ```
+        Cette commande calcule le digest SHA-256 de `monfichier.txt` et signe ce digest avec la clé privée `source/private_f.pem`, produisant la signature `monfichier.txt.sig`.
+    &nbsp;  
+    2. On transfère la signature et la clé publique de l'expéditeur vers le destinataire :
         ```bash
         cp source/monfichier.txt.sig destination/
         cp source/public_f.pem destination/
         ```
-
-         Ces commandes transfèrent la signature et la clé publique de l'expéditeur vers le destinataire afin que celui-ci puisse vérifier la signature.  
-     3. Le destinaire vérifier la signature avec la clé publique de l'expéditeur :
+        Ces commandes transfèrent la signature et la clé publique de l'expéditeur vers le destinataire afin que celui-ci puisse vérifier la signature.  
+    &nbsp;  
+    3. Le destinataire vérifie la signature avec la clé publique de l'expéditeur :
         ```bash
         openssl dgst -sha256 -verify destination/public_f.pem -signature destination/monfichier.txt.sig destination/monfichier.txt
         ```
-         La signature est valide si la commande retourne "Verified OK". Cela signifie que le fichier n'a pas été modifié depuis qu'il a été signé par l'expéditeur, garantissant ainsi son intégrité et son authenticité.
+        La signature est valide si la commande retourne "Verified OK". Cela signifie que le fichier n'a pas été modifié depuis qu'il a été signé par l'expéditeur, garantissant ainsi son intégrité et son authenticité.
 
-         Cette commande vérifie la signature en recalculant le haché SHA-256 du fichier reçu et en utilisant la clé publique fournie pour valider que la signature provient bien de la clé privée associée.  
+        Cette commande vérifie la signature en recalculant le haché SHA-256 du fichier reçu et en utilisant la clé publique fournie pour valider que la signature provient bien de la clé privée associée.
