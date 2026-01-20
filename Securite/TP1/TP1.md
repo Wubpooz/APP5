@@ -3,45 +3,61 @@
 
 &nbsp;  
 ## Partie 1 : Algorithmes de hachage
-![alt text](images/image-8.png)
+On peut obtenir la liste des algorithmes supportés par openssl avec la commande `openssl dgst -list` :
+![Algorithmes supportés](images/q0_algo_openssl.png)
 
 &nbsp;  
 
-1) 
-    **TODO**
-    ![alt text](images/q1_blake_time.png)
+1) On va comparer les temps de calcul des fonctions de hachage blake2b512 et SHA3-256 sur le fichier `/boot/vmlinuz` en utilisant la commande `time openssl dgst [-blake2b512 | -sha3-256] /boot/vmlinuz` :
+    Le temps pour blake2b512 est :  
+    ![Time of blake](images/q1_blake_time.png)
 
-    ![alt text](images/q1_sha3_time.png)
+    Le temps pour sha3-256 est :
+    ![Time of sha3](images/q1_sha3_time.png)
 
-    ![alt text](images/image-3.png)
+    Le plus rapide est blake2b512 avec un temps de 0.043s contre 0.107s pour sha3-256. L'ordre de grandeur est de la dizaine de millisecondes pour blake2b512 et de la centaine de millisecondes pour sha3-256.
 
 &nbsp;  
+
 
 2) 
-    ![alt text](images/image-4.png) 
-    ![alt text](images/image-2.png)
-    **TODO**
+On se propose de vérifier la détection du changement du fichier source, pour cela faire :
+`cp /boot/vmlinuz modif`
+echo 1 >>modif
+Recalculer le hash du fichier modifié et comparer avec le fichier original (à algorithme égal bien évidemment)
+Quelle conclusion sur les deux résultats? **TODO**
+
 
 &nbsp;  
 
-3) La première différence apparait à l'octet 20.
-**TODO**
+
+
+&nbsp;  
+
+3) Vérifions les deux représentations hexadécimales.  
+    Leur taille est bien de 128 octets :
+    ![Hash size](images/q3_hash_size.png)
+
+    Et les deux représentations sont bien différentes :  
+    ![Result of cmp](images/q3_cmp_hash.png) 
+    Le range de la première différence est 20.
+
 
 &nbsp;  
 
 4) Les deux blocs sont différents mais leur clés md5 sont identiques. Cela signifie qu'il y a eu une collision de la fonction de hachage md5.  
+  ![same hash value](images/q4_hash_collision.png)
   La valeur de collision est : `79054025255fb1a26e4bc422aef54eb4`.  
-  ![alt text](images/image-5.png)
 
 &nbsp;  
 
 5) La concatenation des deux fichiers donne le même résultat que la concaténation dans l'autre ordre.  
     On peut le démontrer avec la commande suivante :  
     - `cat binary_hash1 binary_hash2 | md5sum` et `cat binary_hash2 binary_hash2 | md5sum` sont identiques :   
-      ![alt text](images/image-6.png)
+      ![same hash](images/q5_hash_12_22.png)
 
     - Et inversement : `cat binary_hash2 binary_hash1 | md5sum` et `cat binary_hash1 binary_hash1 | md5sum` sont identiques :  
-      ![alt text](images/image-7.png)
+      ![same hash](images/q5_hash_21_11.png)
 
     &nbsp;  
     On peut le prouver mathématiquement en utilisant les propriétés de l'opération XOR utilisée dans le calcul des fonctions de hachage : $H(M_1 || M_2) = H(M_1) \oplus H(M_2)$ (avec $||$ la concatenation et $\oplus$ l'opération XOR). Cela implique que seulement l'élément final importe et pas l'ordre des messages intermédiaires (mais ils doivent tous avoir le même hash).
@@ -50,34 +66,35 @@
 &nbsp;  
 &nbsp;  
 ## Partie 2 : Chiffrement symétrique
-![alt text](images/image-9.png)
-**TODO**
+On peut obtenir la liste des algorithmes de chiffrement symétrique supportés par openssl avec la commande `openssl enc -list` :
+![liste algo sym](images/part2_algo_syms.png)
+
 
 &nbsp;  
 
 6) En faisant `openssl enc –aes-256-cbc –salt -iter 10 -p  –in /etc/passwd –out passwd.c` pour `password123` on obtient successivement :  
-  ![alt text](images/image-10.png)
+  ![salt1](images/q6_aes_salt_1.png)
   et
-  ![alt text](images/image-11.png)
+  ![salt2](images/q6_aes_salt_2.png)
   &nbsp;  
   On remarque que les valeurs de salt et key sont différentes. En effet, la valeur de salt est générée aléatoirement à chaque exécution de la commande. La clé est dérivée du mot de passe et du salt, donc elle change aussi.
 
 &nbsp;  
 
-7) Comme on s'en doutait, en utilisant `-nosalt` on obtient la même valeur de salt et key à chaque exécution de la commande avec le même mot de passe (ici `password123`) :  
-  ![alt text](images/image-12.png)
+1) Comme on s'en doutait, en utilisant `-nosalt` on obtient la même valeur de salt et key à chaque exécution de la commande avec le même mot de passe (ici `password123`) :  
+  ![nosalt](images/q7_nosalt.png)
 
 &nbsp;  
 
 8) On utilise `openssl enc -des-ecb -nosalt -provider legacy -provider default -iter 10 -p -in f1 -out f1.c` pour chiffrer le fichier f1 avec le mot de passe `mdp` et de même pour f2 :  
-    ![alt text](image.png)
-    ![alt text](image-1.png)
+    ![alt text](images/q8_f1_key.png)
+    ![alt text](images/q8_f2_key.png)
     On obtient la même clé pour les deux.  
 
     &nbsp;  
     Maintenant comparons les fichiers chiffrés en hexadécimal :
-    ![alt text](Capture%20d’écran%202026-01-15%20163420.png)
-    ![alt text](Capture%20d'écran%202026-01-15%20163107.png)
+    ![alt text](images/q8_f1_hex.png)
+    ![alt text](images/q8_f2_hex.png)
 
     On remarque une permutation des blocs entre les deux fichiers chiffrés (les blocs en roses, vert et bleus sont identiques). En effet, le mode ECB chiffre chaque bloc indépendamment, donc si deux blocs en clair sont identiques, ils seront chiffrés de la même manière. Comme les fichiers f1 et f2 contiennent les mêmes blocs mais dans un ordre différent, les blocs chiffrés apparaissent dans un ordre différent dans les fichiers chiffrés.
     Cela peut révéler des motifs dans les données chiffrées, ce qui est une faiblesse de ce mode de chiffrement.  
@@ -93,16 +110,16 @@ L'utilisation du salage et d'un nombre d'itérations permettent d'augmenter la s
 &nbsp;  
 ## Partie 3 : Génération de clé RSA
 10) On peut générer une paire de clé RSA avec la commande `openssl genrsa -out private_f.pem 1024` puis extraire la clé publique avec `openssl rsa -in private_f.pem -pubout -out public_f.pem` avant de l'afficher (avec `openssl rsa -in private_f.pem -text -noout`) :
-  ![alt text](image-2.png)
+  ![private key](images/q10_private_key.png)
   &nbsp;  
   On peut aussi afficher la clé publique avec `openssl rsa -in public_f.pem -pubin -text -noout` :
-  ![alt text](image-3.png)
+  ![public key](images/q10_public_key.png)
 
 &nbsp;  
 
-11)  Les nombres premiers sont de taille 512 bits car la taille de la clé RSA est de 1024 bits et que la clé RSA est le produit de deux nombres premiers de taille égale.  
+11)   Les nombres premiers sont de taille 512 bits car la taille de la clé RSA est de 1024 bits et que la clé RSA est le produit de deux nombres premiers de taille égale.  
   On chiffre la clé avec DES3 en utilisant la commande `openssl rsa -in private_f.pem -des3 -out private_f_des3.pem`:
-  ![alt text](image-4.png)  
+  ![private key des3](images/q11_private_key_des3.png)   
   &nbsp;  
   On a déjà séparé la clé publique dans le fichier `public_f.pem` à la question précédente.    
   &nbsp;  
@@ -113,29 +130,30 @@ L'utilisation du salage et d'un nombre d'itérations permettent d'augmenter la s
 &nbsp;  
 ## Partie 4 : Chiffrement asymétrique
 On va chiffrer 2 fichiers avec la clé publique générée à la question précedente avec `openssl rsautl –pubin -inkey public_f.pem –encrypt  -oaep –out secret1` et `openssl rsautl –pubin -inkey public_f.pem –encrypt -oaep –out secret2`:
-![alt text](image-5.png)
-![alt text](image-6.png)
+![secret1](images/q12_secret1.png)
+![secret2](images/q12_secret2.png)
 
 &nbsp;  
 
-12)  La taille du fichier chiffré est de 128 octets (1024 bits) car la taille du bloc chiffré avec RSA est égale à la taille de la clé RSA. Par contre si le message à chiffrer est plus grand que la taille de la clé, `rsault` ne pourra pas le chiffrer.  
+12) La taille du fichier chiffré est de 128 octets (1024 bits) car la taille du bloc chiffré avec RSA est égale à la taille de la clé RSA. Par contre si le message à chiffrer est plus grand que la taille de la clé, `rsault` ne pourra pas le chiffrer.  
+**TODO image**
 
 &nbsp;  
 
 13) Les fichiers sont différents car le chiffrement RSA avec OAEP utilise un padding aléatoire, ce qui signifie que même si le même message est chiffré plusieurs fois avec la même clé publique, les résultats seront différents à chaque fois. Cela améliore la sécurité du chiffrement en empêchant les attaques par analyse de fréquence ou par comparaison de messages chiffrés.   
     On vérifie que les fichiers chiffrés sont différents avec `cmp secret1 secret2`:  
-    ![alt text](image-7.png)
+    ![secret1 vs secret2](images/q13_cmp_secret1_secret2.png)
 
     &nbsp;  
     De plus, en observant leur contenu en hexadécimal, on peut voir que les octets sont différents et qu'il n'y a pas de motifs alors que le message d'origine est similaire:  
-    ![alt text](image-8.png)
-    ![alt text](image-9.png)
+    ![secret1 hex](images/q13_secret1_hex.png)
+    ![secret2 hex](images/q13_secret2_hex.png)
 
     &nbsp;  
     On vérifie le déchiffrement avec `openssl rsautl -inkey private_f.pem -decrypt -oaep -in secret1`:  
-    ![alt text](image-10.png)
+    ![secret1 decrypted](images/q13_secret1_decrypted.png)
     Et pour le second fichier :
-    ![alt text](image-11.png)
+    ![secret2 decrypted](images/q13_secret2_decrypted.png)
 
 &nbsp;  
 
@@ -147,10 +165,10 @@ On va chiffrer 2 fichiers avec la clé publique générée à la question préce
 &nbsp;  
 ## Partie 5 : Signature
 On signe le fichier /etc/passwd avec la clé privée générée précédemment avec la commande `openssl dgst -sha256 -out passwd.sig -sign private_f.pem /etc/passwd` :  
-![alt text](image-12.png)
+![passwd sig](images/q14_passwd_sig.png)
 
 On peut vérfier la signature avec la clé publique avec la commande `openssl dgst -sha256 -signature passwd.sig -verify public_f.pem /etc/passwd` :  
-![alt text](image-13.png)
+![passwd verify](images/q14_passwd_verify.png)
 
 &nbsp;  
 
@@ -159,7 +177,7 @@ On peut vérfier la signature avec la clé publique avec la commande `openssl dg
 &nbsp;  
 
 16) Si on modifie le fichier /etc/passwd et qu'on vérfie à nouveau la signature, on obtient le message d'erreur suivant :    
-    ![alt text](image-15.png)
+    ![invalid signature](images/q15_invalid_signature.png)
     Le message indique que la signature n'est pas valide pour le fichier modifié. En effet, la signature est calculée à partir du contenu du fichier original, donc si le fichier est modifié, la signature ne correspond plus au nouveau contenu. Cela montre l'intégrité du fichier, car toute modification du fichier entraîne une invalidation de la signature.
 
 &nbsp;  
