@@ -40,7 +40,7 @@ Quelle conclusion sur les deux résultats? **TODO**
 
     Et les deux représentations sont bien différentes :  
     ![Result of cmp](images/q3_cmp_hash.png) 
-    Le range de la première différence est 20.
+    Le rang de la première différence est 20.
 
 
 &nbsp;  
@@ -72,7 +72,7 @@ On peut obtenir la liste des algorithmes de chiffrement symétrique supportés p
 
 &nbsp;  
 
-6) En faisant `openssl enc –aes-256-cbc –salt -iter 10 -p  –in /etc/passwd –out passwd.c` pour `password123` on obtient successivement :  
+6) En faisant `openssl enc -aes-256-cbc -salt -iter 10 -p  -in /etc/passwd -out passwd.c` pour `password123` on obtient successivement :  
   ![salt1](images/q6_aes_salt_1.png)
   et
   ![salt2](images/q6_aes_salt_2.png)
@@ -87,14 +87,14 @@ On peut obtenir la liste des algorithmes de chiffrement symétrique supportés p
 &nbsp;  
 
 8) On utilise `openssl enc -des-ecb -nosalt -provider legacy -provider default -iter 10 -p -in f1 -out f1.c` pour chiffrer le fichier f1 avec le mot de passe `mdp` et de même pour f2 :  
-    ![alt text](images/q8_f1_key.png)
-    ![alt text](images/q8_f2_key.png)
+    ![f1 key](images/q8_f1_key.png)
+    ![f2 key](images/q8_f2_key.png)
     On obtient la même clé pour les deux.  
 
     &nbsp;  
     Maintenant comparons les fichiers chiffrés en hexadécimal :
-    ![alt text](images/q8_f1_hex.png)
-    ![alt text](images/q8_f2_hex.png)
+    ![f1 hex](images/q8_f1_hex.png)
+    ![f2 hex](images/q8_f2_hex.png)
 
     On remarque une permutation des blocs entre les deux fichiers chiffrés (les blocs en roses, vert et bleus sont identiques). En effet, le mode ECB chiffre chaque bloc indépendamment, donc si deux blocs en clair sont identiques, ils seront chiffrés de la même manière. Comme les fichiers f1 et f2 contiennent les mêmes blocs mais dans un ordre différent, les blocs chiffrés apparaissent dans un ordre différent dans les fichiers chiffrés.
     Cela peut révéler des motifs dans les données chiffrées, ce qui est une faiblesse de ce mode de chiffrement.  
@@ -103,7 +103,6 @@ On peut obtenir la liste des algorithmes de chiffrement symétrique supportés p
 
 9) Une explication pour le choix des options de chiffrement est la sécurité. Le mode ECB n'est pas recommandé pour chiffrer des données sensibles car il ne fournit pas une sécurité suffisante contre certaines attaques. Il existe d'autres modes de chiffrement plus sûrs, comme le mode CBC (Cipher Block Chaining) ou GCM (Galois/Counter Mode), qui introduisent de l'aléatoire et de la dépendance entre les blocs pour renforcer la sécurité.  
 L'utilisation du salage et d'un nombre d'itérations permettent d'augmenter la sécurité du chiffrement en rendant plus difficile les attaques par force brute ou par dictionnaire. Le salage ajoute une valeur aléatoire au mot de passe avant le dériver la clé de chiffrement, ce qui empêche l'utilisation de tables arc-en-ciel pour casser les mots de passe. Le nombre d'itérations augmente le temps nécessaire pour dériver la clé à partir du mot de passe, ce qui rend les attaques par force brute plus coûteuses en termes de temps et de ressources.  
-**TODO**
 
 
 &nbsp;  
@@ -129,7 +128,7 @@ L'utilisation du salage et d'un nombre d'itérations permettent d'augmenter la s
 &nbsp;  
 &nbsp;  
 ## Partie 4 : Chiffrement asymétrique
-On va chiffrer 2 fichiers avec la clé publique générée à la question précedente avec `openssl rsautl –pubin -inkey public_f.pem –encrypt  -oaep –out secret1` et `openssl rsautl –pubin -inkey public_f.pem –encrypt -oaep –out secret2`:
+On va chiffrer 2 fichiers avec la clé publique générée à la question précedente avec `openssl rsautl -pubin -inkey public_f.pem -encrypt  -oaep -out secret1` et `openssl rsautl -pubin -inkey public_f.pem -encrypt -oaep -out secret2`:
 ![secret1](images/q12_secret1.png)
 ![secret2](images/q12_secret2.png)
 
