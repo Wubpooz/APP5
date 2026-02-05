@@ -10,7 +10,7 @@ include_once "session.php";
 <?php
   if (isset($_GET['message'])) {
     $fp = fopen("./messages.txt", "a");
-    fwrite($fp, "{$_GET['message']}<br/>");
+    fwrite($fp, htmlentities("{$_GET['message']}<br/>"));
     fclose($fp);
   }
   readfile("./messages.txt");
