@@ -20,3 +20,5 @@
 **/venv/
 **/__pycache__/
 *.pyc
+# Snyk Security Extension - AI Rules (auto-generated)
+.github/instructions/snyk_rules.instructions.md

@@ -1,0 +1,10 @@
+<html>
+  <title>Welcome!</title>
+  Hi
+  <script>
+    const pos = document.URL.indexOf("name=") + 5;
+    document.write(decodeURIComponent(document.URL.substring(pos, document.URL.length)));
+  </script>
+  <br />
+  Welcome to our system ...
+</html>
