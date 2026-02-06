@@ -119,7 +119,7 @@ Ce mot de passe fonctionne bien (avec la commande `su - mock2`):
 
 
 &nbsp; 
- 
+
 14) On va comparer les deux empreintes des mots de passe des deux utilisateurs créés. 
   L'empreinte du mot de passe de `mock1` est la suivante: `$y$j9T$XjqWXlFKO0Ad9bkhNqd3n0$PVJPFytpbEDhBkn28XVPPtttVI3xuFJhmKUvixhCaR5`.
   Et l'empreinte du mot de passe de `mock2` est la suivante: `$1$LW3HcSWk$ISBdqLWym/VEKAqlyAOG51`.
@@ -148,79 +148,54 @@ Cela montre que les mots de passe qui ne sont pas dans les dictionnaires peuvent
 &nbsp;  
 
 
-17) 
+On mets à jour la configuration de john avec un nouveau mode de recherche sur 2 caractères (en corrigeant les typos):  
+![alt text](image-21.png)
 
-
-
-18)  
-
-
-19) 
-
-
-
-
-
-
+17) On lance La recherche avec la configuration pour 2 caractères avec `john --format=crypt -incremental=essai /etc/shadow` (typo dans l'énoncé):  
+![alt text](image-22.png)
+On observe que `wd` est maintenant trouvé en 1 minute. Le temps de recherche est plus long que pour les mots de passe dans le dictionnaire, voyons ce que cela donne pour 4 caractères.    
+&nbsp;  
+En mettant à nouveau à jour la configuration de john pour 4 caractères (remplacer 2 par 4 dans la configuration de essai), on relance la recherche:  
+![alt text](image-23.png)  
+J'ai stoppé la recherche après 2 heures d'attente, elle n'avait pas encore trouvé le mot de passe. 
+La configuration est bien:  
+![alt text](image-24.png)
+Ainsi, on observe que la recherche prend beaucoup plus de temps pour un mot de passe de 4 caractères, et il est possible que le mot de passe ne soit pas retrouvé du tout dans un temps raisonnable (croissance exponentielle). Cela montre que les mots de passe plus longs sont généralement plus difficiles à deviner pour les attaquants, même avec des fonctions de hash robustes, ce qui souligne l'importance d'utiliser des mots de passe longs et complexes pour renforcer la sécurité des comptes utilisateurs.
 
 
 &nbsp;  
 &nbsp;  
+## Exercice 4 - Comptes et droits Unix
+
+Vérifions que lorsqu'on change le mot de passe d'un utilisateur non privilégié, le fichier `/etc/shadow` est bien modifié:  
+![alt text](image-25.png)
 &nbsp;  
+
+18) Les droits pour le fichier `/etc/shadow` sont `-rw-r-----` avec le propriétaire `root` et le groupe `shadow`. Cela signifie que seul l'utilisateur root a les droits de lecture et d'écriture sur ce fichier, tandis que les membres du groupe shadow ont uniquement les droits de lecture, et les autres utilisateurs n'ont aucun droit.
+![alt text](image-26.png)
+
+Les droits pour le programme `passwd` sont `-rwsr-xr-x` avec le propriétaire `root` et le groupe `root`. Cela signifie que le programme `passwd` a les droits de lecture, d'écriture et d'exécution pour le propriétaire root, les droits de lecture et d'exécution pour les membres du groupe root, et les droits de lecture et d'exécution pour les autres utilisateurs. 
+![alt text](image-27.png)
+De plus, le bit setuid est activé (indiqué par le `s` dans les droits), ce qui signifie que lorsque le programme `passwd` est exécuté par un utilisateur non privilégié, il s'exécute avec les privilèges de l'utilisateur root. C'est pourquoi le fichier `/etc/shadow` a été modifié par mon compte non privilégié lorsque j'ai changé le mot de passe depuis `mock2`, car le programme `passwd` a les droits nécessaires pour modifier ce fichier grâce au bit setuid, même si l'utilisateur qui exécute le programme n'a pas les droits directs sur le fichier `/etc/shadow`. On peut trouver ces détails dans la page de manuel de `chmod`:  
+![alt text](image-28.png)
+
+
 &nbsp;  
-&nbsp;  
-&nbsp;  
-&nbsp;  
-&nbsp;  
-#### 3.3.2 Essai brute force
-Pour vérifier que la recherche fonctionne, on configure john pour faire une recherche sur 2 caractères seulement.
-Pour cela il faut définir dans le fichier `/etc/john/john.conf` les paramètres de recherche :
-```conf
-[incremental :essai]
-File= /usr/share/john/ascii.chr
-MinLen=2
-MaxLen=2
-```
-Lancer la recherche avec la commande suivante :
-`# john –format=crypt –i :essai /etc/shadow`
 
-**Question 17: Quelle est la durée de la recherche ?**
-On passe à un mot de passe de 4 caractères avec un fichier de configuration aussi limité à exactement 4 caractères
-Est-ce que la recherche fonctionne encore rapidement ?
+On écrit et compile le programme `shell_prop.c` sous root:  
+![alt text](image-29.png)
 
-Pour les étudiants curieux vous pouvez reprendre le même mot de passe et le coder en hash DES traditionnel, puis
-relancer john avec le même paramétrage. On constate que la recherche avec le DES est plus rapide qu’avec le hash
-sha512.
+Ensuite on défini le propriété comme root avec `chown root:root /tmp/shell_prop`:  
+![alt text](image-30.png)
 
-En conclusion avec un hash sha512 est un mot de passe suffisamment long et hors dictionnaire le programme
-risque de prendre un temps prohibitif.
+On ajoute ensuite le bit setuid et les droits d'exécution pour les utilisateurs avec `chmod u+s,a+x /tmp/shell_prop`:  
+![alt text](image-32.png)
+On a bien `-rwsr-xr-x 1 root root ... /tmp/shell_prop` comme droits, ce qui confirme que le bit setuid est activé et que le programme est exécutable par tous les utilisateurs.  
+
+19) En lançant le programme qui démarre en shell, on peut vérifier que l'uid du shell lancé est bien celui de root (0) avec la commande `id` dans le shell:  
+![alt text](image-33.png)
+De plus, si on crée un fichier depuis ce shell, le propriétaire du fichier sera root, car le shell s'exécute avec les privilèges de root grâce au bit setuid:  
+![alt text](image-34.png)
+J'en conclut que les programmes setuid sont utiles car ils permettent à des utilisateurs non privilégiés d'exécuter des programmes avec les privilèges d'un autre utilisateur (souvent root), ce qui est nécessaire pour certaines tâches d'administration de sa machine. Cependant, ils peuvent aussi être dangereux s'ils sont mal configurés ou s'ils contiennent des vulnérabilités, car ils peuvent permettre à un attaquant d'obtenir des privilèges élevés et de compromettre la sécurité du système. On parlerait d'escalade de privilèges, ce qui peut transformer une faille "mineure" sur un compte utilisateur courant en une faille critique donnant accès à tout le système.  
 
 
-## 4 Comptes et droits Unix
-### 4.1 Programmes setuid
-Se connecter sous un utilisateur crée à la question 1 ou 2, changer son mot de passe.
-Vérifier que le fichier /etc/shadow a été modifié
-
-**Question 18: Quels sont les droits du fichier /etc/shadow et du programme passwd utilisé ? Comment expliquez-vous que le fichier /etc/shadow a été modifié par votre compte non privilégié?**
-
-
-### 4.2 Exemple de shell setuid
-Le but est de montrer la possibilité de lancer un shell ayant les droits de root depuis un compte normal si une erreur
-de droit est introduite.
-Ecrire et compiler le programme suivant sous root :
-```c
-#include <stdio.h>
-#include <sys/types.h>
-#include <unistd.h>:
-void main(void)
-{
-/* pour forcer l’uid reel effectif et sauvé à root */
-setreuid(0,0);
-/* lancer le shell */
-execl(“/bin/bash”,”bash”,0,NULL);
-}
-```
-Placer le programme dans /tmp et ajouter le droit setuid et exécution pour les utilisateurs
-Lancer le programme depuis un compte normal.
-
-**Question 19: Quel est l’uid du shell lancé depuis le programme setuid. Quel est le propriétaire d’un fichier crée depuis ce shell. Que pouvez-vous en conclure sur les programmes setuid ?**
