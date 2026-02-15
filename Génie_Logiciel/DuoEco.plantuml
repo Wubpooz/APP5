@@ -1,0 +1,189 @@
+@startuml DuoEco
+title DuoEco
+left to right direction
+
+' Reorganiser ordre rendu
+
+actor User
+actor GroupAdmin <<Créateur du groupe>>
+actor Admin
+User <|-- GroupAdmin
+
+
+
+package "Admin Panel" {
+  usecase "Gérer les utilisateurs" as UC5
+  usecase "Gérer les groupes" as UC6
+  usecase "Modérer les contenus et comportements inappropriés" as UC38
+  usecase "Visualisation des KPI" as UC39
+}
+Admin --> UC5
+Admin --> UC6
+Admin --> UC38
+Admin --> UC39
+
+
+package "Inscription et Profil" {
+  usecase "Créer un compte" as UC1
+  usecase "Verifier l'email" as UC2
+  usecase "Completer le Profil" as UC3
+  usecase "Formulaire Empreinte Carbone" as UC4
+  note right of UC4
+    SKIPABLE
+    Formulaire régulier pour suivre l'évolution de l'empreinte carbone de l'utilisateur
+    (ex: tous les 3 mois)
+  end note
+  usecase "Age Verification" as AgeVerification
+  usecase "Génération d'objectifs long termes" as UC19
+}
+User --> UC4
+UC4 <.. UC1 : <<include>>
+' Ordre de créer/formulaire à voir avec Viveris
+UC1 ..> UC2 : <<requires>>
+UC1 ..> UC3 : <<include>>
+UC1 ..> AgeVerification : <<requires>>
+UC4 ..> UC19 : <<include>>
+
+
+package "Avancement Personnel" {
+  usecase "Voir son avancement carbone" as UC17
+  note right of UC17
+    Histogramme basé sur les données du formulaire d'empreinte carbone régulier et les défis complétés
+    (ex: réduction de 20% de son empreinte carbone par rapport à la moyenne nationale)
+  end note
+  usecase "Voir son historique de formulaires et défis" as UC18
+  usecase "Formulaire de suivi (régulier)" as UC41
+  note right of UC41
+    Global et par catégories
+  end note
+  usecase "Défis personnalisés mensuels/annuels" as UC20
+  note right of UC20
+    Points obtenus en complétant les défis, qui contribuent à la ligue de l'utilisateur
+    (ex: 10 points pour un défi facile, 20 points pour un défi moyen, 30 points pour un défi difficile)
+  end note
+  usecase "Objectifs long termes" as UC21
+  note top of UC21
+    Basés sur des objectifs généraux, pas personnalisés
+    Badges
+  end note
+  usecase "Ligue" as UC22
+  note top of UC22
+    Classement, basé sur les points obtenus en complétant les défis
+    (ex: Bronze, Argent, Or, Platine, Diamant)
+  end note
+  usecase "Conseils personnalisés" as UC35
+  note right of UC35
+    auto-générés
+  end note
+  usecase "Voir ses badges" as UC25
+  usecase "Voir ses statistiques détaillées" as UC40
+  usecase "Voir sa ligue" as UC26
+}
+User --> UC17
+User --> UC18
+User --> UC20
+User --> UC21
+UC20 ..> UC22 : <<include>>
+User --> UC25
+User --> UC40
+User --> UC26
+User --> UC35
+User --> UC41
+
+
+package "Eco Challenges" {
+  note right of "Eco Challenges"
+    Défis personels à durée limitée
+    (exemple pas de viande pendant une semaine)
+  end note
+  usecase "Participer à des Challenges" as UC7
+  usecase "Suivre son avancement" as UC8
+}
+User --> UC7
+User --> UC8
+
+
+
+' Communauté = soit clash of clan, soit regroupement par type d'empreinte carbone (genre les étrangers qui reviennent chez eux en avions souvent)
+package "Groupe" {
+  usecase "Rejoindre Groupe(s)" as UC9
+  usecase "Créer Groupe" as UC10
+  usecase "Participer à des défis communs" as UC11
+  usecase "Regarder avancement Défis commun" as UC12
+  usecase "Envoie d'un message prédéfinis à la communauté/user suggéré" as UC13
+  usecase "Report de comportement inapproprié" as UC31
+  usecase "Gérer les membres du groupe (admin de groupe)" as UC32
+  usecase "Supprimer le groupe (admin de groupe)" as UC33
+  usecase "Inviter des amis à rejoindre le groupe (admin de groupe)" as UC34
+  note right of UC34
+    (ex: envoyer un message prédéfini à tous les membres du groupe, 
+    ou à un membre suggéré par l'application en fonction de son avancement)
+  end note
+  usecase "Conseils personnalisés pour le groupe" as UC36
+  note right of UC36
+    auto-générés, convertible en défis
+  end note
+  usecase "Interagir avec les membres" as UC42
+}
+User --> UC9
+User --> UC10
+User --> UC11
+User --> UC12
+UC12 ..> UC11 : <<include>>
+User --> UC13
+User --> UC31
+GroupAdmin --> UC32
+GroupAdmin --> UC33
+GroupAdmin --> UC34
+User --> UC36
+User --> UC42
+
+UC42 ..> UC9 : <<include>>
+UC12 ..> UC9 : <<include>>
+UC36 ..> UC9 : <<include>>
+UC31 ..> UC9 : <<include>>
+
+package "Amis" {
+  usecase "Ajouter un ami" as UC14
+  note right of UC14
+    Recherche par nom d'utilisateurs
+    Suggestions basés sur les amis et avancemment
+    Invitation par lien/QR code
+  end note
+  usecase "Supprimer un ami" as UC15
+  usecase "Voir la liste d'amis" as UC16
+  usecase "Défis proposés avec les amis" as UC37
+  note right of UC37
+    Proposés par l'application
+  end note
+}
+User --> UC14
+User --> UC15
+User --> UC16
+User --> UC37
+
+
+package "Notifications" {
+  usecase "Recevoir notifications" as UC23
+}
+User --> UC23
+' Quelles notifications envoyer? fréquence?
+
+package "Gestion de compte" {
+  usecase "Gérer préférences notifications" as UC24
+  usecase "Gérer paramètres de compte" as UC27
+  usecase "Accessibilité" as UC30
+  note right of UC30
+    Options d'accessibilité pour améliorer l'expérience utilisateur
+    (ex: taille de police ajustable, thème sombre, contraste élevé)
+  end note
+  usecase "Demander ses données personnelles (RGPD)" as UC28
+  usecase "Supprimer son compte" as UC29
+}
+User --> UC24
+User --> UC27
+User --> UC28
+User --> UC29
+User --> UC30
+
+@enduml
