@@ -37,17 +37,13 @@
 
 
 ### TidyTuesday datasets
-https://github.com/rfordatascience/tidytuesday/tree/main/data/2018/2018-04-16
-https://github.com/rfordatascience/tidytuesday/tree/main/data/2018/2018-10-02
-https://github.com/rfordatascience/tidytuesday/tree/main/data/2018/2018-10-16
-https://github.com/rfordatascience/tidytuesday/tree/main/data/2019/2019-01-08
-https://github.com/rfordatascience/tidytuesday/tree/main/data/2019/2019-04-16
-https://github.com/rfordatascience/tidytuesday/tree/main/data/2019/2019-11-26
-https://github.com/rfordatascience/tidytuesday/blob/main/data/2020/2020-05-05/readme.md
-https://github.com/rfordatascience/tidytuesday/blob/main/data/2021/2021-02-23/readme.md
-https://github.com/rfordatascience/tidytuesday/blob/main/data/2022/2022-02-22/readme.md
-https://github.com/rfordatascience/tidytuesday/blob/main/data/2022/2022-03-08/readme.md
-https://github.com/rfordatascience/tidytuesday/tree/main/data/2022/2022-07-19
+[Global Mortality, 2018](https://github.com/rfordatascience/tidytuesday/tree/main/data/2018/2018-04-16)
+[Economic Guide to Picking a College Major](https://github.com/rfordatascience/tidytuesday/tree/main/data/2018/2018-10-16)
+[TV's golden age is real](https://github.com/rfordatascience/tidytuesday/tree/main/data/2019/2019-01-08)
+[Student Loan Payments](https://github.com/rfordatascience/tidytuesday/tree/main/data/2019/2019-11-26)
+[Employed Status](https://github.com/rfordatascience/tidytuesday/blob/main/data/2021/2021-02-23/readme.md)
+[EU Student mobility](https://github.com/rfordatascience/tidytuesday/blob/main/data/2022/2022-03-08/readme.md)
+[Technology Adoption](https://github.com/rfordatascience/tidytuesday/tree/main/data/2022/2022-07-19)
 
 ### Time-use and attention datasets
 [OECD Time-use Data](https://data-explorer.oecd.org/vis?df[ds]=DisseminateFinalDMZ&df[id]=DSD_TIME_USE%40DF_TIME_USE&df[ag]=OECD.WISE.INE&dq=.._T&to[TIME]=false) ❤️  
@@ -142,6 +138,7 @@ https://github.com/rfordatascience/tidytuesday/tree/main/data/2022/2022-07-19
 - sports
 - education
 - AI chat isolationism
+- Animal Crossing - New Horizons => living in a virtual world, social interactions, time use, etc.
 
 
 
