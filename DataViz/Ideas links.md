@@ -1,7 +1,7 @@
 # Ideas
 
 ## Datasets
-[Data on Boredom](https://data.mendeley.com/datasets/8ttn5wswky/1) ❤️
+[Data on Boredom - Saudi students in EFL](https://data.mendeley.com/datasets/8ttn5wswky/1)
 
 ### Statistical and social data portals
 [Human Development Report 2025](https://hdr.undp.org/content/human-development-report-2025)
@@ -141,17 +141,15 @@
 - Animal Crossing - New Horizons => living in a virtual world, social interactions, time use, etc.
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+## TODO
+[A Short Boredom Proneness Scale: Development and Psychometric Properties](https://journals.sagepub.com/doi/10.1177/1073191115609996)
+[Psychometric properties of an arabic translation of the short boredom proneness scale (SBPS) in adults](https://link-springer-com.ezproxy.universite-paris-saclay.fr/article/10.1186/s40359-024-02219-1)
+[A Trait-Based Network Perspective on the Validation of the French Short Boredom Proneness Scale](https://econtent.hogrefe.com/doi/10.1027/1015-5759/a000718)
+[Validation of the Japanese version of boredom proneness scale and derivation of its short version among older adults: a cross-sectional study](https://link-springer-com.ezproxy.universite-paris-saclay.fr/article/10.1186/s12955-026-02490-3)
+[Psychometric properties of an arabic translation of the short boredom proneness scale (SBPS) in adults](https://pmc.ncbi.nlm.nih.gov/articles/PMC11773892/)
+[Using Smartphone App Use and Lagged-Ensemble Machine Learning for the Prediction of Work Fatigue and Boredom](https://pmc.ncbi.nlm.nih.gov/articles/PMC8589273/)
+[Fatigue, boredom and objectively measured smartphone use at work](https://pmc.ncbi.nlm.nih.gov/articles/PMC8261226/)
+[Using smartphone app use and lagged-ensemble machine learning for the prediction of work fatigue and boredom](https://www-sciencedirect-com.ezproxy.universite-paris-saclay.fr/science/article/pii/S0747563221003526)
+[The Brief Social Media Fatigue Scale (BSMFS): A New Short Version Through Exploratory Structural Equation Modeling and Associations with Trait Anxiety, Fear of Missing Out, Boredom Proneness, and Problematic Use](https://www.tandfonline.com/doi/full/10.1080/10447318.2024.2430921)
+[A Short Boredom Proneness Scale: Development and Psychometric Properties](https://sci-hub.fr/10.1177/1073191115609996)
 
