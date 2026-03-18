@@ -1,0 +1,2 @@
+# Assignement 3
+For this **group** assignment, it is your task to implement the basic layout of your visualization in Observable. This can follow what you proposed on your last sketch or, if you have gotten new inspiration or useful feedback on your sketch, you can also choose another representation.
