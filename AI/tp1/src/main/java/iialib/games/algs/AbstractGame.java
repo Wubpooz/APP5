@@ -30,9 +30,9 @@ public  abstract class AbstractGame<Move extends IMove, Role extends IRole, Boar
 			System.out.println(currentBoard);
 			
 			while(!currentBoard.isGameOver()) {
-				System.out.println("Next player is  :" + currentPlayer);
+				System.out.println("Next player is : " + currentPlayer);
 				Move nextMove = currentPlayer.bestMove(currentBoard);
-				System.out.println("Best Move is :" + nextMove);
+				System.out.println("Best Move is : " + nextMove);
 				currentBoard = currentPlayer.playMove(currentBoard, nextMove);
 				System.out.println("The board is :");
 				System.out.println(currentBoard);
