@@ -16,7 +16,7 @@ public  abstract class AbstractGame<Move extends IMove, Role extends IRole, Boar
 		
 
 		// Constructor
-		public AbstractGame(ArrayList<AIPlayer<Move,Role,Board>> players,Board initialBoard){
+		protected AbstractGame(ArrayList<AIPlayer<Move,Role,Board>> players,Board initialBoard){
 			this.currentBoard = initialBoard;
 			this.players = players;
 		}
@@ -42,15 +42,13 @@ public  abstract class AbstractGame<Move extends IMove, Role extends IRole, Boar
 			
 			System.out.println("Game over !");
 			ArrayList<Score<Role>> scores = currentBoard.getScores();
-			for(AIPlayer<Move,Role,Board> p: players)
-				for(Score<Role> s : scores)
-					if(p.getRole() == s.getRole())
+			for(AIPlayer<Move,Role,Board> p: players) {
+				for(Score<Role> s : scores) {
+					if(p.getRole() == s.getRole()) {
 						System.out.println("" + p + " score is : " + s.getStatus() + " " + s.getScore());
-				;
-		
+          }
+        }
+      }
+
 		}
-		
-	
-
-
 }

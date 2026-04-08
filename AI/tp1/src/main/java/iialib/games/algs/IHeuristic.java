@@ -1,9 +1,7 @@
 package iialib.games.algs;
 
 import iialib.games.model.IBoard;
-import iialib.games.model.IMove;
 import iialib.games.model.IRole;
-import iialib.games.model.Player;
 
 @FunctionalInterface
 public interface IHeuristic<Board extends IBoard<?,Role, Board>,Role extends IRole> {
@@ -12,6 +10,5 @@ public interface IHeuristic<Board extends IBoard<?,Role, Board>,Role extends IRo
 	public static int MAX_VALUE = java.lang.Integer.MAX_VALUE;
 		
 	int eval(Board board,Role role);
-
 }
  

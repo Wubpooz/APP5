@@ -1,7 +1,6 @@
 package games.dominos;
 
 import iialib.games.model.IBoard;
-import iialib.games.model.Player;
 import iialib.games.model.Score;
 
 import java.util.ArrayList;
@@ -12,11 +11,11 @@ public class DominosBoard implements IBoard<DominosMove, DominosRole, DominosBoa
 
 	// --------- Class Attribute ---------
 
-	public static int GRID_SIZE = DEFAULT_GRID_SIZE;
+	private static int GRID_SIZE = DEFAULT_GRID_SIZE;
 
 	private enum SQUARE {
 		EMPTY, VERTICAL, HORIZONTAL
-	};
+	}
 
 	// ---------------------- Attributes ---------------------
 
@@ -46,11 +45,11 @@ public class DominosBoard implements IBoard<DominosMove, DominosRole, DominosBoa
 
 	// ------------------- Getters / Setters -------------------
 
-	protected int retGridSize(int n) {
+	protected int retGridSize() {
 		return GRID_SIZE;
 	}
 
-	protected void setGridSize(int n) {
+	protected static void setGridSize(int n) {
 		GRID_SIZE = n;
 	}
 
@@ -128,7 +127,7 @@ public class DominosBoard implements IBoard<DominosMove, DominosRole, DominosBoa
 	}
 
 	public String toString() {
-		StringBuilder retstr = new StringBuilder(new String(""));
+		StringBuilder retstr = new StringBuilder("");
 		for (int i = 0; i < GRID_SIZE; i++) {
 			for (int j = 0; j < GRID_SIZE; j++)
 				if (boardGrid[i][j] == SQUARE.EMPTY)
@@ -166,19 +165,16 @@ public class DominosBoard implements IBoard<DominosMove, DominosRole, DominosBoa
 
 	@Override
 	public ArrayList<Score<DominosRole>> getScores() {
-		ArrayList<Score<DominosRole>> scores = new ArrayList<Score<DominosRole>>();
+		ArrayList<Score<DominosRole>> scores = new ArrayList<>();
 		if(this.isGameOver()) {
 			if (nbHorizontalMoves() == 0) {
-				scores.add(new Score<DominosRole>(DominosRole.HORIZONTAL,Score.Status.LOOSE,0));
-				scores.add(new Score<DominosRole>(DominosRole.VERTICAL,Score.Status.WIN,1));
+				scores.add(new Score<>(DominosRole.HORIZONTAL,Score.Status.LOOSE,0));
+				scores.add(new Score<>(DominosRole.VERTICAL,Score.Status.WIN,1));
 			}
 			else {
-				scores.add(new Score<DominosRole>(DominosRole.HORIZONTAL,Score.Status.WIN,1));
-				scores.add(new Score<DominosRole>(DominosRole.VERTICAL,Score.Status.LOOSE,0));
+				scores.add(new Score<>(DominosRole.HORIZONTAL,Score.Status.WIN,1));
+				scores.add(new Score<>(DominosRole.VERTICAL,Score.Status.LOOSE,0));
 			}			
-		}
-		else {
-			
 		}
 		return scores;
 	}

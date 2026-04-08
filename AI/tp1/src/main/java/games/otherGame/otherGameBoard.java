@@ -1,7 +1,6 @@
 package games.otherGame;
 
 import iialib.games.model.IBoard;
-import iialib.games.model.Player;
 import iialib.games.model.Score;
 
 import java.util.ArrayList;
