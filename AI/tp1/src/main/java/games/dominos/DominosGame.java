@@ -10,8 +10,82 @@ import iialib.games.algs.algorithms.AlphaBeta;
 
 public class DominosGame extends AbstractGame<DominosMove, DominosRole, DominosBoard> {
 
-	DominosGame(ArrayList<AIPlayer<DominosMove, DominosRole, DominosBoard>> players, DominosBoard board) {
+	// Algorithm references for statistics tracking
+	private GameAlgorithm<DominosMove, DominosRole, DominosBoard> algV;
+	private GameAlgorithm<DominosMove, DominosRole, DominosBoard> algH;
+
+	DominosGame(ArrayList<AIPlayer<DominosMove, DominosRole, DominosBoard>> players, DominosBoard board,
+			GameAlgorithm<DominosMove, DominosRole, DominosBoard> algV,
+			GameAlgorithm<DominosMove, DominosRole, DominosBoard> algH) {
 		super(players, board);
+		this.algV = algV;
+		this.algH = algH;
+	}
+
+	/**
+	 * Collect and display algorithm statistics
+	 */
+	public void displayStatistics() {
+		// Capture final stats from algorithms
+		long finalNodesV = 0, finalLeavesV = 0, finalPrunedV = 0;
+		long finalNodesH = 0, finalLeavesH = 0, finalPrunedH = 0;
+		
+		if (algV instanceof AlphaBeta) {
+			AlphaBeta<DominosMove, DominosRole, DominosBoard> ab = 
+				(AlphaBeta<DominosMove, DominosRole, DominosBoard>) algV;
+			finalNodesV = ab.getNbNodes();
+			finalLeavesV = ab.getNbLeaves();
+			finalPrunedV = ab.getNbPruned();
+		} else if (algV instanceof MiniMax) {
+			MiniMax<DominosMove, DominosRole, DominosBoard> mm = 
+				(MiniMax<DominosMove, DominosRole, DominosBoard>) algV;
+			finalNodesV = mm.getNbNodes();
+			finalLeavesV = mm.getNbLeaves();
+		}
+		
+		if (algH instanceof AlphaBeta) {
+			AlphaBeta<DominosMove, DominosRole, DominosBoard> ab = 
+				(AlphaBeta<DominosMove, DominosRole, DominosBoard>) algH;
+			finalNodesH = ab.getNbNodes();
+			finalLeavesH = ab.getNbLeaves();
+			finalPrunedH = ab.getNbPruned();
+		} else if (algH instanceof MiniMax) {
+			MiniMax<DominosMove, DominosRole, DominosBoard> mm = 
+				(MiniMax<DominosMove, DominosRole, DominosBoard>) algH;
+			finalNodesH = mm.getNbNodes();
+			finalLeavesH = mm.getNbLeaves();
+		}
+
+		System.out.println("\n╔════════════════════════════════════════════════════════╗");
+		System.out.println("║              ALGORITHM PERFORMANCE STATISTICS            ║");
+		System.out.println("╚════════════════════════════════════════════════════════╝");
+		
+		System.out.println("\nVERTICAL (AlphaBeta - Pruning Enabled):");
+		System.out.println("  ├─ Nodes Explored:  " + finalNodesV);
+		System.out.println("  ├─ Leaves Evaluated: " + finalLeavesV);
+		if (finalPrunedV > 0) {
+			System.out.println("  └─ Branches Pruned:  " + finalPrunedV);
+		} else {
+			System.out.println("  └─ Branches Pruned:  (N/A - MiniMax has no pruning)");
+		}
+		
+		System.out.println("\nHORIZONTAL (MiniMax - No Pruning):");
+		System.out.println("  ├─ Nodes Explored:  " + finalNodesH);
+		System.out.println("  └─ Leaves Evaluated: " + finalLeavesH);
+		
+		// Comparative summary
+		System.out.println("\n┌─ COMPARISON ──────────────────────────────────────┐");
+		long totalNodesExp = finalNodesV + finalNodesH;
+		long totalLeavesExp = finalLeavesV + finalLeavesH;
+		long totalPrunedExp = finalPrunedV + finalPrunedH;
+		System.out.println("│ Total Nodes Explored:    " + String.format("%6d", totalNodesExp));
+		System.out.println("│ Total Leaves Evaluated:  " + String.format("%6d", totalLeavesExp));
+		System.out.println("│ Total Branches Pruned:   " + String.format("%6d", totalPrunedExp));
+		if (totalPrunedExp > 0) {
+			double prunePercent = (totalPrunedExp * 100.0) / (totalNodesExp + totalLeavesExp + totalPrunedExp);
+			System.out.println("│ Pruning Efficiency:      " + String.format("%5.1f%%", prunePercent));
+		}
+		System.out.println("└───────────────────────────────────────────────────┘\n");
 	}
 
 	/**
@@ -68,9 +142,14 @@ public class DominosGame extends AbstractGame<DominosMove, DominosRole, DominosB
 
 		// Setting the initial Board
 		DominosBoard initialBoard = new DominosBoard();
+		
+		// Reset statistics before starting the game
+		((AlphaBeta<DominosMove, DominosRole, DominosBoard>) algV).resetStatistics();
+		((MiniMax<DominosMove, DominosRole, DominosBoard>) algH).resetStatistics();
 
-		DominosGame game = new DominosGame(players, initialBoard);
+		DominosGame game = new DominosGame(players, initialBoard, algV, algH);
 		game.runGame();
+		game.displayStatistics();
 		
 		System.out.println("\n=== Match Complete ===");
 		System.out.println("VERTICAL (AlphaBeta, depth 4) vs HORIZONTAL (MiniMax, depth 2)");
@@ -105,8 +184,9 @@ public class DominosGame extends AbstractGame<DominosMove, DominosRole, DominosB
 
 		DominosBoard initialBoard = new DominosBoard();
 
-		DominosGame game = new DominosGame(players, initialBoard);
+		DominosGame game = new DominosGame(players, initialBoard, algV, algH);
 		game.runGame();
+		game.displayStatistics();
 		
 		System.out.println("\n=== Match Complete ===");
 		System.out.println("VERTICAL (AlphaBeta, depth 4) vs HORIZONTAL (AlphaBeta, depth 2)");
@@ -141,8 +221,9 @@ public class DominosGame extends AbstractGame<DominosMove, DominosRole, DominosB
 
 		DominosBoard initialBoard = new DominosBoard();
 
-		DominosGame game = new DominosGame(players, initialBoard);
+		DominosGame game = new DominosGame(players, initialBoard, algV, algH);
 		game.runGame();
+		game.displayStatistics();
 		
 		System.out.println("\n=== Match Complete ===");
 		System.out.println("VERTICAL (MiniMax, depth 4) vs HORIZONTAL (MiniMax, depth 2)");

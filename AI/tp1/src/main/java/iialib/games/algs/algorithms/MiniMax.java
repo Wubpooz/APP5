@@ -61,6 +61,7 @@ public class MiniMax<Move extends IMove, Role extends IRole, Board extends IBoar
 	@Override
 	public Move bestMove(Board board, Role playerRole) {
 		System.out.println("[MiniMax]");
+
     return  minimax(board, playerRole);
 	}
 
@@ -70,6 +71,22 @@ public class MiniMax<Move extends IMove, Role extends IRole, Board extends IBoar
 
 	public String toString() {
 		return "MiniMax(ProfMax=" + depthMax + ")";
+	}
+
+	public int getNbNodes() {
+		return nbNodes;
+	}
+
+	public int getNbLeaves() {
+		return nbLeaves;
+	}
+	
+	/**
+	 * Reset statistics counters for a new game
+	 */
+	public void resetStatistics() {
+		nbNodes = 0;
+		nbLeaves = 0;
 	}
 
 	/*

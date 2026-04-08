@@ -59,9 +59,6 @@ public class AlphaBeta<Move extends IMove, Role extends IRole, Board extends IBo
 	@Override
 	public Move bestMove(Board board, Role playerRole) {
 		System.out.println("[AlphaBeta]");
-		nbNodes = 0;
-		nbLeaves = 0;
-		nbPruned = 0;
 		return alphaBeta(board, playerRole);
 	}
 
@@ -83,6 +80,15 @@ public class AlphaBeta<Move extends IMove, Role extends IRole, Board extends IBo
 	
 	public int getNbPruned() {
 		return nbPruned;
+	}
+
+	/**
+	 * Reset statistics counters for a new game
+	 */
+	public void resetStatistics() {
+		nbNodes = 0;
+		nbLeaves = 0;
+		nbPruned = 0;
 	}
 
 	/*
