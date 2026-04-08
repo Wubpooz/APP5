@@ -3,6 +3,9 @@ package games.dominos;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import iialib.games.model.Score;
 import iialib.games.algs.AIPlayer;
 import iialib.games.algs.AbstractGame;
@@ -11,6 +14,9 @@ import iialib.games.algs.algorithms.MiniMax;
 import iialib.games.algs.algorithms.AlphaBeta;
 
 public class DominosGame extends AbstractGame<DominosMove, DominosRole, DominosBoard> {
+
+	private static final Logger LOGGER = Logger.getLogger(DominosGame.class.getName());
+	private static final String MATCH_COMPLETE_MESSAGE = "=== Match Complete ===";
 
 	// Algorithm references for statistics tracking
 	private GameAlgorithm<DominosMove, DominosRole, DominosBoard> algV;
@@ -48,7 +54,7 @@ public class DominosGame extends AbstractGame<DominosMove, DominosRole, DominosB
 		
 		// Display output only if not in silent mode
 		if (!silent) {
-			System.out.println("\nGame completed. Winner: " + this.winner);
+			LOGGER.log(Level.INFO, "\nGame completed. Winner: {0}", this.winner);
 		}
 	}
 
@@ -58,14 +64,14 @@ public class DominosGame extends AbstractGame<DominosMove, DominosRole, DominosB
 	private void captureWinner() {
 		DominosBoard board = getCurrentBoard();
 		if (board == null) {
-			System.err.println("Warning: current board is null after game end. Using fallback.");
+			LOGGER.warning("Warning: current board is null after game end. Using fallback.");
 			this.winner = DominosRole.VERTICAL;
 			return;
 		}
 
 		List<Score<DominosRole>> scores = board.getScores();
 		if (scores == null || scores.isEmpty()) {
-			System.err.println("Warning: no scores available after game end. Using fallback.");
+			LOGGER.warning("Warning: no scores available after game end. Using fallback.");
 			this.winner = DominosRole.VERTICAL;
 			return;
 		}
@@ -93,36 +99,36 @@ public class DominosGame extends AbstractGame<DominosMove, DominosRole, DominosB
 		String labelV = algorithmLabel(algV) + (algV instanceof AlphaBeta ? " - Pruning Enabled" : " - No Pruning");
 		String labelH = algorithmLabel(algH) + (algH instanceof AlphaBeta ? " - Pruning Enabled" : " - No Pruning");
 
-		System.out.println("\n╔════════════════════════════════════════════════════════╗");
-		System.out.println("║              ALGORITHM PERFORMANCE STATISTICS            ║");
-		System.out.println("╚════════════════════════════════════════════════════════╝");
+		LOGGER.info("\n╔════════════════════════════════════════════════════════╗");
+		LOGGER.info("║              ALGORITHM PERFORMANCE STATISTICS            ║");
+		LOGGER.info("╚════════════════════════════════════════════════════════╝");
 		
-		System.out.println("\nVERTICAL (" + labelV + "):");
-		System.out.println("  ├─ Nodes Explored:  " + statsV.nodes);
-		System.out.println("  ├─ Leaves Evaluated: " + statsV.leaves);
+		LOGGER.log(Level.INFO, "\nVERTICAL ({0}):", labelV);
+		LOGGER.log(Level.INFO, "  ├─ Nodes Explored:  {0}", statsV.nodes);
+		LOGGER.log(Level.INFO, "  ├─ Leaves Evaluated: {0}", statsV.leaves);
 		if (statsV.pruned > 0) {
-			System.out.println("  └─ Branches Pruned:  " + statsV.pruned);
+			LOGGER.log(Level.INFO, "  └─ Branches Pruned:  {0}", statsV.pruned);
 		} else {
-			System.out.println("  └─ Branches Pruned:  (N/A - MiniMax has no pruning)");
+			LOGGER.info("  └─ Branches Pruned:  (N/A - MiniMax has no pruning)");
 		}
 		
-		System.out.println("\nHORIZONTAL (" + labelH + "):");
-		System.out.println("  ├─ Nodes Explored:  " + statsH.nodes);
-		System.out.println("  └─ Leaves Evaluated: " + statsH.leaves);
+		LOGGER.log(Level.INFO, "\nHORIZONTAL ({0}):", labelH);
+		LOGGER.log(Level.INFO, "  ├─ Nodes Explored:  {0}", statsH.nodes);
+		LOGGER.log(Level.INFO, "  └─ Leaves Evaluated: {0}", statsH.leaves);
 		
 		// Comparative summary
-		System.out.println("\n┌─ COMPARISON ──────────────────────────────────────┐");
+		LOGGER.info("\n┌─ COMPARISON ──────────────────────────────────────┐");
 		long totalNodesExp = statsV.nodes + statsH.nodes;
 		long totalLeavesExp = statsV.leaves + statsH.leaves;
 		long totalPrunedExp = statsV.pruned + statsH.pruned;
-		System.out.println("│ Total Nodes Explored:    " + String.format("%6d", totalNodesExp));
-		System.out.println("│ Total Leaves Evaluated:  " + String.format("%6d", totalLeavesExp));
-		System.out.println("│ Total Branches Pruned:   " + String.format("%6d", totalPrunedExp));
+		LOGGER.info(() -> String.format("│ Total Nodes Explored:    %6d", totalNodesExp));
+		LOGGER.info(() -> String.format("│ Total Leaves Evaluated:  %6d", totalLeavesExp));
+		LOGGER.info(() -> String.format("│ Total Branches Pruned:   %6d", totalPrunedExp));
 		if (totalPrunedExp > 0) {
 			double prunePercent = (totalPrunedExp * 100.0) / (totalNodesExp + totalLeavesExp + totalPrunedExp);
-			System.out.println("│ Pruning Efficiency:      " + String.format("%5.1f%%", prunePercent));
+			LOGGER.info(() -> String.format("│ Pruning Efficiency:      %5.1f%%", prunePercent));
 		}
-		System.out.println("└───────────────────────────────────────────────────┘\n");
+		LOGGER.info("└───────────────────────────────────────────────────┘\n");
 	}
 
 	private static class Stats {
@@ -163,22 +169,23 @@ public class DominosGame extends AbstractGame<DominosMove, DominosRole, DominosB
 	 * Current configuration: AlphaBeta vs MiniMax
 	 */
 	public static void main(String[] args) {
-		// ============================================================
-		// Choose which match configuration to run:
-		// Uncomment ONE of the following configurations
-		// ============================================================
-		
-		// Configuration 1: AlphaBeta (depth 4) vs MiniMax (depth 2)
-		// Tests algorithm efficiency: AlphaBeta with pruning vs basic minimax
-		playMatchAlphabetaVsMinimax();
-		
-		// Configuration 2: AlphaBeta (depth 4) vs AlphaBeta (depth 2)
-		// Tests if deeper search always wins when both use the same algorithm
-		// playMatchAlphabetaVsAlphabeta();
-		
-		// Configuration 3: MiniMax (depth 4) vs MiniMax (depth 2)
-		// Baseline comparison without pruning optimization
-		// playMatchMinimaxVsMinimax();
+		if (args.length == 0) {
+			playMatchAlphabetaVsMinimax();
+			return;
+		}
+
+		switch (args[0].toLowerCase(Locale.ROOT)) {
+			case "alphabeta-vs-alphabeta":
+			case "abvsab":
+				playMatchAlphabetaVsAlphabeta();
+				break;
+			case "minimax-vs-minimax":
+			case "mvsmm":
+				playMatchMinimaxVsMinimax();
+				break;
+			default:
+				playMatchAlphabetaVsMinimax();
+		}
 	}
 
 	/**
@@ -186,7 +193,7 @@ public class DominosGame extends AbstractGame<DominosMove, DominosRole, DominosB
 	 * Tests algorithm efficiency: AlphaBeta should require fewer nodes due to pruning
 	 */
 	private static void playMatchAlphabetaVsMinimax() {
-		System.out.println("=== AlphaBeta vs MiniMax ===\n");
+		LOGGER.info("=== AlphaBeta vs MiniMax ===\n");
 		
 		DominosRole roleV = DominosRole.VERTICAL;
 		DominosRole roleH = DominosRole.HORIZONTAL;
@@ -221,8 +228,8 @@ public class DominosGame extends AbstractGame<DominosMove, DominosRole, DominosB
 		game.runGame();
 		game.displayStatistics();
 		
-		System.out.println("\n=== Match Complete ===");
-		System.out.println("VERTICAL (AlphaBeta, depth 4) vs HORIZONTAL (MiniMax, depth 2)");
+		LOGGER.info("\n" + MATCH_COMPLETE_MESSAGE);
+		LOGGER.info("VERTICAL (AlphaBeta, depth 4) vs HORIZONTAL (MiniMax, depth 2)");
 	}
 
 	/**
@@ -230,7 +237,7 @@ public class DominosGame extends AbstractGame<DominosMove, DominosRole, DominosB
 	 * Tests if deeper search always wins when both use the same algorithm
 	 */
 	private static void playMatchAlphabetaVsAlphabeta() {
-		System.out.println("=== AlphaBeta vs AlphaBeta ===\n");
+		LOGGER.info("=== AlphaBeta vs AlphaBeta ===\n");
 		
 		DominosRole roleV = DominosRole.VERTICAL;
 		DominosRole roleH = DominosRole.HORIZONTAL;
@@ -258,8 +265,8 @@ public class DominosGame extends AbstractGame<DominosMove, DominosRole, DominosB
 		game.runGame();
 		game.displayStatistics();
 		
-		System.out.println("\n=== Match Complete ===");
-		System.out.println("VERTICAL (AlphaBeta, depth 4) vs HORIZONTAL (AlphaBeta, depth 2)");
+		LOGGER.info("\n" + MATCH_COMPLETE_MESSAGE);
+		LOGGER.info("VERTICAL (AlphaBeta, depth 4) vs HORIZONTAL (AlphaBeta, depth 2)");
 	}
 
 	/**
@@ -267,7 +274,7 @@ public class DominosGame extends AbstractGame<DominosMove, DominosRole, DominosB
 	 * Baseline comparison without pruning optimization
 	 */
 	private static void playMatchMinimaxVsMinimax() {
-		System.out.println("=== MiniMax vs MiniMax ===\n");
+		LOGGER.info("=== MiniMax vs MiniMax ===\n");
 		
 		DominosRole roleV = DominosRole.VERTICAL;
 		DominosRole roleH = DominosRole.HORIZONTAL;
@@ -295,8 +302,8 @@ public class DominosGame extends AbstractGame<DominosMove, DominosRole, DominosB
 		game.runGame();
 		game.displayStatistics();
 		
-		System.out.println("\n=== Match Complete ===");
-		System.out.println("VERTICAL (MiniMax, depth 4) vs HORIZONTAL (MiniMax, depth 2)");
+		LOGGER.info("\n" + MATCH_COMPLETE_MESSAGE);
+		LOGGER.info("VERTICAL (MiniMax, depth 4) vs HORIZONTAL (MiniMax, depth 2)");
 	}
 
 }

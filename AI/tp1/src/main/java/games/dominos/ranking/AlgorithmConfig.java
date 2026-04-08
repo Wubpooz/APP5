@@ -48,14 +48,14 @@ public class AlgorithmConfig {
         
         switch (type) {
             case ALPHABETA:
-                return new AlphaBeta(
+                return new AlphaBeta<>(
                     playerRole, 
                     opponentRole, 
                     selectHeuristic(playerRole), 
                     depth
                 );
             case MINIMAX:
-                return new MiniMax(
+                return new MiniMax<>(
                     playerRole,
                     opponentRole,
                     selectHeuristic(playerRole),

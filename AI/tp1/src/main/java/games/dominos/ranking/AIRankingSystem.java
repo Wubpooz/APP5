@@ -3,9 +3,10 @@ package games.dominos.ranking;
 import games.dominos.*;
 import iialib.games.algs.AIPlayer;
 import iialib.games.algs.GameAlgorithm;
-import iialib.games.model.Score;
 
 import java.util.*;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
 /**
@@ -14,6 +15,7 @@ import java.util.stream.Collectors;
  */
 public class AIRankingSystem {
     
+    private static final Logger LOGGER = Logger.getLogger(AIRankingSystem.class.getName());
     private final int matchesPerPairing;
     private final List<AlgorithmConfig> algorithms;
     private final Map<String, MatchResult> results;
@@ -43,11 +45,11 @@ public class AIRankingSystem {
      * Executes the full "All vs All" tournament
      */
     public void executeFullTournament() {
-        System.out.println("\n" + "=".repeat(60));
-        System.out.println("AI TOURNAMENT RANKING SYSTEM");
-        System.out.println("Matches per pairing: " + matchesPerPairing);
-        System.out.println("Total algorithms: " + algorithms.size());
-        System.out.println("=".repeat(60) + "\n");
+        LOGGER.info(() -> "\n" + "=".repeat(60));
+        LOGGER.info("AI TOURNAMENT RANKING SYSTEM");
+        LOGGER.info(() -> "Matches per pairing: " + matchesPerPairing);
+        LOGGER.info(() -> "Total algorithms: " + algorithms.size());
+        LOGGER.info(() -> "=".repeat(60) + "\n");
         
         int totalMatchups = 0;
         for (int i = 0; i < algorithms.size(); i++) {
@@ -63,11 +65,10 @@ public class AIRankingSystem {
                 AlgorithmConfig algo1 = algorithms.get(i);
                 AlgorithmConfig algo2 = algorithms.get(j);
                 
-                System.out.println("[" + currentMatchup + "/" + totalMatchups + "] " +
-                    algo1 + " vs " + algo2);
+                LOGGER.log(Level.INFO, "[{0}/{1}] {2} vs {3}", new Object[]{currentMatchup, totalMatchups, algo1, algo2});
                 
                 executeMatchSeries(algo1, algo2);
-                System.out.println();
+                LOGGER.info("");
             }
         }
         
@@ -101,11 +102,11 @@ public class AIRankingSystem {
             
             // Progress indicator
             if ((match + 1) % 10 == 0) {
-                System.out.print(".");
+                LOGGER.info(() -> ".");
             }
         }
         
-        System.out.println(" Complete: " + algo1 + " " + 
+        LOGGER.info(() -> " Complete: " + algo1 + " " + 
             String.format("%.1f%%", result.getWinRate1() * 100) + " vs " + 
             String.format("%.1f%%", result.getWinRate2() * 100) + " " + algo2);
         
@@ -147,12 +148,10 @@ public class AIRankingSystem {
             game.runGame();
             
             // Get winner from game after execution
-            DominosRole winner = game.getWinner();
-            
-            return winner;
+            return game.getWinner();
             
         } catch (Exception e) {
-            System.err.println("Error in match execution: " + e.getMessage());
+            LOGGER.log(Level.SEVERE, "Error in match execution", e);
             return null;
         }
     }
@@ -162,10 +161,10 @@ public class AIRankingSystem {
      */
     private void resetStatistics(GameAlgorithm<DominosMove, DominosRole, DominosBoard> algorithm) {
         try {
-            if (algorithm instanceof iialib.games.algs.algorithms.AlphaBeta) {
-                ((iialib.games.algs.algorithms.AlphaBeta) algorithm).resetStatistics();
-            } else if (algorithm instanceof iialib.games.algs.algorithms.MiniMax) {
-                ((iialib.games.algs.algorithms.MiniMax) algorithm).resetStatistics();
+            if (algorithm instanceof iialib.games.algs.algorithms.AlphaBeta<?, ?, ?>) {
+                ((iialib.games.algs.algorithms.AlphaBeta<DominosMove, DominosRole, DominosBoard>) algorithm).resetStatistics();
+            } else if (algorithm instanceof iialib.games.algs.algorithms.MiniMax<?, ?, ?>) {
+                ((iialib.games.algs.algorithms.MiniMax<DominosMove, DominosRole, DominosBoard>) algorithm).resetStatistics();
             }
         } catch (Exception e) {
             // Silently ignore if reset not available
@@ -176,9 +175,9 @@ public class AIRankingSystem {
      * Displays final rankings in a formatted table
      */
     public void displayRankings() {
-        System.out.println("\n" + "=".repeat(70));
-        System.out.println("FINAL RANKINGS (by Total Wins)");
-        System.out.println("=".repeat(70));
+        LOGGER.info(() -> "\n" + "=".repeat(70));
+        LOGGER.info("FINAL RANKINGS (by Total Wins)");
+        LOGGER.info(() -> "=".repeat(70));
         
         // Sort algorithms by win count
         List<Map.Entry<String, Integer>> sorted = winCounts.entrySet().stream()
@@ -188,38 +187,36 @@ public class AIRankingSystem {
         int totalPairings = algorithms.size() * (algorithms.size() - 1) / 2;
         int maxWinsPerAlgo = totalPairings * matchesPerPairing;
         
-        System.out.println("┌─────────────────────────────────────────────────┬─────────────────┐");
-        System.out.println("│ Algorithm Configuration                          │ Wins (Ranking)  │");
-        System.out.println("├─────────────────────────────────────────────────┼─────────────────┤");
+        LOGGER.info("┌─────────────────────────────────────────────────┬─────────────────┐");
+        LOGGER.info("│ Algorithm Configuration                          │ Wins (Ranking)  │");
+        LOGGER.info("├─────────────────────────────────────────────────┼─────────────────┤");
         
-        int rank = 1;
         for (Map.Entry<String, Integer> entry : sorted) {
             String algo = entry.getKey();
             int wins = entry.getValue();
             double winPercentage = (double) wins / maxWinsPerAlgo * 100;
             
-            System.out.printf("│ %-47s │ %3d/%3d (%.1f%%)  │%n", 
-                algo, wins, maxWinsPerAlgo, winPercentage);
-            rank++;
+            LOGGER.info(() -> String.format("│ %-47s │ %3d/%3d (%.1f%%)  │", 
+                algo, wins, maxWinsPerAlgo, winPercentage));
         }
         
-        System.out.println("└─────────────────────────────────────────────────┴─────────────────┘");
+        LOGGER.info("└─────────────────────────────────────────────────┴─────────────────┘");
         
         // Display detailed matchup results
-        System.out.println("\nDETAILED MATCHUP RESULTS:");
-        System.out.println("─".repeat(70));
+        LOGGER.info("\nDETAILED MATCHUP RESULTS:");
+        LOGGER.info(() -> "─".repeat(70));
         
         for (Map.Entry<String, MatchResult> entry : results.entrySet()) {
             MatchResult result = entry.getValue();
-            System.out.printf("%-30s: %s  [%3d/%3d games]%n",
+            LOGGER.info(() -> String.format("%-30s: %s  [%3d/%3d games]",
                 result.getAlgorithm1(),
                 String.format("%d-%d", result.getWins1(), result.getWins2()),
                 result.getWins1() + result.getWins2(),
                 result.getTotalMatches()
-            );
+            ));
         }
         
-        System.out.println("─".repeat(70) + "\n");
+        LOGGER.info(() -> "─".repeat(70) + "\n");
     }
     
     /**

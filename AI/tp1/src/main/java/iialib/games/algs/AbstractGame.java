@@ -2,56 +2,60 @@ package iialib.games.algs;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import iialib.games.model.IBoard;
 import iialib.games.model.IMove;
 import iialib.games.model.IRole;
 import iialib.games.model.Score;
 
-public abstract class AbstractGame<Move extends IMove, Role extends IRole, Board extends IBoard<Move,Role,Board>> {
+public abstract class AbstractGame<M extends IMove, R extends IRole, B extends IBoard<M,R,B>> {
+
+    private static final Logger LOGGER = Logger.getLogger(AbstractGame.class.getName());
 
     // Attributes
-    protected Board currentBoard;
-    protected List<AIPlayer<Move,Role,Board>> players;
+    protected B currentBoard;
+    protected List<AIPlayer<M,R,B>> players;
 
     // Constructor
-    protected AbstractGame(List<AIPlayer<Move,Role,Board>> players, Board initialBoard) {
+    protected AbstractGame(List<AIPlayer<M,R,B>> players, B initialBoard) {
         this.currentBoard = initialBoard;
         this.players = players;
     }
 
-    protected Board getCurrentBoard() {
+    protected B getCurrentBoard() {
         return currentBoard;
     }
 
-    protected List<AIPlayer<Move,Role,Board>> getPlayers() {
+    protected List<AIPlayer<M,R,B>> getPlayers() {
         return players;
     }
 
     // Methods
     public void runGame() {
         int index = 0;
-        AIPlayer<Move,Role,Board> currentPlayer = players.get(index);
-        System.out.println("Game begining - First player is : " + currentPlayer);
-        System.out.println("The board is :");
-        System.out.println(currentBoard);
+        AIPlayer<M,R,B> currentPlayer = players.get(index);
+        LOGGER.log(Level.INFO, "Game beginning - First player is : {0}", currentPlayer);
+        LOGGER.info("The board is :");
+        LOGGER.info(() -> currentBoard.toString());
 
         while (!currentBoard.isGameOver()) {
-            System.out.println("Next player is : " + currentPlayer);
-            Move nextMove = currentPlayer.bestMove(currentBoard);
-            System.out.println("Best Move is : " + nextMove);
+            LOGGER.log(Level.INFO, "Next player is : {0}", currentPlayer);
+            M nextMove = currentPlayer.bestMove(currentBoard);
+            LOGGER.log(Level.INFO, "Best Move is : {0}", nextMove);
             currentBoard = currentPlayer.playMove(currentBoard, nextMove);
-            System.out.println("The board is :");
-            System.out.println(currentBoard);
+            LOGGER.info("The board is :");
+            LOGGER.info(() -> currentBoard.toString());
             index = 1 - index;
             currentPlayer = players.get(index);
         }
 
-        System.out.println("Game over !");
-        ArrayList<Score<Role>> scores = currentBoard.getScores();
-        for (AIPlayer<Move,Role,Board> p : players) {
-            for (Score<Role> s : scores) {
+        LOGGER.info("Game over !");
+        ArrayList<Score<R>> scores = currentBoard.getScores();
+        for (AIPlayer<M,R,B> p : players) {
+            for (Score<R> s : scores) {
                 if (p.getRole() == s.getRole()) {
-                    System.out.println("" + p + " score is : " + s.getStatus() + " " + s.getScore());
+                    LOGGER.info(() -> p + " score is : " + s.getStatus() + " " + s.getScore());
                 }
             }
         }

@@ -5,13 +5,16 @@ import iialib.games.algs.IHeuristic;
 import iialib.games.model.IBoard;
 import iialib.games.model.IMove;
 import iialib.games.model.IRole;
+import java.util.logging.Logger;
 
 /**
  * Alpha-Beta Pruning Algorithm - optimized version of MiniMax
  * Eliminates branches that cannot affect the final decision
  */
-public class AlphaBeta<Move extends IMove, Role extends IRole, Board extends IBoard<Move,Role,Board>> 
-    implements GameAlgorithm<Move,Role,Board> {
+public class AlphaBeta<M extends IMove, R extends IRole, B extends IBoard<M,R,B>> 
+    implements GameAlgorithm<M,R,B> {
+
+	private static final Logger LOGGER = Logger.getLogger(AlphaBeta.class.getName());
 
 	// Constants
 	/** Default value for depth limit */
@@ -19,16 +22,16 @@ public class AlphaBeta<Move extends IMove, Role extends IRole, Board extends IBo
 
 	// Attributes
 	/** Role of the max player */
-	private final Role playerMaxRole;
+	private final R playerMaxRole;
 
 	/** Role of the min player */
-	private final Role playerMinRole;
+	private final R playerMinRole;
 
 	/** Algorithm max depth */
 	private int depthMax = DEPTH_MAX_DEFAULT;
 
 	/** Heuristic used by the max player */
-	private IHeuristic<Board, Role> h;
+	private IHeuristic<B, R> h;
 
 	// Statistics
 	/** number of internal visited (developed) nodes (for stats) */
@@ -41,13 +44,13 @@ public class AlphaBeta<Move extends IMove, Role extends IRole, Board extends IBo
 	private int nbPruned;
 
 	// --------- Constructors ---------
-	public AlphaBeta(Role playerMaxRole, Role playerMinRole, IHeuristic<Board, Role> h) {
+	public AlphaBeta(R playerMaxRole, R playerMinRole, IHeuristic<B, R> h) {
 		this.playerMaxRole = playerMaxRole;
 		this.playerMinRole = playerMinRole;
 		this.h = h;
 	}
 
-	public AlphaBeta(Role playerMaxRole, Role playerMinRole, IHeuristic<Board, Role> h, int depthMax) {
+	public AlphaBeta(R playerMaxRole, R playerMinRole, IHeuristic<B, R> h, int depthMax) {
 		this(playerMaxRole, playerMinRole, h);
 		this.depthMax = depthMax;
 	}
@@ -57,8 +60,8 @@ public class AlphaBeta<Move extends IMove, Role extends IRole, Board extends IBo
 	 */
 
 	@Override
-	public Move bestMove(Board board, Role playerRole) {
-		System.out.println("[AlphaBeta]");
+	public M bestMove(B board, R playerRole) {
+		LOGGER.info("[AlphaBeta]");
 		return alphaBeta(board, playerRole);
 	}
 
@@ -66,6 +69,7 @@ public class AlphaBeta<Move extends IMove, Role extends IRole, Board extends IBo
 	 * PUBLIC METHODS ==============
 	 */
 
+	@Override
 	public String toString() {
 		return "AlphaBeta(ProfMax=" + depthMax + ")";
 	}
@@ -98,16 +102,16 @@ public class AlphaBeta<Move extends IMove, Role extends IRole, Board extends IBo
 	/**
 	 * Root level search - tries all possible moves and returns the best one
 	 */
-	private Move alphaBeta(Board board, Role playerRole) {
-		Move bestMove = null;
+	private M alphaBeta(B board, R playerRole) {
+		M bestMove = null;
 		int bestValue = Integer.MIN_VALUE;
 		int alpha = Integer.MIN_VALUE;
 		int beta = Integer.MAX_VALUE;
 		
-		for(Move move : board.possibleMoves(playerRole)) {
-			Board newBoard = board.play(move, playerRole);
+		for (M move : board.possibleMoves(playerRole)) {
+			B newBoard = board.play(move, playerRole);
 			int value = minValue(newBoard, playerMinRole, depthMax - 1, alpha, beta);
-			if(value > bestValue) {
+			if (value > bestValue) {
 				bestValue = value;
 				bestMove = move;
 			}
@@ -121,21 +125,21 @@ public class AlphaBeta<Move extends IMove, Role extends IRole, Board extends IBo
 	 * Returns the maximum value among all child nodes
 	 * Prunes branches when alpha >= beta
 	 */
-	private int maxValue(Board board, Role playerRole, int depth, int alpha, int beta) {
+	private int maxValue(B board, R playerRole, int depth, int alpha, int beta) {
 		// Base case: game over or depth limit reached
-		if(board.isGameOver() || depth == 0) {
+		if (board.isGameOver() || depth == 0) {
 			nbLeaves++;
 			return h.eval(board, playerMaxRole);
 		}
 		
 		int value = Integer.MIN_VALUE;
-		for(Move move : board.possibleMoves(playerRole)) {
-			Board newBoard = board.play(move, playerRole);
+		for (M move : board.possibleMoves(playerRole)) {
+			B newBoard = board.play(move, playerRole);
 			value = Math.max(value, minValue(newBoard, playerMinRole, depth - 1, alpha, beta));
 			alpha = Math.max(alpha, value);
 			
 			// Alpha-Beta Pruning: if alpha >= beta, we can prune remaining branches
-			if(alpha >= beta) {
+			if (alpha >= beta) {
 				nbPruned++;
 				break;
 			}
@@ -149,21 +153,21 @@ public class AlphaBeta<Move extends IMove, Role extends IRole, Board extends IBo
 	 * Returns the minimum value among all child nodes
 	 * Prunes branches when alpha >= beta
 	 */
-	private int minValue(Board board, Role playerRole, int depth, int alpha, int beta) {
+	private int minValue(B board, R playerRole, int depth, int alpha, int beta) {
 		// Base case: game over or depth limit reached
-		if(board.isGameOver() || depth == 0) {
+		if (board.isGameOver() || depth == 0) {
 			nbLeaves++;
 			return h.eval(board, playerMaxRole);
 		}
 		
 		int value = Integer.MAX_VALUE;
-		for(Move move : board.possibleMoves(playerRole)) {
-			Board newBoard = board.play(move, playerRole);
+		for (M move : board.possibleMoves(playerRole)) {
+			B newBoard = board.play(move, playerRole);
 			value = Math.min(value, maxValue(newBoard, playerMaxRole, depth - 1, alpha, beta));
 			beta = Math.min(beta, value);
 			
 			// Alpha-Beta Pruning: if alpha >= beta, we can prune remaining branches
-			if(alpha >= beta) {
+			if (alpha >= beta) {
 				nbPruned++;
 				break;
 			}
