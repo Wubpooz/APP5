@@ -11,7 +11,7 @@ public class MiniMax<Move extends IMove,Role extends IRole,Board extends IBoard<
 	// Constants
 	/** Defaut value for depth limit 
      */
-	private final static int DEPTH_MAX_DEFAUT = 4;
+	private static final int DEPTH_MAX_DEFAUT = 4;
 
 	// Attributes
 	/** Role of the max player 

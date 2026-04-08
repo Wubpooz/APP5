@@ -7,19 +7,26 @@
  */
 
 plugins {
-    // Apply the java-library plugin to add support for Java Library
     id 'java-library'
+    id 'application'
     id 'eclipse'
 }
 
-sourceCompatibility = 11.0
-targetCompatibility = 11.0
+java {
+    sourceCompatibility = JavaVersion.VERSION_11
+    targetCompatibility = JavaVersion.VERSION_11
+}
 
+application {
+    mainClass.set("games.dominos.DominosGame")
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.release.set(11)
+}
 
 repositories {
-    // Use jcenter for resolving dependencies.
-    // You can declare any Maven/Ivy/file repository here.
-    jcenter()
+    mavenCentral()
 }
 
 dependencies {
