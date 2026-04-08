@@ -1,7 +1,7 @@
 package games.dominos;
 
 import java.util.ArrayList;
-
+import iialib.games.model.Score;
 import iialib.games.algs.AIPlayer;
 import iialib.games.algs.AbstractGame;
 import iialib.games.algs.GameAlgorithm;
@@ -13,17 +13,87 @@ public class DominosGame extends AbstractGame<DominosMove, DominosRole, DominosB
 	// Algorithm references for statistics tracking
 	private GameAlgorithm<DominosMove, DominosRole, DominosBoard> algV;
 	private GameAlgorithm<DominosMove, DominosRole, DominosBoard> algH;
+	private boolean silent;  // If true, suppress game output
+	private DominosRole winner;  // Cached winner after game ends
 
 	DominosGame(ArrayList<AIPlayer<DominosMove, DominosRole, DominosBoard>> players, DominosBoard board,
 			GameAlgorithm<DominosMove, DominosRole, DominosBoard> algV,
 			GameAlgorithm<DominosMove, DominosRole, DominosBoard> algH) {
+		this(players, board, algV, algH, false);
+	}
+	
+	public DominosGame(ArrayList<AIPlayer<DominosMove, DominosRole, DominosBoard>> players, DominosBoard board,
+			GameAlgorithm<DominosMove, DominosRole, DominosBoard> algV,
+			GameAlgorithm<DominosMove, DominosRole, DominosBoard> algH, boolean silent) {
 		super(players, board);
 		this.algV = algV;
 		this.algH = algH;
+		this.silent = silent;
+		this.winner = null;
 	}
 
 	/**
-	 * Collect and display algorithm statistics
+	 * Override runGame to capture winner after game execution
+	 */
+	@Override
+	public void runGame() {
+		// Call parent implementation
+		super.runGame();
+		
+		// Extract winner from game state - currentBoard is now populated
+		// This must be done in a method of DominosGame since currentBoard is protected in parent
+		captureWinner();
+		
+		// Display output only if not in silent mode
+		if (!silent) {
+			System.out.println("\nGame completed. Winner: " + this.winner);
+		}
+	}
+
+	/**
+	 * Capture the winner role after the game has ended
+	 * Uses reflection to access parent's package-private currentBoard field
+	 */
+	private void captureWinner() {
+		try {
+			// Use reflection to access the package-private currentBoard field
+			java.lang.reflect.Field boardField = AbstractGame.class.getDeclaredField("currentBoard");
+			boardField.setAccessible(true);
+			DominosBoard board = (DominosBoard) boardField.get(this);
+			
+			// Get the scores from the board
+			ArrayList<Score<DominosRole>> scores = board.getScores();
+			
+			// Find the role with maximum score
+			int maxScore = -1;
+			DominosRole winnerRole = null;
+			
+			for (Score<DominosRole> score : scores) {
+				if (score.getScore() > maxScore) {
+					maxScore = score.getScore();
+					winnerRole = score.getRole();
+				}
+			}
+			
+			// Store the winner
+			this.winner = winnerRole;
+			
+		} catch (NoSuchFieldException | IllegalAccessException e) {
+			// Fallback: default to first player's role if reflection fails
+			System.err.println("Warning: Could not access game board to determine winner. Using fallback.");
+			this.winner = DominosRole.VERTICAL;
+		}
+	}
+
+	/**
+	 * Public getter for the winner role after game execution
+	 */
+	public DominosRole getWinner() {
+		return this.winner;
+	}
+
+	/**
+	 * Display algorithm statistics and determine winner
 	 */
 	public void displayStatistics() {
 		// Capture final stats from algorithms
@@ -87,7 +157,9 @@ public class DominosGame extends AbstractGame<DominosMove, DominosRole, DominosB
 		}
 		System.out.println("└───────────────────────────────────────────────────┘\n");
 	}
-
+	
+	/**
+	
 	/**
 	 * Main method - can be modified to run different algorithm configurations
 	 * Current configuration: AlphaBeta vs MiniMax

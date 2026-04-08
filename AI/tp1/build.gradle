@@ -18,7 +18,7 @@ java {
 }
 
 application {
-    mainClass.set("games.dominos.DominosGame")
+    mainClass.set("games.dominos.ranking.TournamentRunner")
 }
 
 tasks.withType(JavaCompile).configureEach {
