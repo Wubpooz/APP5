@@ -1,3 +1,25 @@
+# MyPizzaApp CTF Walkthrough
+## Consignes
+**Description du Challenge :**
+Les développeurs d'UBIK Learning Academy s'apprêtent à lancer une pizzeria en ligne révolutionnaire, où les utilisateurs pourront acheter des pizzas et les payer avec des UBIKs, la monnaie virtuelle gagnée sur notre plateforme ! Avant le lancement officiel, ils vous confient un audit de sécurité de leur application. Vous avez accès au code de l'application sur votre laboratoire d'expérimentation en ligne. Vous pouvez également l'exécuter afin de mettre en pratique vos nouvelles compétences de Hacker éthique. 
+
+**Objectifs :**
+- Mener un audit de sécurité, en mode boite-blanche (avec la possibilité d'utiliser le code source de l'application), de bout en bout pour identifier les failles de l'application cible.
+- Exploiter les vulnérabilités et simuler un scénario d'attaque où chaque faille découverte vous permet de progresser jusqu'à la compromission du serveur.
+- Retrouvez les différents flags cachés qui s'affichent lorsque vous parvennez à atteindre chacune des étapes d'exploitation disponibles.
+- Réalisez un rapport d'audit de sécurité complet pour documenter votre travail.
+
+**Livrable :**
+Rédigez un rapport de sécurité détaillé avec un outil comme Sysreptor. 
+Ce rapport devra inclure :
+- Une analyse approfondie de chaque faille identifiée dans l’application,
+- La méthode d'exploitation de chacune d'elles,
+- Des axes de remédiations qui permettent de corriger les failles trouvées,
+- Un scénario d'attaque complet démontrant comment un attaquant pourrait avancer étape par étape jusqu'à la compromission du serveur d'application.
+
+
+
+
 ## Phase 1: Static Code Analysis (Local Laptop)
 Open the downloaded MyPizzaApp folder in your local VSCode. Look for the following classic vulnerabilities in the source code:
 - Hardcoded Secrets: Search for database passwords, API keys, or JWT secret keys.
