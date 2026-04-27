@@ -1,0 +1,7 @@
+FROM ghcr.io/puppeteer/puppeteer:latest
+
+RUN npm install express express-async-handler jsonwebtoken
+
+COPY xss-poller.mjs ./
+
+ENTRYPOINT [ "node", "xss-poller.mjs" ]

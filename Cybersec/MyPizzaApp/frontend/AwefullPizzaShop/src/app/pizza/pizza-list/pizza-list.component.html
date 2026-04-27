@@ -1,0 +1,8 @@
+<div class="pizza-list">
+  @for (pizza of pizzas; track pizza.id) {
+    <div class="pizza-card">
+      <app-pizza-card [pizza]="pizza"></app-pizza-card>
+    </div>
+  }
+</div>
+

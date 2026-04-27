@@ -1,0 +1,179 @@
+default:
+  image: python:latest
+
+stages:
+  - test
+  - version
+  - build
+  - deploy
+  - release
+
+variables:
+  # When you use the dind service, you must instruct Docker to talk with
+  # the daemon started inside of the service. The daemon is available
+  # with a network connection instead of the default
+  # /var/run/docker.sock socket. Docker 19.03 does this automatically
+  # by setting the DOCKER_HOST in
+  # https://github.com/docker-library/docker/blob/d45051476babc297257df490d22cbd806f1b11e4/19.03/docker-entrypoint.sh#L23-L29
+  #
+  # The 'docker' hostname is the alias of the service container as described at
+  # https://docs.gitlab.com/ee/ci/services/#accessing-the-services.
+  #
+  # Specify to Docker where to create the certificates. Docker
+  # creates them automatically on boot, and creates
+  # `/certs/client` to share between the service and job
+  # container, thanks to volume mount from config.toml
+  DOCKER_TLS_CERTDIR: "/certs"
+  CONTAINER_TEST_IMAGE: $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_SLUG
+  CONTAINER_RELEASE_IMAGE: $CI_REGISTRY_IMAGE:latest
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+  CI_EMAIL: "bump2version@jaws"
+  CI_NAME: "bump2version"
+
+cache:
+  paths:
+    - .cache/pip
+    - .cache/pytest_cache
+pytest:
+  stage: test
+  before_script:
+    - pip install .[tests]
+  script:
+    - coverage run
+    - coverage report
+    - coverage xml
+  coverage: '/TOTAL.*\s+(\d+%)$/'
+  artifacts:
+    when: always
+    # https://docs.gitlab.com/ee/ci/yaml/index.html#artifactsexpire_in
+    expire_in: 1 week
+    paths:
+      - pytest.xml
+      - coverage.xml
+      # https://docs.gitlab.com/ee/ci/testing/test_coverage_visualization.html
+    reports:
+      junit: pytest.xml
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage.xml
+
+sast:
+  stage: test
+include:
+  - template: Security/Dependency-Scanning.gitlab-ci.yml
+  - template: Security/SAST.gitlab-ci.yml
+  - template: Security/License-Scanning.gitlab-ci.yml
+  - template: Security/Secret-Detection.gitlab-ci.yml
+
+bump version master:
+  stage: version
+  before_script:
+    - pip install bump2version
+    - git config --global user.email $CI_EMAIL
+    - git config --global user.name $CI_NAME
+    - git config receive.advertisePushOptions true
+  script:
+    - bump2version minor
+    - git push https://gitlab-ci-token:${BumpVersionToken}@${CI_SERVER_HOST}:${CI_SERVER_PORT}/${CI_PROJECT_PATH}/ HEAD:$CI_COMMIT_BRANCH
+    - git push https://gitlab-ci-token:${BumpVersionToken}@${CI_SERVER_HOST}:${CI_SERVER_PORT}/${CI_PROJECT_PATH}/ --tags
+  rules:
+    - if: '$CI_COMMIT_REF_NAME == "master" && $CI_PIPELINE_SOURCE == "push"  && $CI_COMMIT_TITLE =~ /Merge branch.*/'
+
+bump version develop:
+  stage: version
+  before_script:
+    - pip install bump2version
+    - git config --global user.email $CI_EMAIL
+    - git config --global user.name $CI_NAME
+    - git config receive.advertisePushOptions true
+  script:
+    - bump2version patch
+    - git push https://gitlab-ci-token:${BumpVersionToken}@${CI_SERVER_HOST}:${CI_SERVER_PORT}/${CI_PROJECT_PATH}/ HEAD:$CI_COMMIT_BRANCH
+    - git push https://gitlab-ci-token:${BumpVersionToken}@${CI_SERVER_HOST}:${CI_SERVER_PORT}/${CI_PROJECT_PATH}/ --tags
+
+  rules:
+    - if: '$CI_COMMIT_REF_NAME == "develop" && $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_TITLE =~ /Merge branch.*/'
+
+build_wheel:
+  stage: build
+  before_script:
+    - pip install build
+  script:
+    - python -m build
+  artifacts:
+    paths:
+      - dist/*
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "push"  && $CI_COMMIT_TITLE =~ /Bump version.*/ && ($CI_COMMIT_REF_NAME == "master" || $CI_COMMIT_REF_NAME == "develop")'
+
+docker:
+  stage: deploy
+  image: docker:24.0.7-git
+  services:
+    - docker:24.0.7-dind
+  variables:
+    IMAGE_TAG: $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_SLUG
+  before_script:
+    - docker info
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  script:
+    - docker build --pull -t $CONTAINER_TEST_IMAGE .
+    - docker push $CONTAINER_TEST_IMAGE
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "push"  && $CI_COMMIT_TITLE =~ /Bump version.*/ && ($CI_COMMIT_REF_NAME == "master" || $CI_COMMIT_REF_NAME == "develop")'
+
+
+release-job:
+  stage: release
+  image: registry.gitlab.com/gitlab-org/release-cli:latest
+  rules:
+    # Run this job when a tag is created manually or after bump version
+    - if: $CI_COMMIT_TAG
+  script:
+    - echo "Running the release job."
+  release:
+    tag_name: $CI_COMMIT_TAG
+    name: 'Release $CI_COMMIT_TAG'
+    description: 'Release created using the release-cli.'
+
+release-image:
+  stage: release
+  image: docker:24.0.7-git
+  services:
+    - docker:24.0.7-dind
+  script:
+    - docker pull $CONTAINER_TEST_IMAGE
+    - docker tag $CONTAINER_TEST_IMAGE $CONTAINER_RELEASE_IMAGE
+    - docker push $CONTAINER_RELEASE_IMAGE
+  rules:
+    # Run this job when a tag is created manually or after bump version only on master
+    - if: '$CI_COMMIT_TAG != null && $CI_COMMIT_REF_NAME == "master"'
+
+test-pages:
+  stage: test
+  before_script:
+    - pip install -U sphinx .
+  script:
+    - sphinx-apidoc -o docs src
+    - sphinx-build -b html docs public
+  artifacts:
+    paths:
+      - public
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push"  && $CI_COMMIT_REF_NAME != $CI_DEFAULT_BRANCH
+
+
+
+pages:
+  stage: deploy
+  before_script:
+    - pip install -U sphinx .
+  script:
+    - sphinx-apidoc -o docs src
+    - sphinx-build -b html docs public
+  artifacts:
+    paths:
+    - public
+  rules:
+    - if: $CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH
+

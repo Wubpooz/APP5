@@ -1,0 +1,42 @@
+services:
+  xss-poller:
+    image: awefull-pizza-shop-xss-poller:latest
+    container_name: "xss-poller"
+    depends_on:
+      - frontend
+    links:
+      - frontend
+    environment:
+      JWT_SECRET: "SuperSecretKeyThatIsTottalyNotRandom"
+  frontend:
+      image: awefull-pizza-shop-frontend:latest
+      container_name: 'frontend'
+      depends_on:
+        - backend
+      links:
+        - backend
+      ports:
+        - "443:443"
+      networks:
+        default:
+          aliases:
+            - app1.tiweb.tp.ubik.academy
+  backend:
+    image: awefull-pizza-shop-backend:latest
+    container_name: "backend"
+    depends_on:
+      - db
+    links:
+      - db
+    environment:
+      DATABASE_URL: "postgresql+asyncpg://awefull_pizza_shop:awefull_password@postgres/awefullpizzashop"
+      ROOT_PATH: "/api"
+      JWT_SECRET_KEY: "SuperSecretKeyThatIsTottalyNotRandom"
+      UVICORN_KWARGS: '{"forwarded_allow_ips": "*"}'
+  db:
+    image: postgres:17.0
+    container_name: "postgres"
+    environment:
+      - POSTGRES_PASSWORD=awefull_password
+      - POSTGRES_USER=awefull_pizza_shop
+      - POSTGRES_DB=awefullpizzashop

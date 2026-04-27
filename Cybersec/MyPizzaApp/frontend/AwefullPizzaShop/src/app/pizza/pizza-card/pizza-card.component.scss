@@ -1,0 +1,14 @@
+.pizza-card {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+
+  /* Limit content width within the card */
+  /* Target all direct children of .product-card */
+  & > * {
+    /* Apply max-width to content */
+    max-width: var(--card-max-width);
+    /* Allow content to take full width up to the max */
+    width: 100%;
+  }
+}

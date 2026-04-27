@@ -1,0 +1,92 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "awefull_pizza_shop_srv"
+version = "0.0.1"
+authors = [
+    { name = "Baboin Arthur", email = "baboin.arthur@gmail.com" },
+]
+description = ""
+#readme = "README.md " # will break limit of 4000 chr cf https://gitlab.com/gitlab-org/gitlab/-/issues/431505
+requires-python = ">=3.12"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "pydantic[email]~=2.8.2",
+    "pydantic-settings~=2.4.0",
+    "fastapi[all]==0.112.0",
+    "pyyaml==6.0.2",
+    "python-jose[cryptography]~=3.3.0",
+    "SQLAlchemy~=2.0.35",
+    "sqlalchemy-utils~=0.41.1",
+    "sql-repository-generator~=1.1.0",
+    "psycopg2~=2.9.9",
+    "bcrypt~=4.2.0",
+    "asyncpg~=0.29.0",
+    "jsonpickle==3.2.2", # for RCE in deserialization also 3.2.2 is needed as 3.3.0 fix the issue even if saying that it allow it to still be present though safe=False,
+    "alembic==1.13.3", # for docker-compose migrations
+    "aiohttp~=3.10.10" # for xss poller
+]
+[project.optional-dependencies]
+tests = [
+    "pytest~=7.2.1", # WARNING upgrade caused breaking tests earlier, upgrade with care
+    "pytest-mock~=3.12.0",
+    "pytest-faker~=2.0.0",
+    "pytest-cov~=4.0.0",
+    "pytest-unordered~=0.5.2",
+    "factory_boy~=3.3.0",
+    "pytest-asyncio~=0.23.2",
+    "EasyFactory~=1.4.1"
+
+]
+[project.urls]
+"Homepage" = "https://gitlab.com/Tagashy/jaws"
+"Bug Tracker" = "https://gitlab.com/Tagashy/jaws/issues"
+
+
+[tool.pytest.ini_options]
+addopts = [
+    "--import-mode=importlib",
+    "-s",
+    "-v",
+    "--durations=0",
+    "--junit-xml=pytest.xml"
+]
+testpaths = [
+    "tests"
+]
+pythonpath = [
+    "src",
+]
+cache_dir = ".cache/pytest_cache"
+asyncio_mode = "auto"
+
+[tool.coverage.run]
+branch = true
+source = ["src"]
+command_line = "-m pytest tests"
+concurrency = ["thread", "gevent"]
+
+[tool.coverage.report]
+#fail_under = 70
+show_missing = true
+exclude_lines = [
+    "pragma: no cover",
+    "if typing.TYPE_CHECKING:",
+    "if TYPE_CHECKING:"
+]
+
+
+[tool.coverage.xml]
+output = "coverage.xml"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"*" = ["*.txt"]

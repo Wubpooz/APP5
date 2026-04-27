@@ -1,0 +1,57 @@
+
+:host {
+  --card-min-width: 240px;
+  --card-max-width: 380px;
+  --max-cards-per-row: 5;
+  --card-gap: 1rem;
+}
+.pizza-card {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+
+  /* Limit content width within the card */
+  /* Target all direct children of .product-card */
+  & > * {
+    /* Apply max-width to content */
+    max-width: var(--card-max-width);
+    /* Allow content to take full width up to the max */
+    width: 100%;
+  }
+}
+.pizza-list {
+  /* Establishes the container as a CSS grid layout. */
+  display: grid;
+  /* Sets a 1rem gap between grid items. */
+  gap: var(--card-gap);
+  /* Defines the grid's column structure */
+  //display: flex;
+  //flex-direction: row;
+  //flex-wrap: wrap;
+  grid-template-columns: repeat(
+    /* Creates as many columns as can fit while respecting minmax constraints */
+    auto-fit,
+      minmax(
+        /* Determines the width of each column */
+          max(
+            /* Minimum width of each column is the minimum card width */
+            var(--card-min-width),
+              /* Calculates the maximum width per column to fit the desired number of cards per row, accounting for gaps */
+            calc((100% - var(--max-cards-per-row) * var(--card-gap)) / var(--max-cards-per-row))
+          ),
+          /* Allows columns to expand and take up equal amounts of the remaining space */
+          1fr
+      )
+  );
+  /* Adds padding around the entire grid container */
+  padding: 1rem;
+}
+.create-new-pizza {
+  display: flex;
+  justify-content: center; /* Align horizontal */
+  align-items: center; /* Align vertical */
+  height: 100%;
+}
+.create-new-pizza-icon {
+  transform: scale(5);
+}

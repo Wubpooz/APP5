@@ -1,0 +1,13 @@
+<mat-card class="pizza-card">
+
+  <img mat-card-image [src]="pizza.imageUrl" [alt]="pizza.name">
+
+  <mat-card-content>
+    <div class="pizza-details">
+      <h3 class="pizza-name">{{ pizza.name }}</h3>
+      <p class="pizza-price">{{ pizza.price | currency:'EUR':'symbol':'1.2-2' }}</p>
+      <p class="pizza-description">{{ pizza.description }}</p>
+    </div>
+  </mat-card-content>
+
+</mat-card>

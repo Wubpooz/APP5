@@ -1,0 +1,67 @@
+<mat-toolbar>
+  <button mat-icon-button class="example-icon" aria-label="Example icon-button with menu icon"
+          (click)="drawer.toggle()">
+    <mat-icon>menu</mat-icon>
+  </button>
+  <span>{{ title }}</span>
+  <span class="example-spacer"></span>
+  <button mat-icon-button class="example-icon favorite-icon" aria-label="Example icon-button with heart icon">
+    <mat-icon>favorite</mat-icon>
+  </button>
+  <button mat-icon-button class="example-icon" aria-label="Example icon-button with share icon">
+    <mat-icon>share</mat-icon>
+  </button>
+</mat-toolbar>
+<mat-drawer-container class="example-container" autosize style="height: 100%">
+  <mat-drawer #drawer class="example-sidenav" mode="side">
+    <mat-nav-list>
+      <mat-accordion>
+        <mat-expansion-panel>
+          <mat-expansion-panel-header>
+            <mat-panel-title>
+              Admin Section
+            </mat-panel-title>
+          </mat-expansion-panel-header>
+
+          <a mat-list-item routerLink="/admin/users">
+            <mat-icon>group</mat-icon>
+            Users Section
+          </a>
+          <a mat-list-item routerLink="/admin/pizza">
+            <mat-icon>local_pizza</mat-icon>
+            Pizza List Section
+          </a>
+        </mat-expansion-panel>
+
+        <mat-expansion-panel style="margin-top: 1rem">
+          <mat-expansion-panel-header>
+            <mat-panel-title>
+              <mat-icon>local_pizza</mat-icon>
+              Pizza Section
+            </mat-panel-title>
+          </mat-expansion-panel-header>
+          <a mat-list-item routerLink="/pizza">
+            <mat-icon>local_pizza</mat-icon>
+            All Pizza
+          </a>
+          <a mat-list-item routerLink="/pizza/category/MEAT">
+            <fa-icon [icon]="faBacon"></fa-icon>
+            Meat Pizza
+          </a>
+          <a mat-list-item routerLink="/pizza/category/VEGAN">
+            <fa-icon [icon]="faLeaf"></fa-icon>
+            Vegan Pizza
+          </a>
+          <a mat-list-item routerLink="/pizza/category/FISH">
+            <fa-icon [icon]="faFish"></fa-icon>
+            Fish Pizza
+          </a>
+        </mat-expansion-panel>
+      </mat-accordion>
+    </mat-nav-list>
+  </mat-drawer>
+  <mat-drawer-content>
+    <router-outlet></router-outlet>
+  </mat-drawer-content>
+</mat-drawer-container>
+

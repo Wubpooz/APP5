@@ -1,0 +1,15 @@
+<mat-expansion-panel #expansionPanel>
+  <mat-expansion-panel-header>
+    <mat-panel-title> Comments</mat-panel-title>
+  </mat-expansion-panel-header>
+
+  <ng-template matExpansionPanelContent>
+  <div class="comment-list">
+    @for (comment of comments; track comment.id) {
+      <div class="comment-card">
+        <app-pizza-comment-card [comment]="comment"></app-pizza-comment-card>
+      </div>
+    }
+  </div>
+  </ng-template>
+</mat-expansion-panel>

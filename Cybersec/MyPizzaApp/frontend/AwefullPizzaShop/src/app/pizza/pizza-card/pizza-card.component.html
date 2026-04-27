@@ -1,0 +1,17 @@
+<mat-card class="pizza-card">
+
+  <img mat-card-image [src]="pizza.imageUrl" [alt]="pizza.name" [routerLink]="['/pizza',pizza.id]">
+
+  <mat-card-content>
+    <div>
+      <h3>{{ pizza.name }}</h3>
+      <p>{{ pizza.price | currency:'EUR':'symbol':'1.2-2' }}</p>
+      <p>{{ pizza.description }}</p>
+    </div>
+    <div>
+      <app-pizza-comment-list [comments]="comments" [opened]="openComments"></app-pizza-comment-list>
+      <button mat-raised-button (click)="openCommentDialog()" style="margin-top: 1rem">Add a new comment</button>
+    </div>
+  </mat-card-content>
+
+</mat-card>

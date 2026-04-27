@@ -1,0 +1,22 @@
+<div class="pizza-list">
+  @for (pizza of pizzas; track pizza.id) {
+    <div class="pizza-card">
+      <app-pizza-admin-card [pizza]="pizza"></app-pizza-admin-card>
+    </div>
+  }
+  <div class="pizza-card">
+    <mat-card>
+      <mat-card-header>Create a new pizza</mat-card-header>
+      <div class="create-new-pizza">
+        <mat-card-content>
+          <button mat-icon-button
+                  (click)="openCreateNewPizzaDialog()">
+            <mat-icon class="create-new-pizza-icon">add</mat-icon>
+          </button>
+        </mat-card-content>
+      </div>
+
+
+    </mat-card>
+  </div>
+</div>
