@@ -1,0 +1,14 @@
+@prefix ex: <example.org> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+ex:sun ex:radius "1.392e6"^^xsd:double ;
+ex:satellite ex:mercury , ex:venus , ex:earth , ex:mars .
+ex:mercury ex:radius "2439.7"^^xsd:double .
+ex:venus ex:radius "6051.9"^^xsd:double .
+ex:earth ex:radius "6372.8"^^xsd:double ;
+ex:satellite ex:moon .
+ex:mars ex:radius "3402.5"^^xsd:double ;
+ex:satellite ex:phobos, ex:deimos .
+ex:moon ex:name "Lune@fr", "Moon@en" ;
+ex:radius "1737.1"^^xsd:double .
+ex:phobos ex:name "Phobos" .
+ex:deimos ex:name "Deimos" .
