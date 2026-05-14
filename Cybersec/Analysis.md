@@ -2,11 +2,7 @@
 **Table des matières**
 - [MyPizzaApp CTF Walkthrough](#mypizzaapp-ctf-walkthrough)
   - [Consignes](#consignes)
-  - [Plan](#plan)
-    - [Phase 1: Static Code Analysis](#phase-1-static-code-analysis)
-    - [Phase 2: Dynamic Analysis \& Recon](#phase-2-dynamic-analysis--recon)
-    - [Phase 3: The Exploitation Chain (Getting the Flags)](#phase-3-the-exploitation-chain-getting-the-flags)
-    - [Phase 4: Writing the Sysreptor Report](#phase-4-writing-the-sysreptor-report)
+  - [Writing the Sysreptor Report](#writing-the-sysreptor-report)
   - [Phase 1: SAST and manual analysis](#phase-1-sast-and-manual-analysis)
     - [Insecure Credentials](#insecure-credentials)
       - [Hardcoded Secrets](#hardcoded-secrets)
@@ -59,70 +55,7 @@ Ce rapport devra inclure :
 
 ---
 
-## Plan
-### Phase 1: Static Code Analysis
-Open the downloaded MyPizzaApp folder in your local VSCode. Look for the following classic vulnerabilities in the source code:
-- Hardcoded Secrets: Search for database passwords, API keys, or JWT secret keys.
-- SQL Injection (SQLi): Search the codebase for SELECT, UPDATE, or INSERT. Look for areas where user input is concatenated directly into the query instead of using parameterized queries/prepared statements.
-- Business Logic Flaws: The prompt mentions paying with "UBIKs" (virtual currency). Look closely at the purchasing logic. Can you alter the price of a pizza to a negative number? Can you cause an integer overflow? Can you buy something without having enough UBIKs?
-- Insecure File Upload: If the app lets users upload a profile picture or a pizza recipe, check if the code properly validates file extensions. If it doesn't, you might be able to upload a .php or .jsp web shell.
-- Command Injection: Search for dangerous functions (e.g., system(), exec(), os.system, eval()). Are any user inputs passed to these?
-
-### Phase 2: Dynamic Analysis & Recon
-Now launch the app on the VM (./LaunchApp.sh) and navigate to https://app1.tiweb.tp.ubik.academy on your local browser (or the VM's browser).
-
-Map the application in the browser and in a proxy:
-- Register a normal user and verify the exact request/response bodies for `/register` and `/token`.
-- Log in and inspect where `access_token` is stored, how it is reused, and whether it survives refresh.
-- Open the admin routes and confirm which checks are only client-side.
-- Create a comment payload and check whether it is rendered with HTML interpretation or sanitization.
-- Submit a pizza with a crafted `imageUrl` and observe whether the frontend or bot later fetches it.
-- Record every request that carries credentials, because the report needs direct evidence for interception risk.
-
-Capture this traffic using a proxy like Burp Suite or OWASP ZAP on your local machine if you can route it, or use the browser's Network tab.
-
-Directory bruteforcing still helps for recon and evidence collection:
-```Bash
-dirb https://app1.tiweb.tp.ubik.academy /usr/share/seclists/Discovery/Web-Content/common.txt
-```
-
-Useful checks during recon:
-- Verify whether `http://` is redirected to `https://` or stays reachable.
-- Check browser DevTools for sourcemaps and exposed bundle content.
-- Inspect whether route guards can be bypassed by editing `localStorage.access_token`.
-- Confirm whether `xss-poller` is reachable directly and whether it accepts unauthenticated requests.
-
-
-### Phase 3: The Exploitation Chain (Getting the Flags)
-Based on the lab description, you need a chain of exploits to compromise the server. A practical kill-chain for this app is:
-1. **Initial access: comment XSS or weak token forgery** [Flag 1]
-  - Use the comment field or another editable surface to inject stored XSS.
-  - The payload should steal `localStorage.access_token` when the admin bot opens the page.
-  - If the JWT secret is recoverable from source or config, forge an admin token directly instead.
-2. **Privilege escalation in the web layer** [Flag 2]
-  - Reuse the stolen or forged admin token to open the admin interface.
-  - Modify user data through the user edition flow if role checks are weak.
-  - Demonstrate that route guards are only cosmetic by bypassing them in the browser.
-3. **Server-side compromise** [Flag 3]
-  - Use admin access to reach the pizza creation path that accepts unsafe object input.
-  - Trigger the dangerous deserialization path or any equivalent code execution primitive.
-  - Document the exact payload, request, and resulting server-side effect.
-4. **Post-exploitation and root** [Final Flag]
-  - Once you have shell access as the application user, enumerate privileges.
-  - Check sudo permissions: `sudo -l`
-  - Check for SUID binaries: `find / -perm -4000 -type f 2>/dev/null`
-  - Check running processes: `htop` or `ps aux`
-  - Search GTFOBins online for standard Linux binaries with misconfigured permissions.
-
-For the report, write the chain as a single story:
-- public app exposure
-- token theft or forgery
-- admin UI access
-- server-side code execution
-- local privilege escalation
-- final flag capture
-
-### Phase 4: Writing the Sysreptor Report
+## Writing the Sysreptor Report
 As you go, take screenshots of everything. A good Sysreptor report should be professional and structured:
 Executive Summary:
 - One paragraph for non-technical readers.
