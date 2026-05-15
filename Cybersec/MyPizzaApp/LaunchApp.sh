@@ -28,4 +28,7 @@ if [[ $? -ne 0 ]]; then
     exit 1
 fi
 
+echo "Waiting for containers to initialize..."
+docker compose exec -T backend alembic upgrade head
+
 echo "Docker containers are up and running."
