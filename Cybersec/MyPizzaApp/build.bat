@@ -13,7 +13,12 @@ docker build -t awefull-pizza-shop-backend . || (echo "build failed" && exit /b 
 echo "Building nginx docker"
 cd ..
 copy nginx.conf build\
-powershell -Command "$cert = New-SelfSignedCertificate -DnsName 'app1.tiweb.tp.ubik.academy' -CertStoreLocation 'cert:\CurrentUser\My' -NotAfter (Get-Date).AddYears(10); Export-Certificate -Cert $cert -FilePath 'build\app1.tiweb.tp.ubik.academy.crt' -Type CERT -Force; $pwd = ConvertTo-SecureString -String 'temp' -Force -AsPlainText; Export-PfxCertificate -Cert $cert -FilePath 'build\app1.tiweb.tp.ubik.academy.pfx' -Password $pwd -Force; certutil -encode 'build\app1.tiweb.tp.ubik.academy.pfx' 'build\app1.tiweb.tp.ubik.academy.key'" || (echo "Certificate generation failed" && exit /b 1)
+set "OPENSSL_EXE=C:\Program Files\OpenSSL-Win64\bin\openssl.exe"
+if not exist "%OPENSSL_EXE%" (
+	echo OpenSSL not found at "%OPENSSL_EXE%".
+	exit /b 1
+)
+"%OPENSSL_EXE%" req -x509 -newkey rsa:4096 -keyout build\app1.tiweb.tp.ubik.academy.key -out build\app1.tiweb.tp.ubik.academy.crt -sha256 -days 3650 -nodes -subj "/C=XX/ST=StateName/L=CityName/O=CompanyName/OU=CompanySectionName/CN=app1.tiweb.tp.ubik.academy" || (echo "Certificate generation failed" && exit /b 1)
 docker build -t awefull-pizza-shop-frontend . || (echo "build failed" && exit /b 1)
 echo "Building XSS poller"
 docker build -t awefull-pizza-shop-xss-poller -f Dockerfile-XSS-poller . || (echo "build failed" && exit /b 1)
