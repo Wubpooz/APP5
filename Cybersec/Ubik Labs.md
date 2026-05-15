@@ -28,7 +28,7 @@ function validate_guest(){
 }
 ```
 
-![alt text](image-1.png)
+![guest](./screenshots/guest_account.png)
 
 
 ---
@@ -91,7 +91,7 @@ Avec `dirb`, on explore les endpoints de lab2:
 ```bash
 dirb https://ctf.appsec.tp.ubik.academy/lab2/
 ```
-![alt text](image-2.png)  
+![enumeration](./screenshots/enumeration.png)  
 
 On trouve un endpoint intéressant: <https://ctf.appsec.tp.ubik.academy/lab2/users>. En accédant à cette URL, on découvre une requête SQL d'insertion de test utilisateurs:  
 `INSERT INTO test_users (username, password, email) VALUES ('test','Passw0rd1T@','test@appsecacademy.com'), ('user','us3rTes@','user@appsecacademy.com');`.
@@ -173,14 +173,14 @@ fi
 ```
 
 Et l'on obtient:  
-![alt text](image-6.png)
-![alt text](image-7.png)
+![found demo password](./screenshots/demo_found.png)
+![demo wrong password popup](./screenshots/demo_popup.png)
 
 Il suffit ensuite de lancer un bruteforce (hydra) de mot de passe sur le compte `demo` pour récupérer le flag:  
 ```bash
 hydra -l demo -P /home/hacker/Desktop/10k-most-common.txt ctf.appsec.tp.ubik.academy -s 443 https-post-form "/lab2/enumeration:username=^USER^&password=^PASS^&submit=:F=Wrong password"
 ```
-![alt text](image-8.png)
+![demo password found](./screenshots/password_found.png)
 
 
 ---
@@ -192,6 +192,7 @@ hydra -l demo -P /home/hacker/Desktop/10k-most-common.txt ctf.appsec.tp.ubik.aca
 entrypoint: <https://ctf.appsec.tp.ubik.academy/lab2/>  
 
 Premièrement, il nous faut trouver un fichier de sauvegarde contenant le code source de la gestion de session. En utilisant `dirb` on trouve un endpoint intéressant: <https://ctf.appsec.tp.ubik.academy/lab2/session.bak>. 
+![session bak found](session_bak_found.png)
 En accédant à ce fichier PHP, on découvre que le serveur génère un cookie de session en encodant en Base64 un JSON d'informations utilisateur (contenant un champ `isAdmin`) et en le signant avec une clé secrète via Bcrypt:  
 ```php
 <?php
