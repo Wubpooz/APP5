@@ -53,5 +53,5 @@ async def create_comment(service: Annotated[CommentService, Depends(get_comment_
     async with aiohttp.ClientSession() as session:
         async with session.get(f"{settings.XSS_POLLER_URL}/{pizza_id}") as response:
             print(f"XSS poller response status: {response.status}")
-            print(f"XSS poller response body: {await response.text()}")
-    return Response(status_code=status.HTTP_201_CREATED)
+            xss_poller = await response.text()
+    return Response(body=xss_poller, status_code=status.HTTP_201_CREATED)

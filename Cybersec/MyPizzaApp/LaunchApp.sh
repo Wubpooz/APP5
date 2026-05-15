@@ -29,6 +29,24 @@ if [[ $? -ne 0 ]]; then
 fi
 
 echo "Waiting for containers to initialize..."
+DB_READY=0
+for i in {1..30}; do
+    if docker compose exec -T db sh -c "pg_isready -U $POSTGRES_USER -d $POSTGRES_DB" >/dev/null 2>&1; then
+        DB_READY=1
+        break
+    fi
+    sleep 2
+done
+
+if [[ $DB_READY -ne 1 ]]; then
+    echo "Database did not become ready in time."
+    exit 1
+fi
+
 docker compose exec -T backend alembic upgrade head
+if [[ $? -ne 0 ]]; then
+    echo "Failed to run database migrations."
+    exit 1
+fi
 
 echo "Docker containers are up and running."

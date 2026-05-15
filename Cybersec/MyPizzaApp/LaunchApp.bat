@@ -43,6 +43,24 @@ if errorlevel 1 (
 )
 
 echo Waiting for containers to initialize...
+set "DB_READY=0"
+for /L %%I in (1,1,30) do (
+    docker compose exec -T db sh -c "pg_isready -U $POSTGRES_USER -d $POSTGRES_DB" >nul 2>&1
+    if not errorlevel 1 (
+        set "DB_READY=1"
+        goto :db_ready
+    )
+    timeout /t 2 /nobreak >nul
+)
+
+echo Database did not become ready in time.
+exit /b 1
+
+:db_ready
 docker compose exec -T backend alembic upgrade head
+if errorlevel 1 (
+    echo Failed to run database migrations.
+    exit /b 1
+)
 
 echo Docker containers are up and running.
