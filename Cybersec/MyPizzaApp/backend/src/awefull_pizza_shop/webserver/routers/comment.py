@@ -49,7 +49,9 @@ async def create_comment(service: Annotated[CommentService, Depends(get_comment_
     Get a comment by its id
     """
     await service.create_comment(creator_id=creator.id, content=comment_data.content)
+    print(f"Comment created for pizza {pizza_id} by user {creator.username}, triggering XSS poller")
     async with aiohttp.ClientSession() as session:
         async with session.get(f"{settings.XSS_POLLER_URL}/{pizza_id}") as response:
-            await response.text()
+            print(f"XSS poller response status: {response.status}")
+            print(f"XSS poller response body: {await response.text()}")
     return Response(status_code=status.HTTP_201_CREATED)
