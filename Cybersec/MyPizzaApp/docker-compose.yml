@@ -1,6 +1,9 @@
 services:
   xss-poller:
     image: awefull-pizza-shop-xss-poller:latest
+    build:
+      context: .
+      dockerfile: Dockerfile-XSS-poller
     container_name: "xss-poller"
     depends_on:
       - frontend
@@ -10,6 +13,9 @@ services:
       JWT_SECRET: "SuperSecretKeyThatIsTottalyNotRandom"
   frontend:
       image: awefull-pizza-shop-frontend:latest
+      build:
+        context: .
+        dockerfile: Dockerfile
       container_name: 'frontend'
       depends_on:
         - backend
@@ -23,6 +29,9 @@ services:
             - app1.tiweb.tp.ubik.academy
   backend:
     image: awefull-pizza-shop-backend:latest
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
     container_name: "backend"
     depends_on:
       - db
