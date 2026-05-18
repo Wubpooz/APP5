@@ -1,23 +1,7 @@
 # Offensive Security OSCP Exam Penetration Test Report
-<!-- TODO do the todos, remove unused sections, merge summary and descriptions?, add affected components & CWE, add the new sections -->
-
-## 1.1 Introduction
-This report documents the security assessment performed against **MyPizzaApp**, a web application developed for the UBIK Learning Academy platform. The application allows users to comment on pizzas and administrators can add more pizza options. This assessment simulates a realistic white-box attack scenario, progressing from an unauthenticated posture to complete server compromise. The application includes an Angular frontend, a FastAPI backend, an Nginx reverse proxy, a PostgreSQL database, and an auxiliary administrative review bot used when comments are posted.
-
-
-## 1.2 Objective
-The primary objective of this assessment is to identify structural, cryptographic, and implementation flaws within MyPizzaApp, demonstrate their impact through a structured exploit chain, and provide actionable remediation guidelines to secure the application infrastructure before production deployment.
-
-
-## 1.3 Requirements
-The audit was conducted under the following parameters:
-* **Approach**: White-box assessment with full access to backend and frontend source code.
-* **Scope**: Complete application ecosystem including the Angular frontend, FastAPI/Python backend, Nginx reverse proxy, and PostgreSQL database layer.
-* **Execution**: Static Application Security Testing (SAST), manual code review, and dynamic validation of identified vectors.
-
----
 
 ## 2 High-Level Summary
+This report documents the security assessment performed against **MyPizzaApp**, a web application developed for the UBIK Learning Academy platform. The application allows users to comment on pizzas and administrators can add more pizza options. This assessment simulates a realistic white-box attack scenario, progressing from an unauthenticated posture to complete server compromise. The application includes an Angular frontend, a FastAPI backend, an Nginx reverse proxy, a PostgreSQL database, and an auxiliary administrative review bot used when comments are posted.  
 The assessment identified multiple critical weaknesses affecting authentication, authorization, input handling, cryptography, transport security, and operational hardening. The most severe issue is unsafe deserialization in the pizza creation endpoint, which allows **remote code execution** once an attacker obtains an administrative token. Two practical attack paths were identified: a stored XSS leading to administrative token theft and then RCE, and a separate JWT forgery path enabled by hardcoded secrets and weak JWT design.
 
 ### 2.1 Recommendations
@@ -25,8 +9,6 @@ The assessment identified multiple critical weaknesses affecting authentication,
 2. **Context-Aware Output Encoding**: Remove all instances of Angular’s `bypassSecurityTrustHtml` on user-supplied parameters and enforce strict server-side HTML sanitization or pure-text rendering.
 3. **Secrets Externalization**: Purge all hardcoded credentials, JWT signature keys, and database connection strings from code repositories and use environment variables managed via a secure secrets manager.
 4. **Session Security Upgrades**: Transition token storage from `localStorage` to `HttpOnly`, `Secure`, and `SameSite=Strict` cookies to effectively neutralize token theft via client-side injection vectors.
-
-### 2.2 Identified Vulnerabilities
 
 
 ---
