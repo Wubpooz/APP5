@@ -114,11 +114,12 @@ template <std::size_t dim> point<dim> randomPoint() {
 // 1.2) Afficher les coordonnées d'un point sur un stream
 template <std::size_t dim>
 std::ostream &operator<<(std::ostream &out, point<dim> const &p) {
-  out << "p: { ";
-  for (double coord: p) {
-    out << coord << ", ";
+  out << "(";
+  for (std::size_t i = 0; i < dim; i++) {
+    if (i > 0) out << ", ";
+    out << p.coords[i];
   }
-  out << " }" << std::endl;
+  out << ")";
   return out;
 }
 
