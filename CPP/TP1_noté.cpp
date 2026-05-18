@@ -134,7 +134,7 @@
 
 template < typename T , std::size_t N > class small_array {
   private:
-    T data[N];
+    T data[N]{};
   
   public:
     small_array() = default;
@@ -222,7 +222,7 @@ int main () {
   small_array<int, 4> const u = t ;
 
   for ( std::size_t i = 0; i < 4; ++i ) {
-    std::cout << "[ " << i << " ] = " << u[i] << "\n";
+    std::cout << "t[ " << i << " ] = " << u[i] << "\n";
   }
   // t[4] = 0; // assertion failed !
   
@@ -231,13 +231,33 @@ int main () {
     std::cout << "t at " << i << " = " << u.at(i) << "\n";
   }
   // t.at(4) = 0; // exception thrown
-
-
+  
+  
   // 3. Test de small_array LARGE
   // small_array< int , 1000 * 1000 * 10 > t ;
   // t[2] = 42;
-
+  
   // 4. Test de large_array
   large_array<int , 1000 * 1000 * 10> Lt;
-  Lt[300] = 4;
+  Lt[0] = 23;
+  Lt[1] = 47;
+  Lt[2] = 106;
+  Lt[3] = 235;
+  Lt[4] = 551;
+  Lt[42] = 4;
+  
+  large_array<int, 1000 * 1000 * 10> const Lt2 = Lt;
+  std::cout << "Lt2[42] = " << Lt2[42] << '\n';
+  large_array<int, 1000 * 1000 * 10> Lt3;
+  Lt3[42] = 24;
+  Lt.swap(Lt3);
+  std::cout << "Post swap, Lt[42] = " << Lt[42] << '\n';
+  std::cout << "Post swap, Lt[42] = " << Lt3[42] << '\n';
+  
+  for ( std::size_t i = 0; i < 5; ++i ) {
+    std::cout << "Lt3[ " << i << " ] = " << Lt3[i] << "\n";
+    std::cout << "Lt3 at " << i << " = " << Lt3.at(i) << "\n";
+  }
+  // t[1000 * 1000 * 10] = 3; // assert fail
+  // t.at(1000 * 1000 * 10) = 3; // exception thrown
 }
