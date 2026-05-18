@@ -4,19 +4,16 @@
  * ============================================================
  *
  * Types manipulés lors de ce TP :
- *
  *   template<std::size_t dim> struct point { double coords[dim]; };
  *   template<std::size_t dim> using points = std::vector<point<dim>>;
  *
  *
  * 1.1) Définissez une fonction pour créer un point avec des coordonnées
  *      aléatoires comprises entre 0 et 1, avec la signature :
- *
  *        template<std::size_t dim> point<dim> randomPoint();
  *
  * 1.2) Définissez une fonction pour afficher les coordonnées d'un point
  *      sur le stream passé en argument, avec la signature :
- *
  *        template<std::size_t dim>
  *        std::ostream& operator<<(std::ostream& out, point<dim> const& p);
  *
@@ -72,7 +69,6 @@
  *        (0.43, 0.09) <  (0.15, 0.72)  --> faux
  *
  * 3.3) Essayez de définir un ensemble de points ordonné par lt :
- *
  *        template<std::size_t dim>
  *        using point_set = std::set<point<dim>, lt<dim>>;
  *
@@ -88,9 +84,9 @@
  *      Affichez la taille de l'ensemble résultant.
  *
  * ============================================================
- */
+*/
 
- #include <algorithm>
+#include <algorithm>
 #include <cassert>
 #include <cmath>
 #include <cstdlib>
@@ -99,32 +95,45 @@
 #include <numeric>
 #include <set>
 #include <vector>
+#include <random>
 
 template <std::size_t dim> struct point { double coords[dim]; };
 template <std::size_t dim> using points = std::vector<point<dim>>;
 
 // 1.1) Créer un point avec des coordonnées aléatoires dans [0, 1]
 template <std::size_t dim> point<dim> randomPoint() {
-  // A COMPLETER
+  static thread_local std::mt19937_64 generator(std::random_device{}());
+  std::uniform_real_distribution<double> distrib(0.0, 1.0);
+  point<dim> p{};
+  for (std::size_t i = 0; i < dim; i++) {
+    p.coords[i] = distrib(generator);
+  }
+  return p;
 }
 
 // 1.2) Afficher les coordonnées d'un point sur un stream
 template <std::size_t dim>
 std::ostream &operator<<(std::ostream &out, point<dim> const &p) {
-  // A COMPLETER
+  out << "p: { ";
+  for (double coord: p) {
+    out << coord << ", ";
+  }
+  out << " }" << std::endl;
+  return out;
 }
 
 // 1.3) Remplir un vecteur de n points aléatoires avec std::generate_n
 template <std::size_t dim> points<dim> randomPoints(std::size_t n) {
   points<dim> pts;
-  // A COMPLETER 
+  std::generate_n(std::back_inserter(pts), n, randomPoint());
   return pts;
 }
 
 // 1.4) Afficher tous les points d'un vecteur avec std::for_each
 template <std::size_t dim>
 std::ostream &operator<<(std::ostream &out, points<dim> const &pts) {
-  // A COMPLETER 
+  std::for_each(pts.begin(), pts.end(),
+    [&out](auto &p) { out << " " << p << "\n";});
   return out;
 }
 
@@ -188,6 +197,7 @@ int main() {
   point_set<4> pset;
 
   // A COMPLETER 
+
 
   std::cout << "taille de l'ensemble : " << pset.size() << '\n';
 }
