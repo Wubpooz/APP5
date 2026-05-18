@@ -9,7 +9,7 @@
 // opérations comme `move` ou `swap` soient trop coûteuses.
 // 
 // Les trois classes template définies ci-dessous auront une signature du type :
-//      template < typename T, std::size_t N >
+//      template< typename T, std::size_t N >
 //      class my_new_array {
 //      ...
 //      };
@@ -37,14 +37,14 @@
 // 
 // Question : est-il possible de marquer ces opérateurs comme étant noexcept ?
 // 
-//     Oui c'est possible, les assert étant à la compilation et non l'exécution
+//     Oui car les asserts sont trigger à l'exécution mais font in abort() et et non une exception
 // 
 // Testez votre classe en utilisant le `main()` initial.
 // 
 // Question : est-ce que votre code affiche des valeurs surprenantes pour les cases autres que la deuxième ?
 // Si oui, c’est normal (et sinon, c’est un coup de chance). Pourquoi ?
 // 
-//      Le programme affiche des valeurs inatendues pour les autres cases car elles ne sont pas initalisées. D'ailleurs c'est la même valeur pour toutes. 
+//      Le programme affiche des valeurs aléatoires pour les autres cases car elles ne sont pas initalisées. D'ailleurs c'est la même valeur pour toutes. 
 //      PS: après test avec .at(), je remarque que les valeurs par défaut sont différentes entres [] et .at()
 // 
 // Ajoutez deux méthodes qui se comportent comme les opérateurs crochets, mais qui lèvent cette fois des
@@ -68,22 +68,24 @@
 // 
 // Question : pourquoi le programme plante-t-il ?
 // 
-//      REPONDRE ICI
+//      Le tableau de 10 millions d'int est alloué sur le stack, or le stack est petit (env. 8Mo) vs 10^7 * 4 octets = 40Mo pour le tableau.
+//      On a donc un stack overflow.
 // 
 // Définissez une classe template `large_array<T,N>` dont le champ privé a maintenant le type suivant :
-// `std::unique_ptr< small_array <T ,N > >`.
+// `std::unique_ptr<small_array<T , N>>`.
 // 
 // Ajoutez des opérateurs crochets et des méthodes at permettant d’accéder aux éléments du tableau.
 // 
 // Question : pourquoi le constructeur par défaut fourni par le compilateur ne convient-il pas ?
 // 
-//      REPONDRE ICI
+//      Parce que le unique_ptr ne serait pas initialisé - il resterait nullptr ou en état indéfini.
+//      Il faut un constructeur explicite qui initialise: data(std::make_unique<small_array<T, N>>())
 // 
 // Définissez un constructeur par défaut et testez votre classe avec le code suivant :
 //   
 //      int main() {
-//        large_array< int , 1000 * 1000 * 10 > t ;
-//        t [2] = 42;
+//        large_array<int , 1000 * 1000 * 10> t ;
+//        t[2] = 42;
 //      }
 // 
 // Les versions du constructeur par copie et de l’opérateur d’affectation par copie fournies par le compilateur
@@ -94,7 +96,7 @@
 // 
 // Fournissez une méthode `swap` qui échange le contenu de deux tableaux larges en temps constant :
 // 
-//      void large_array<T ,N >::swap( large_array & );
+//      void large_array<T , N>::swap( large_array & );
 // 
 // Proposez une variante de l’opérateur d’affectation par copie qui fournisse une garantie plus forte concernant
 // les exceptions : si une exception est levée lors de la copie, le tableau original est rendu inchangé
@@ -102,7 +104,8 @@
 // 
 // Question : quel est l’inconvénient de cette variante ?
 // 
-//      REPONDRE ICI
+//      Elle crée une copie temporaire du tableau entier avant d'échanger, ce qui coûte en mémoire et performance.
+//      Le résultat est peu visible sur un petit tableau mais l'est beaucoup sur un grand.
 // 
 // Une fonction template incorrecte n’est généralement pas détectée par le compilateur tant qu’elle n’est
 // pas utilisée par du code non-template. Modifiez le code de test afin que l’opérateur d’affectation par
@@ -119,8 +122,8 @@
 // une assertion dans le constructeur de `large_array` pour s’assurer qu’il n’est pas appelé avec un petit `N`.
 // 
 //      int main() {
-//        my_array< int , 1000 * 1000 * 10 > t ;
-//        t [2] = 42;
+//        my_array<int, 1000 * 1000 * 10> t;
+//        t[2] = 42;
 //      }
 // 
 
@@ -140,20 +143,20 @@ class small_array {
     small_array &operator=(small_array const &) = default;
     small_array &operator=(small_array &&) = default;
     T &operator[](std::size_t i) noexcept {
-      assert(i < N); // i can be negative if we follow the std::array implementation (return "std::out_of_range if pos >= size()", https://cppreference.com/cpp/container/array/at)
+      assert(i < N); // i can be negative if we follow the std::array implementation since it's gonna wrap around to a large positive (return "std::out_of_range if pos >= size()", https://cppreference.com/cpp/container/array/at)
       return data[i];
     }
     T const &operator[](std::size_t i) const noexcept {
-      assert(i < N); // i can be negative if we follow the std::array implementation (return "std::out_of_range if pos >= size()", https://cppreference.com/cpp/container/array/at)
+      assert(i < N); // i can be negative if we follow the std::array implementation since it's gonna wrap around to a large positive (return "std::out_of_range if pos >= size()", https://cppreference.com/cpp/container/array/at)
       return data[i];
     }
     T &at(std::size_t i) {
-      if (i >= N) // i can be negative if we follow the std::array implementation (return "std::out_of_range if pos >= size()", https://cppreference.com/cpp/container/array/at)
+      if (i >= N) // i can be negative if we follow the std::array implementation since it's gonna wrap around to a large positive (return "std::out_of_range if pos >= size()", https://cppreference.com/cpp/container/array/at)
         throw std::out_of_range("out-of-bound access");
       return data[i];
     }
     T const &at(std::size_t i) const {
-      if (i >= N) // i can be negative if we follow the std::array implementation (return "std::out_of_range if pos >= size()", https://cppreference.com/cpp/container/array/at)
+      if (i >= N)  // i can be negative if we follow the std::array implementation since it's gonna wrap around to a large positive (return "std::out_of_range if pos >= size()", https://cppreference.com/cpp/container/array/at)
         throw std::out_of_range("out-of-bound access");
       return data[i];
     }
@@ -165,6 +168,7 @@ class small_array {
 template < typename T , std :: size_t N >
 class large_array {
   // CODE A AJOUTER ICI
+  std::unique_ptr<small_array<T,N>>
 };
 
 template <typename T, std::size_t N>
