@@ -169,15 +169,17 @@ template <std::size_t dim> double pathLength2(points<dim> const &pts) {
 template <std::size_t dim> point<dim> quant(point<dim> const &p1) {
   point<dim> p{};
   for (std::size_t i = 0; i < dim; i++) {
-    p.coords[i] = (int)(p1.coords[i] * 10 )/ 10;
+    p.coords[i] = std::round(p1.coords[i] * 10.0) / 10.0;
   }
   return p;
 }
 
 // 3.2) Comparaison lexicographique stricte sur les versions arrondies
 template <std::size_t dim> bool lt(point<dim> const &p1, point<dim> const &p2) {
-  std::lexicographical_compare(quant(p1).coords, quant(p1).coords + dim,
-                             quant(p2).coords, quant(p2).coords + dim);
+  point<dim> const q1 = quant(p1);
+  point<dim> const q2 = quant(p2);
+  return std::lexicographical_compare(q1.coords, q1.coords + dim, q2.coords,
+                                      q2.coords + dim);
 }
 
 // 3.3) Classe foncteur encapsulant lt pour std::set
