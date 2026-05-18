@@ -45,7 +45,8 @@
 // Si oui, c’est normal (et sinon, c’est un coup de chance). Pourquoi ?
 // 
 //      Le programme affiche des valeurs aléatoires pour les autres cases car elles ne sont pas initalisées. D'ailleurs c'est la même valeur pour toutes. 
-//      PS: après test avec .at(), je remarque que les valeurs par défaut sont différentes entres [] et .at()
+//      PS: après test avec .at(), je remarque que les valeurs par défaut sont différentes entres [] et .at(). C'est probablement d^à des optimisations
+//      du compilateur qui changent entre les 2, vu qu'il voit que ce sont des valeurs non initalisées et que le comportement est donc indéfini.
 // 
 // Ajoutez deux méthodes qui se comportent comme les opérateurs crochets, mais qui lèvent cette fois des
 // exceptions quand les accès ont lieu hors des bornes :
@@ -77,8 +78,7 @@
 // Ajoutez des opérateurs crochets et des méthodes at permettant d’accéder aux éléments du tableau.
 // 
 // Question : pourquoi le constructeur par défaut fourni par le compilateur ne convient-il pas ?
-// 
-//      Parce que le unique_ptr ne serait pas initialisé - il resterait nullptr ou en état indéfini.
+//      Parce que le unique_ptr ne serait pas initialisé, il resterait nullptr ou en état indéfini.
 //      Il faut un constructeur explicite qui initialise: data(std::make_unique<small_array<T, N>>())
 // 
 // Définissez un constructeur par défaut et testez votre classe avec le code suivant :
@@ -96,14 +96,13 @@
 // 
 // Fournissez une méthode `swap` qui échange le contenu de deux tableaux larges en temps constant :
 // 
-//      void large_array<T , N>::swap( large_array & );
+//      void large_array<T, N>::swap( large_array & );
 // 
 // Proposez une variante de l’opérateur d’affectation par copie qui fournisse une garantie plus forte concernant
 // les exceptions : si une exception est levée lors de la copie, le tableau original est rendu inchangé
 // plutôt qu’à moitié modifié. (Note : cette garantie n’est pas fournie par small_array.)
 // 
 // Question : quel est l’inconvénient de cette variante ?
-// 
 //      Elle crée une copie temporaire du tableau entier avant d'échanger, ce qui coûte en mémoire et performance.
 //      Le résultat est peu visible sur un petit tableau mais l'est beaucoup sur un grand.
 // 
@@ -129,9 +128,11 @@
 
 #include <iostream>
 #include <cassert>
+#include <memory>
+#include <stdexcept>
+#include <type_traits>
 
-template < typename T , std::size_t N >
-class small_array {
+template < typename T , std::size_t N > class small_array {
   private:
     T data[N];
   
@@ -163,29 +164,80 @@ class small_array {
 };
 
 
+template < typename T , std :: size_t N > class large_array {
+  private:
+    std::unique_ptr<small_array<T, N>> data;
+  public:
+    large_array() : data(std::make_unique<small_array<T, N>>()) {}
+    large_array(const large_array& t) {
+      // if issue during copy, no change
+      std::unique_ptr<small_array<T, N>> tmp = std::make_unique<small_array<T, N>>(*t.data);
+      data = std::move(tmp);
+    } 
+    large_array(large_array&& t) {
+        data = std::move(t.data);
+    }
+    ~large_array() noexcept = default;
 
-/*
-template < typename T , std :: size_t N >
-class large_array {
-  // CODE A AJOUTER ICI
-  std::unique_ptr<small_array<T,N>>
+    large_array &operator=(large_array const &t) {
+      large_array u = t; // extra allocation but garantes that we don't have weird data if interupted
+      data.swap(u.data);
+      return *this;
+    }
+    large_array &operator=(large_array &&) noexcept = default;
+
+    T &operator[](std::size_t i) noexcept {
+      assert(i < N);
+      return (*data)[i];
+    }
+    T const &operator[](std::size_t i) const noexcept {
+      assert(i < N);
+      return (*data)[i];
+    }
+
+    T &at(std::size_t i) {
+      if (i >= N)
+        throw std::out_of_range("out-of-bound access");
+      return (*data)[i];
+    }
+    T const &at(std::size_t i) const {
+      if (i >= N)
+        throw std::out_of_range("out-of-bound access");
+      return (*data)[i];
+    }
+
+    void swap(large_array &t) {
+      data.swap(t.data);
+    }
 };
 
 template <typename T, std::size_t N>
-using my_array = // CODE A AJOUTER ICI
-*/
+using my_array = std::conditional_t<(sizeof(T) * N <= 16), small_array<T, N>, large_array<T, N>>;
+
 
 int main () {
+  // 1. Test de small_array
   small_array<int, 4> t;
   t[2] = 42;
   small_array<int, 4> const u = t ;
+
   for ( std::size_t i = 0; i < 4; ++i ) {
     std::cout << "[ " << i << " ] = " << u[i] << "\n";
   }
   // t[4] = 0; // assertion failed !
   
+  // 2. Test de .at()
   for ( std::size_t i = 0; i < 4; ++i ) {
     std::cout << "t at " << i << " = " << u.at(i) << "\n";
   }
-  t.at(4) = 0; // exception thrown
+  // t.at(4) = 0; // exception thrown
+
+
+  // 3. Test de small_array LARGE
+  // small_array< int , 1000 * 1000 * 10 > t ;
+  // t[2] = 42;
+
+  // 4. Test de large_array
+  large_array<int , 1000 * 1000 * 10> Lt;
+  Lt[300] = 4;
 }
