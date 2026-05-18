@@ -125,7 +125,7 @@ std::ostream &operator<<(std::ostream &out, point<dim> const &p) {
 // 1.3) Remplir un vecteur de n points aléatoires avec std::generate_n
 template <std::size_t dim> points<dim> randomPoints(std::size_t n) {
   points<dim> pts;
-  std::generate_n(std::back_inserter(pts), n, randomPoint());
+  std::generate_n(std::back_inserter(pts), n, randomPoint<dim>);
   return pts;
 }
 
@@ -140,35 +140,49 @@ std::ostream &operator<<(std::ostream &out, points<dim> const &pts) {
 // 2.1) Distance euclidienne entre deux points
 template <std::size_t dim>
 double dist(point<dim> const &p1, point<dim> const &p2) {
-  // A COMPLETER
+  double sum = 0;
+  for (std::size_t i = 0; i < dim; i++) {
+    double d = p1.coords[i] - p2.coords[i];
+    sum += d * d;
+  }
+  return std::sqrt(sum);
 }
 
 // 2.2) Longueur du chemin fermé avec std::for_each
 template <std::size_t dim> double pathLength(points<dim> const &pts) {
   if (pts.size() == 0) return 0;
-  // A COMPLETER
+  double len = 0;
+  std::for_each(pts.begin(), pts.end(),
+    [&pts, &len](auto &p) { static point<dim> prev = pts.back(); len += dist(prev, p); prev = p; });
+  return len;
 }
 
 // 2.3) Longueur du chemin fermé avec std::accumulate
 template <std::size_t dim> double pathLength2(points<dim> const &pts) {
   if (pts.size() == 0) return 0;
-  // A COMPLETER
+  return std::accumulate(pts.begin(), pts.end(), 0.0,
+    [&pts](double sum, auto &p) { static point<dim> prev = pts.back(); double d = dist(prev, p); prev = p; return sum + d; });
 }
 
 // 3.1) Arrondir les coordonnées d'un point à 0.1 près par défaut
 template <std::size_t dim> point<dim> quant(point<dim> const &p1) {
-  // A COMPLETER
+  point<dim> p{};
+  for (std::size_t i = 0; i < dim; i++) {
+    p.coords[i] = (int)(p1.coords[i] * 10 )/ 10;
+  }
+  return p;
 }
 
 // 3.2) Comparaison lexicographique stricte sur les versions arrondies
 template <std::size_t dim> bool lt(point<dim> const &p1, point<dim> const &p2) {
-  // A COMPLETER
+  std::lexicographical_compare(quant(p1).coords, quant(p1).coords + dim,
+                             quant(p2).coords, quant(p2).coords + dim);
 }
 
 // 3.3) Classe foncteur encapsulant lt pour std::set
 template <std::size_t dim> struct clt {
   bool operator()(point<dim> const &p1, point<dim> const &p2) const {
-    // A COMPLETER
+    return lt(p1, p2);
   }
 };
 
@@ -196,8 +210,7 @@ int main() {
   points<4> pts2 = randomPoints<4>(10000);
   point_set<4> pset;
 
-  // A COMPLETER 
-
+  std::copy(pts2.begin(), pts2.end(), std::inserter(pset, pset.end()));
 
   std::cout << "taille de l'ensemble : " << pset.size() << '\n';
 }
