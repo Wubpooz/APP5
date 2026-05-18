@@ -131,8 +131,9 @@
 #include <memory>
 #include <stdexcept>
 #include <type_traits>
+#include <typeinfo>
 
-template < typename T , std::size_t N > class small_array {
+template<typename T, std::size_t N> class small_array {
   private:
     T data[N]{};
   
@@ -164,11 +165,13 @@ template < typename T , std::size_t N > class small_array {
 };
 
 
-template < typename T , std :: size_t N > class large_array {
+template<typename T, std::size_t N> class large_array {
   private:
     std::unique_ptr<small_array<T, N>> data;
   public:
-    large_array() : data(std::make_unique<small_array<T, N>>()) {}
+    large_array() : data(std::make_unique<small_array<T, N>>()) {
+      static_assert(sizeof(small_array<T,N>) > 64, "large_array should only be used for arrays larger than 16 bytes");
+    }
     large_array(const large_array& t) {
       // if issue during copy, no change
       std::unique_ptr<small_array<T, N>> tmp = std::make_unique<small_array<T, N>>(*t.data);
@@ -212,7 +215,7 @@ template < typename T , std :: size_t N > class large_array {
 };
 
 template <typename T, std::size_t N>
-using my_array = std::conditional_t<(sizeof(T) * N <= 16), small_array<T, N>, large_array<T, N>>;
+using my_array = std::conditional_t<(sizeof(small_array<T,N>) <= 64), small_array<T, N>, large_array<T, N>>;
 
 
 int main () {
@@ -260,4 +263,21 @@ int main () {
   }
   // t[1000 * 1000 * 10] = 3; // assert fail
   // t.at(1000 * 1000 * 10) = 3; // exception thrown
-}
+
+
+
+  // 5. Dynamic array
+  my_array<int, 1000 * 1000 * 10> dynT1;
+  dynT1[2] = 42;
+  std::cout << "dynT1 type = " << typeid(dynT1).name() << '\n';
+  
+  my_array<int, 8> dynT2;
+  dynT2[2] = 42;
+  std::cout << "dynT2 type = " << typeid(dynT2).name() << '\n';
+  
+  my_array<int, 16> dynT3;
+  dynT3[2] = 42;
+  std::cout << "dynT3 type = " << typeid(dynT3).name() << '\n';
+
+  // large_array<int, 8> small_large_arr; // static assert
+  }
