@@ -1,6 +1,8 @@
 
 #include <iostream>
 #include <utility>
+#include <array>
+#include <cassert>
 
 /*
 Le Système international d'unités (abrégé en SI), inspiré du 
@@ -86,12 +88,12 @@ using siemens = unit<T,-1,3,-2,0,2,0,0>;
 */
 template<typename T, int kg, int s, int m, int K, int A, int mol, int cd>
 unit<T,kg,s,m,K,A,mol,cd> operator+(const unit<T,kg,s,m,K,A,mol,cd>& a, const unit<T,kg,s,m,K,A,mol,cd>& b) {
-  unit(a.value + b.value);
+  return unit<T,kg,s,m,K,A,mol,cd>(a.value + b.value);
 }
 
 template<typename T, int kg, int s, int m, int K, int A, int mol, int cd>
 unit<T,kg,s,m,K,A,mol,cd> operator-(const unit<T,kg,s,m,K,A,mol,cd>& a, const unit<T,kg,s,m,K,A,mol,cd>& b) {
-  unit(a.value - b.value);
+  return unit<T,kg,s,m,K,A,mol,cd>(a.value - b.value);
 }
 
 template<typename T, 
@@ -99,7 +101,7 @@ template<typename T,
     int kg_b, int s_b, int m_b, int K_b, int A_b, int mol_b, int cd_b>
 unit<T, kg_a + kg_b, s_a + s_b, m_a + m_b, K_a + K_b, A_a + A_b, mol_a + mol_b, cd_a + cd_b> operator*(
   const unit<T,kg_a,s_a,m_a,K_a,A_a,mol_a,cd_a>& a, const unit<T,kg_b,s_b,m_b,K_b,A_b,mol_b,cd_b>& b) {
-  unit(a.value * b.value);
+  return unit<T, kg_a + kg_b, s_a + s_b, m_a + m_b, K_a + K_b, A_a + A_b, mol_a + mol_b, cd_a + cd_b>(a.value * b.value);
 }
 
 template<typename T, 
@@ -107,7 +109,7 @@ template<typename T,
     int kg_b, int s_b, int m_b, int K_b, int A_b, int mol_b, int cd_b>
 unit<T, kg_a - kg_b, s_a - s_b, m_a - m_b, K_a - K_b, A_a - A_b, mol_a - mol_b, cd_a - cd_b> operator/(
   const unit<T,kg_a,s_a,m_a,K_a,A_a,mol_a,cd_a>& a, const unit<T,kg_b,s_b,m_b,K_b,A_b,mol_b,cd_b>& b) {
-  unit(a.value / b.value);
+  return unit<T, kg_a - kg_b, s_a - s_b, m_a - m_b, K_a - K_b, A_a - A_b, mol_a - mol_b, cd_a - cd_b>(a.value / b.value);
 }
 
 
@@ -123,8 +125,28 @@ unit<T, kg_a - kg_b, s_a - s_b, m_a - m_b, K_a - K_b, A_a - A_b, mol_a - mol_b, 
 
   template<typename T, spec D> struct unit;
 */
+struct spec {
+  private:
+    std::array<int, 7> dimensions;
+  public:
+    constexpr spec(int kg, int s, int m, int K, int A, int mol, int cd) : dimensions{kg, s, m, K, A, mol, cd} {}
 
-// ECRIVEZ VOTRE CODE ICI
+    constexpr spec operator+(const spec& S) const {
+      return spec(dimensions[0] + S.dimensions[0], dimensions[1] + S.dimensions[1], dimensions[2] + S.dimensions[2], 
+                  dimensions[3] + S.dimensions[3], dimensions[4] + S.dimensions[4], dimensions[5] + S.dimensions[5], 
+                  dimensions[6] + S.dimensions[6]);
+    }
+
+    constexpr spec operator-(const spec& S) const {
+      return spec(dimensions[0] - S.dimensions[0], dimensions[1] - S.dimensions[1], dimensions[2] - S.dimensions[2], 
+                  dimensions[3] - S.dimensions[3], dimensions[4] - S.dimensions[4], dimensions[5] - S.dimensions[5], 
+                  dimensions[6] - S.dimensions[6]);
+    }
+
+    constexpr bool operator==(const spec& S) const {
+      return dimensions == S.dimensions;
+    }
+};
 
 /*
 
@@ -141,6 +163,11 @@ unit<T, kg_a - kg_b, s_a - s_b, m_a - m_b, K_a - K_b, A_a - A_b, mol_a - mol_b, 
 
 */
 
+class si {
+
+};
+
+
 int main()
 {
   mass<double> m1(5.0);
@@ -148,4 +175,10 @@ int main()
 
   auto m3 = m1 + m2;
   std::cout << "Mass: " << m3.value << " kg\n";
+
+
+  si::length l = 50.*KM ;
+  si::time t1 = 10.*Mi, t2 = 20.*Mi ;
+  si::speed s = l/(t1+t2) ;
+  assert(s==(100.*KM/H));
 }
