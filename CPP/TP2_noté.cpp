@@ -258,20 +258,19 @@ static_assert( cartesian_product(i123,f123) == cpif);
 // "to_tuple" convertit un "type_list" en "std::tuple"
 //==============================================================================
 
-template<--->
---- to_tuple(---)
-{ 
-  ---
+template<typename ...T>
+constexpr std::tuple<T...> to_tuple(type_list<T...>) { 
+  return std::tuple<T...>{};
 }
 
-static_assert( std::is_same_v<decltype(to_tuple(null_tl)), std::tuple<>> );
-static_assert( std::is_same_v<decltype(to_tuple(test_tl))   , std::tuple<int,float,char[19],double,char,void**>> );
+static_assert(std::is_same_v<decltype(to_tuple(null_tl)), std::tuple<>>);
+static_assert(std::is_same_v<decltype(to_tuple(test_tl)), std::tuple<int,float,char[19],double,char,void**>>);
 
 //==============================================================================
 // La structure "reducer" fournit un opérateur % faisant la réduction
 // d'une valeur de type U et Z avec une fonction de type F.
 //
-// Elle facilite lécriture de la fonction "reduce", qui applique une fonction
+// Elle facilite l'écriture de la fonction "reduce", qui applique une fonction
 // de type F pour réduire tous les éléments d'une "type_list", initialisée
 // à la valeur z valeur de type Z.
 //==============================================================================
@@ -279,7 +278,11 @@ static_assert( std::is_same_v<decltype(to_tuple(test_tl))   , std::tuple<int,flo
 template<typename Z, typename F>
 struct reducer
 {
-  ---
+  template<typename U>
+  constexpr auto operator%(type_list<U> l) const {
+    auto next_acc = f(acc, l);
+    return reducer<decltype(next_acc), F>{next_acc, f}; // Appel "récursiff" par chaîne
+  }
 
   Z acc;
   F f;
@@ -288,7 +291,7 @@ struct reducer
 template<typename... T, typename F, typename Z>
 constexpr auto reduce(type_list<T...>, F f, Z z)
 { 
-  ---
+  return (reducer<Z, F>{z, f} % ... % type_list<T>{}).acc; // on applique % de reducer initalisé à z sur chaque élément 
 }
 
 static_assert
