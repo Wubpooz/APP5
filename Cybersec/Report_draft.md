@@ -232,7 +232,6 @@ fetch("https://app1.tiweb.tp.ubik.academy/api/pizza/category/MEAT'%20OR%201=1--"
   method: 'GET',
   headers: { 'Authorization': 'Bearer ' + localStorage.getItem('access_token') }
 })
-
 ```
 
 The backend processed the query and disabled the filtering rule logic, returning a full object structural breakdown of all application catalog elements regardless of visibility status rules.
@@ -294,7 +293,7 @@ curl -X POST https://app1.tiweb.tp.ubik.academy/api/pizza/create \
 The backend components completed the validation process and initiated outbound connections to the test location, confirming that the server interacts directly with unverified network destinations.
 
 * **Impact**: Internal network exposure, scanning capabilities against private microservices, and potential exposure of cloud metadata points or adjacent data stores.
-* - Access to internal services.
+- Access to internal services.
 - Outbound network scanning.
 - Potential file disclosure and metadata access depending on fetch behavior.
 - Additional pivot paths from an already privileged position.
@@ -316,15 +315,21 @@ The backend components completed the validation process and initiated outbound c
 
 
 
-### F-04 Weak JWT Design and Client Trust in Role Claim
+Here are all the findings formatted to match the reference style of Finding 5:
 
-**Severity:** Critical  
-**CWE:** CWE-345 – Insufficient Verification of Data Authenticity  
-**Affected Components:** Frontend authentication and guard logic, `xss-poller.mjs`
+***
+
+### F-04 Weak JWT Design and Client Trust in Role Claim
+* **CVSS 4.0 Score**: 9.3 (Critical)
+* **Vector String**: CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:N/SC:H/SI:H/SA:N
+* **OWASP Top 10**: A02:2021-Cryptographic Failures
+* **CWE:** CWE-345 – Insufficient Verification of Data Authenticity
+* **Affected Components:** Frontend authentication and guard logic, `xss-poller.mjs`
+* **Summary**: The application embeds the role claim inside the JWT and trusts client-side decoded values for access control, allowing a forged or stolen token to unlock administrative functionality.
 
 #### Description
 
-The application places the role inside the JWT and relies on the decoded token content on the client side for administrative route access. The `AdminGuard` trusts the `role` claim, meaning a forged or stolen token is enough to unlock the administrative UI.Le fichier `xss-poller.mjs` signe explicitement un token avec `{'sub': 'username:admin_user', 'role': 'Admin'}`, confirmant que le rôle est un claim du token.
+The application places the role inside the JWT and relies on the decoded token content on the client side for administrative route access. The `AdminGuard` trusts the `role` claim, meaning a forged or stolen token is enough to unlock the administrative UI. Le fichier `xss-poller.mjs` signe explicitement un token avec `{'sub': 'username:admin_user', 'role': 'Admin'}`, confirmant que le rôle est un claim du token.
 
 #### Exploitation
 
@@ -349,12 +354,15 @@ location.reload();
 - Reduce JWT contents to minimal identity claims.
 - Derive permissions from server-side state rather than browser-decoded tokens.
 
+***
 
 ### F-05 Token Storage in `localStorage`
-
-**Severity:** Critical  
-**CWE:** CWE-922 – Insecure Storage of Sensitive Information  
-**Affected Component:** `auth.service.ts`
+* **CVSS 4.0 Score**: 9.3 (Critical)
+* **Vector String**: CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:A/VC:H/VI:H/VA:N/SC:H/SI:H/SA:N
+* **OWASP Top 10**: A02:2021-Cryptographic Failures
+* **CWE:** CWE-922 – Insecure Storage of Sensitive Information
+* **Affected Component:** `auth.service.ts`
+* **Summary**: The application stores JWT access tokens in `localStorage`, making them accessible to any JavaScript running in the same origin, including scripts injected via XSS.
 
 #### Description
 
@@ -380,12 +388,15 @@ console.log(localStorage.getItem('access_token'));
 - Reduce token lifetime and implement refresh rotation.
 - Avoid exposing high-privilege tokens to frontend JavaScript.
 
+***
 
 ### F-06 Privilege Escalation via Self-Role Modification
-
-**Severity:** Critical  
-**CWE:** CWE-269 – Improper Access Control  
-**Affected Components:** `routers/user.py`, `schemas/user.py`
+* **CVSS 4.0 Score**: 9.3 (Critical)
+* **Vector String**: CVSS:4.0/AV:N/AC:L/AT:N/PR:L/UI:N/VC:H/VI:H/VA:H/SC:H/SI:H/SA:H
+* **OWASP Top 10**: A01:2021-Broken Access Control
+* **CWE:** CWE-269 – Improper Access Control
+* **Affected Components:** `routers/user.py`, `schemas/user.py`
+* **Summary**: The user update endpoint accepts a `role` field without enforcing authorization boundaries, allowing any authenticated user to escalate their own privileges to administrator.
 
 #### Description
 
@@ -420,12 +431,15 @@ curl -X POST http://localhost:7465/api/users/<own_user_id> \
 - Enforce server-side ownership and privilege checks before processing updates.
 - Log and alert on any role change event.
 
+***
 
 ### F-09 Input Validation Weaknesses Across Multiple Flows
-
-**Severity:** High  
-**CWE:** CWE-20 – Improper Input Validation  
-**Affected Components:** Comments, pizza creation/editing, user editing, login/register flows
+* **CVSS 4.0 Score**: 8.7 (High)
+* **Vector String**: CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:N/SC:L/SI:L/SA:N
+* **OWASP Top 10**: A03:2021-Injection
+* **CWE:** CWE-20 – Improper Input Validation
+* **Affected Components:** Comments, pizza creation/editing, user editing, login/register flows
+* **Summary**: The application lacks consistent server-side input validation across multiple flows, enabling XSS, SSRF, privilege escalation, and SQL injection through uncontrolled field values.
 
 #### Description
 
@@ -435,7 +449,6 @@ The analysis found a general absence of strict server-side validation. Several f
 - **Édition utilisateur** : `email`, `name`, `role` sans vérification de propriété ni allowlist → escalade de privilèges (Finding 6).
 - **Login/Register** : validation front-end uniquement, facilement contournable.
 - **Filtre catégorie** : chaîne brute injectée dans SQL (Finding 7).
-
 
 #### Exploitation
 
@@ -454,13 +467,15 @@ This systemic issue underpins several concrete findings: stored XSS in comments,
 - Reject unsafe schemes and unexpected object keys.
 - Treat frontend validation as usability only, not as a security control.
 
-
+***
 
 ### F-10 Route-Guard Bypass Through Client-Side Checks
-
-**Severity:** High  
-**CWE:** CWE-602 – Client-Side Enforcement of Server-Side Security  
-**Affected Components:** `AuthGuard`, `AdminGuard`
+* **CVSS 4.0 Score**: 8.7 (High)
+* **Vector String**: CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:N/SC:N/SI:N/SA:N
+* **OWASP Top 10**: A01:2021-Broken Access Control
+* **CWE:** CWE-602 – Client-Side Enforcement of Server-Side Security
+* **Affected Components:** `AuthGuard`, `AdminGuard`
+* **Summary**: Frontend route guards rely solely on token presence and client-decoded JWT claims, allowing any user who manipulates browser storage to bypass authentication and access administrative views.
 
 #### Description
 
@@ -470,6 +485,7 @@ The frontend route guards rely on token presence and decoded client-side claims 
 - Aucun de ces guards ne valide l'état de session côté serveur avant d'autoriser la route.
 
 #### Exploitation
+
 A user who edits browser storage can bypass visible route restrictions and access the administrative interface if the guard logic accepts the manipulated token.
 ```javascript
 // Bypass AuthGuard : injecter n'importe quelle chaîne non-vide
@@ -495,13 +511,15 @@ location.reload();
 - Fetch current-user authorization state from the backend before rendering privileged views.
 - Clear invalid tokens and fail closed on parsing or verification errors.
 
-
+***
 
 ### F-11 Unrestricted Data Access via Unfiltered Comments Endpoint
-
-**Severity:** High  
-**CWE:** CWE-639 – Authorization Bypass Through User-Controlled Key  
-**Affected Component:** `/pizza/{pizza_id}/comments/`
+* **CVSS 4.0 Score**: 6.9 (High)
+* **Vector String**: CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:N/VA:N/SC:N/SI:N/SA:N
+* **OWASP Top 10**: A01:2021-Broken Access Control
+* **CWE:** CWE-639 – Authorization Bypass Through User-Controlled Key
+* **Affected Component:** `/pizza/{pizza_id}/comments/`
+* **Summary**: The comment listing endpoint ignores the `pizza_id` path parameter and returns all comments regardless of ownership, leaking cross-resource data to any caller.
 
 #### Description
 
@@ -527,18 +545,19 @@ curl "http://localhost:7465/api/pizza/1/comments/"
 - Add tests confirming per-resource isolation.
 - Review similar list endpoints for missing scoping.
 
+***
 
 ### F-12 Insecure CORS and HTTP Origin Handling
-
-**Severity:** High  
-**CWE:** CWE-319 – Cleartext Transmission of Sensitive Information  
-**Affected Components:** `config.py`, deployment origin policy
+* **CVSS 4.0 Score**: 6.9 (High)
+* **Vector String**: CVSS:4.0/AV:A/AC:L/AT:N/PR:N/UI:N/VC:H/VI:N/VA:N/SC:N/SI:N/SA:N
+* **OWASP Top 10**: A05:2021-Security Misconfiguration
+* **CWE:** CWE-319 – Cleartext Transmission of Sensitive Information
+* **Affected Components:** `config.py`, deployment origin policy
+* **Summary**: The application permits HTTP origins and lacks HTTPS enforcement, HSTS headers, and secure cookie flags, exposing tokens and credentials to interception on any non-TLS path.
 
 #### Description
 
-The configuration allows HTTP origins such as `http://127.0.0.1:4200`, `http://localhost:4200`, and `http://0.0.0.0:4200`. Combined with insufficient HTTPS enforcement and weak token handling, this increases exposure to interception and modification in insecure deployments.
-Aucun header HSTS n'est configuré. Les tokens JWT sont transmis en clair sur HTTP. Aucun flag `Secure` sur les cookies.
-
+The configuration allows HTTP origins such as `http://127.0.0.1:4200`, `http://localhost:4200`, and `http://0.0.0.0:4200`. Combined with insufficient HTTPS enforcement and weak token handling, this increases exposure to interception and modification in insecure deployments. Aucun header HSTS n'est configuré. Les tokens JWT sont transmis en clair sur HTTP. Aucun flag `Secure` sur les cookies.
 
 #### Exploitation
 
@@ -558,18 +577,21 @@ mitmproxy -p 7465
 - Weakened environment separation between development and production assumptions.
 
 #### Remediation
+
 - Restrict production origins to HTTPS only.
 - Remove insecure origins from production configuration.
 - Enforce HSTS and HTTPS redirection.
 - Prefer secure cookie transport semantics over bearer tokens in browser storage.
 
-
+***
 
 ### F-13 Weak Cryptography and Guessable JWT Secret Model
-
-**Severity:** High  
-**CWE:** CWE-327 – Use of a Broken or Risky Cryptographic Algorithm, CWE-330 – Use of Insufficiently Random Values  
-**Affected Components:** JWT design and secret management
+* **CVSS 4.0 Score**: 8.7 (High)
+* **Vector String**: CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:N/SC:N/SI:N/SA:N
+* **OWASP Top 10**: A02:2021-Cryptographic Failures
+* **CWE:** CWE-327 – Use of a Broken or Risky Cryptographic Algorithm, CWE-330 – Use of Insufficiently Random Values
+* **Affected Components:** JWT design and secret management
+* **Summary**: The application signs JWTs with HS256 using a hardcoded, human-readable secret of negligible entropy, making offline token forgery trivial for any attacker with access to a single valid token.
 
 #### Description
 
@@ -592,11 +614,12 @@ done
 ```
 
 #### Impact
+
 - Unlimited token forgery.
 - Long-term compromise of the trust boundary.
 - Potential for offline brute-force if secret exposure is partial.
-- Rate limiting
-- Use of a strong, random secret with sufficient entropy (at least 256 bits for HMAC)
+- Rate limiting.
+- Use of a strong, random secret with sufficient entropy (at least 256 bits for HMAC).
 - Use strong encryption algorithms (e.g., RS256 or ES256) with proper key management.
 
 #### Remediation
@@ -606,15 +629,15 @@ done
 - Rotate keys regularly and after any suspected exposure.
 - Add rate limiting on authentication endpoints.
 
-
+***
 
 ### F-14 Exposed Source Maps, Debug Metadata, and Server Fingerprints
-
-**Severity:** Medium  
-**CWE:** CWE-200 – Exposure of Sensitive Information to an Unauthorized Actor  
-**Affected Components:** Frontend build output, Nginx, `xss-poller.mjs`, environment files
-- **OWASP** : A05:2021-Security Misconfiguration
-
+* **CVSS 4.0 Score**: 5.3 (Medium)
+* **Vector String**: CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:L/VI:N/VA:N/SC:N/SI:N/SA:N
+* **OWASP Top 10**: A05:2021-Security Misconfiguration
+* **CWE:** CWE-200 – Exposure of Sensitive Information to an Unauthorized Actor
+* **Affected Components:** Frontend build output, Nginx, `xss-poller.mjs`, environment files
+* **Summary**: Production builds expose source maps, API URLs, plaintext credentials, and framework-identifying headers, providing attackers with significant reconnaissance value at no cost.
 
 #### Description
 
@@ -625,9 +648,8 @@ The analysis notes production exposure risks from source maps, bundled environme
 - Nginx ne masque pas la version du serveur ni n'ajoute les headers de sécurité.
 - `xss-poller.mjs` expose le framework (Express) via le header `X-Powered-By`.
 
-
-
 #### Exploitation
+
 An attacker can use source maps and server metadata to reconstruct frontend code paths, discover hidden routes or implementation details, fingerprint services, and accelerate targeted exploitation.
 
 #### Impact
@@ -645,20 +667,22 @@ An attacker can use source maps and server metadata to reconstruct frontend code
 - Ajouter les headers de sécurité dans Nginx : `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `X-XSS-Protection: 1; mode=block`, `Server: MyPizzaApp` (masquer la version).
 - Désactiver le header `X-Powered-By` dans Express : `app.disable('x-powered-by')`.
 
-
-
+***
 
 ### F-15 Timing-Attack Mitigation Flaw Enabling User Enumeration Risk
-
-**Severity:** Medium  
-**CWE:** CWE-208 – Observable Timing Discrepancy  
-**Affected Component:** `security/service.py`
+* **CVSS 4.0 Score**: 5.3 (Medium)
+* **Vector String**: CVSS:4.0/AV:N/AC:H/AT:N/PR:N/UI:N/VC:L/VI:N/VA:N/SC:N/SI:N/SA:N
+* **OWASP Top 10**: A07:2021-Identification and Authentication Failures
+* **CWE:** CWE-208 – Observable Timing Discrepancy
+* **Affected Component:** `security/service.py`
+* **Summary**: A static bcrypt lure hash used to equalize login timing for nonexistent users remains predictable and may still yield measurable discrepancies, enabling low-confidence username enumeration.
 
 #### Description
 
 A hardcoded bcrypt lure hash is used in an attempt to normalize login timing for nonexistent users. Because this value is static and predictable, the protection is weak and may still allow measurable differences between valid and invalid usernames.
 
 #### Validation Status
+
 This issue was analyzed and a timing-measurement approach was documented, but the notes describe it more as a design weakness and partially validated enumeration risk than as a fully demonstrated compromise primitive.
 ```bash
 # Analyse statistique des temps de réponse
@@ -672,30 +696,36 @@ done
 ```
 
 #### Impact
+
 - User enumeration through repeated measurements.
 - Better targeting of brute-force or password-spraying attempts.
 
 #### Remediation
+
 - Use a runtime-generated equivalent-cost fallback path.
 - Ensure consistent processing time regardless of username existence.
 - Add rate limiting and monitoring to the authentication endpoint.
 
+***
 
 ### F-16 Missing 404 Route and Predictable Error Handling
-
-**Severity:** Low  
-**CWE:** CWE-425 – Direct Request for Hidden File or Resource  
-**Affected Component:** `app.routes.ts`
-- **OWASP** : A05:2021-Security Misconfiguration
+* **CVSS 4.0 Score**: 2.0 (Low)
+* **Vector String**: CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:L/VI:N/VA:N/SC:N/SI:N/SA:N
+* **OWASP Top 10**: A05:2021-Security Misconfiguration
+* **CWE:** CWE-425 – Direct Request for Hidden File or Resource
+* **Affected Component:** `app.routes.ts`
+* **Summary**: The commented-out wildcard catch-all route causes inconsistent responses to invalid paths, making frontend route enumeration easier for an attacker.
 
 #### Description
+
 The wildcard route is commented out, so invalid routes are not handled consistently. This makes path probing more informative than necessary.
 
 #### Exploitation
+
 Naviguer vers des chemins aléatoires (`/adminn`, `/pizza/../login`, `/does-not-exist`) et observer le comportement — les réponses varient selon les routes existantes ou non, facilitant l'énumération de la structure applicative.
 
-
 #### Impact
+
 - Easier route enumeration.
 - More predictable recon against frontend navigation and fallback logic.
 
@@ -704,14 +734,15 @@ Naviguer vers des chemins aléatoires (`/adminn`, `/pizza/../login`, `/does-not-
 - Reintroduce a safe catch-all 404 route.
 - Return consistent error responses for invalid paths.
 
-
+***
 
 ### F-17 Supply-Chain Exposure in Build Process
-
-**Severity:** Low  
-**CWE:** CWE-494, CWE-1395, CWE-506  
-**Affected Components:** `Dockerfile-xss-poller`, `backend/Dockerfile`
-- **OWASP** : A06:2021-Vulnerable and Outdated Components
+* **CVSS 4.0 Score**: 2.0 (Low)
+* **Vector String**: CVSS:4.0/AV:N/AC:H/AT:N/PR:N/UI:N/VC:L/VI:L/VA:N/SC:N/SI:N/SA:N
+* **OWASP Top 10**: A06:2021-Vulnerable and Outdated Components
+* **CWE:** CWE-494, CWE-1395, CWE-506
+* **Affected Components:** `Dockerfile-xss-poller`, `backend/Dockerfile`
+* **Summary**: The build pipeline runs `npm install` and `pip install` without disabling lifecycle scripts or restricting source builds, allowing malicious or compromised packages to execute arbitrary code at install time.
 
 #### Description
 
@@ -719,25 +750,28 @@ The build chain installs dependencies in ways that may execute package lifecycle
 - `Dockerfile-xss-poller` utilise `npm install` sans `--ignore-scripts`, permettant aux hooks `preinstall`/`postinstall` d'exécuter du code arbitraire lors du build.
 - `backend/Dockerfile` utilise `pip install` sans `--only-binary :all:`, permettant aux scripts `setup.py` de s'exécuter à l'installation.
 
-
 #### Impact
+
 - Build-time code execution.
 - Compromised images or CI environments.
 - Difficult-to-detect persistence in container artifacts.
 
 #### Remediation
+
 - Use deterministic lockfile-based installs.
 - Disable install scripts when compatible.
 - Prefer prebuilt wheels and review packages requiring source builds.
 - Scan dependencies continuously in CI.
 
-
+***
 
 ### F-18 Bearer Token Algorithm-Confusion Risk
-
-**Severity:** Low  
-**CWE:** CWE-347 – Improper Verification of Cryptographic Signature  
-**Affected Component:** `security/service.py`
+* **CVSS 4.0 Score**: 2.0 (Low)
+* **Vector String**: CVSS:4.0/AV:N/AC:H/AT:N/PR:N/UI:N/VC:L/VI:L/VA:N/SC:N/SI:N/SA:N
+* **OWASP Top 10**: A02:2021-Cryptographic Failures
+* **CWE:** CWE-347 – Improper Verification of Cryptographic Signature
+* **Affected Component:** `security/service.py`
+* **Summary**: JWT verification may not explicitly reject unsafe algorithm headers such as `alg: none`, potentially allowing unsigned tokens to be accepted if configuration is insufficiently strict.
 
 #### Description
 
@@ -755,28 +789,28 @@ token = jwt.encode(payload, "", algorithm="none")
 ```
 
 #### Remediation
+
 - Pin accepted algorithms explicitly.
 - Reject unsigned tokens.
 - Verify expiration and all security-relevant JWT claims.
 
-
+***
 
 ### F-19 Cleartext Token Exposure via Reverse Proxy Misconfiguration
-
-**Severity:** Low to Medium  
-**CWE:** CWE-319 – Cleartext Transmission of Sensitive Information  
-**Affected Component:** `nginx.conf`
-- **OWASP** : A05:2021-Security Misconfiguration
+* **CVSS 4.0 Score**: 4.8 (Low to Medium)
+* **Vector String**: CVSS:4.0/AV:A/AC:H/AT:N/PR:N/UI:N/VC:H/VI:N/VA:N/SC:N/SI:N/SA:N
+* **OWASP Top 10**: A05:2021-Security Misconfiguration
+* **CWE:** CWE-319 – Cleartext Transmission of Sensitive Information
+* **Affected Component:** `nginx.conf`
+* **Summary**: The reverse proxy listens on port 80 without redirecting to HTTPS, enabling on-path attackers to intercept credentials and tokens when clients connect over cleartext HTTP.
 
 #### Description
 
-The reverse proxy listens on both ports 80 and 443 without an explicit HTTP-to-HTTPS redirect. This creates the possibility of clients interacting over cleartext HTTP if deployment conditions permit it.
-`nginx.conf` écoute sur les ports 80 et 443 dans le même bloc `server`. Il n'y a aucune redirection explicite de HTTP vers HTTPS. Le proxy transfère `/api` vers `http://backend:7465` en HTTP interne. Si un client accède au port 80, credentials et tokens sont transmis en clair.
-
+The reverse proxy listens on both ports 80 and 443 without an explicit HTTP-to-HTTPS redirect. This creates the possibility of clients interacting over cleartext HTTP if deployment conditions permit it. `nginx.conf` écoute sur les ports 80 et 443 dans le même bloc `server`. Il n'y a aucune redirection explicite de HTTP vers HTTPS. Le proxy transfère `/api` vers `http://backend:7465` en HTTP interne. Si un client accède au port 80, credentials et tokens sont transmis en clair.
 
 #### Exploitation
-Accéder au site via `http://app1.tiweb.tp.ubik.academy` (port 80) et vérifier que le navigateur ne fait pas de upgrade automatique vers HTTPS. Sur un réseau local, un attaquant on-path peut intercepter les credentials.
 
+Accéder au site via `http://app1.tiweb.tp.ubik.academy` (port 80) et vérifier que le navigateur ne fait pas de upgrade automatique vers HTTPS. Sur un réseau local, un attaquant on-path peut intercepter les credentials.
 
 #### Impact
 
@@ -789,31 +823,33 @@ Accéder au site via `http://app1.tiweb.tp.ubik.academy` (port 80) et vérifier 
 - Expose only TLS externally.
 - Enforce HSTS to prevent protocol downgrade.
 
-
+***
 
 ### F-20 IDOR on User Endpoints
-
-**Severity:** Not confirmed  
-**CWE:** CWE-639 – Authorization Bypass Through User-Controlled Key  
-**Affected Component:** User profile endpoints
+* **CVSS 4.0 Score**: N/A (Not Confirmed)
+* **Vector String**: N/A
+* **OWASP Top 10**: A01:2021-Broken Access Control
+* **CWE:** CWE-639 – Authorization Bypass Through User-Controlled Key
+* **Affected Component:** User profile endpoints
+* **Summary**: IDOR behavior on user profile endpoints was investigated but not confirmed; existing admin-only authorization guards correctly rejected all unauthorized access attempts during testing.
 
 #### Investigation Result
 
-The user endpoints were reviewed and tested for IDOR behavior. Although the data model and route structure initially suggested a possible direct-object-reference issue, the dynamic testing notes indicate that normal-user tokens received authorization failures before UUID-based access could be abused.
-Des tests ont été conduits pour identifier des vulnérabilités IDOR sur les endpoints de profil utilisateur (`/api/users/{user_id}`). Bien que le code source indique que les UUIDs sont utilisés comme identifiants, **l'ensemble du router `/users` requiert des privilèges admin** via la dépendance `validate_user_admin`.
-Lors de l'envoi de requêtes GET ou POST vers `/api/users/<target_uuid>` avec le token d'un utilisateur standard, le serveur répond correctement avec `401 Unauthorized` avant même de traiter l'UUID. 
+The user endpoints were reviewed and tested for IDOR behavior. Although the data model and route structure initially suggested a possible direct-object-reference issue, the dynamic testing notes indicate that normal-user tokens received authorization failures before UUID-based access could be abused. Des tests ont été conduits pour identifier des vulnérabilités IDOR sur les endpoints de profil utilisateur (`/api/users/{user_id}`). Bien que le code source indique que les UUIDs sont utilisés comme identifiants, **l'ensemble du router `/users` requiert des privilèges admin** via la dépendance `validate_user_admin`. Lors de l'envoi de requêtes GET ou POST vers `/api/users/<target_uuid>` avec le token d'un utilisateur standard, le serveur répond correctement avec `401 Unauthorized` avant même de traiter l'UUID.
 
 #### Conclusion
 
 This vector was investigated but not achieved in practice during the assessment. It should therefore not be reported as a confirmed finding. It is better recorded as a tested hypothesis that was mitigated by existing authorization checks on the route.
-
-
 
 #### Recommendation
 
 Retain the current authorization guard behavior, but continue reviewing object-level access control consistently across all endpoints.
 
 
+---
+
+&nbsp;  
+&nbsp;  
 ## Remediation Roadmap
 ### Immediate Priorities
 1. Remove unsafe deserialization from the pizza creation flow.
