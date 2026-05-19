@@ -153,69 +153,87 @@ template<typename T, spec D> struct unit {
   unit(T v) : value(v) {} // if not explicit, like = default, it doesn't work properly
 };
 
-// Masse : kg
-template<typename T>
-using mass = unit<T,spec(1,0,0,0,0,0,0)>;
-
-// Longeur : m
-template<typename T>
-using length = unit<T,spec(0,0,1,0,0,0,0)>;
-
-// Vitesse m.s-1
-template<typename T>
-using speed =  unit<T,spec(0,-1,1,0,0,0,0)>;
-
-// Force exprimée en Newton
-template<typename T>
-using newton = unit<T,spec(1,-2,1,0,0,0,0)>;
-
-// conductance électrique
-template<typename T>
-using siemens = unit<T,spec(-1,3,-2,0,2,0,0)>;
+template<typename T> using mass = unit<T,spec(1,0,0,0,0,0,0)>;
+template<typename T> using length = unit<T,spec(0,0,1,0,0,0,0)>;
+template<typename T> using speed =  unit<T,spec(0,-1,1,0,0,0,0)>;
+template<typename T> using newton = unit<T,spec(1,-2,1,0,0,0,0)>;
+template<typename T> using siemens = unit<T,spec(-1,3,-2,0,2,0,0)>;
 
 
 template<typename T, spec D>
 unit<T,D> operator+(const unit<T,D>& a, const unit<T,D>& b) {
   return unit<T,D>(a.value + b.value);
-}
+};
 
 template<typename T, spec D>
 unit<T,D> operator-(const unit<T,D>& a, const unit<T,D>& b) {
   return unit<T,D>(a.value - b.value);
-}
+};
 
 template<typename T, spec D1, spec D2>
 unit<T, D1 + D2> operator*(
   const unit<T,D1>& a, const unit<T,D2>& b) {
   return unit<T, D1 + D2>(a.value * b.value);
-}
+};
 
 template<typename T, spec D1, spec D2>
 unit<T, D1 - D2> operator/(
   const unit<T,D1>& a, const unit<T,D2>& b) {
   return unit<T, D1 - D2>(a.value / b.value);
+};
+
+// new multiply by a constant
+template<typename T, spec D>
+unit<T,D> operator*(const unit<T,D>& a, T scalar) {
+  return unit<T,D>(a.value * scalar);
 }
 
+template<typename T, spec D>
+unit<T,D> operator*(T scalar, const unit<T,D>& a) {
+  return unit<T,D>(scalar * a.value);
+}
+
+template<typename T, spec D>
+unit<T,D> operator/(const unit<T,D>& a, T scalar) {
+  return unit<T,D>(a.value / scalar);
+}
+
+template<typename T, spec D>
+unit<T,D> operator/(T scalar, const unit<T,D>& a) {
+  return unit<T,D>(scalar / a.value);
+}
+
+// equality operator
+template<typename T, spec D>
+bool operator==(const unit<T,D>& a, const unit<T,D>& b) {
+  if constexpr (std::is_floating_point_v<T>) {
+    return std::abs(a.value - b.value) < 1e-9;
+  } else {
+    return a.value == b.value;
+  }
+}
 
 /*
-
   ETAPE 5 - CONSTANTES
-
   Ajouter ce test dans `main` :
-
     si::length l = 50.*KM ;
     si::time t1 = 10.*Mi, t2 = 20.*Mi ;
     si::speed s = l/(t1+t2) ;
     assert(s==(100.*KM/H));
 
   Compléter votre code pour que ce test passe.
-
 */
 
-class si {
+// Constants
+const unit<double, spec(0,0,1,0,0,0,0)> KM(1000.0);
+const unit<double, spec(0,1,0,0,0,0,0)> Mi(60.0);
+const unit<double, spec(0,1,0,0,0,0,0)> H(3600.0);
 
+namespace si {
+  using length = unit<double, spec(0,0,1,0,0,0,0)>;
+  using time = unit<double, spec(0,1,0,0,0,0,0)>;
+  using speed = unit<double, spec(0,-1,1,0,0,0,0)>;
 };
-
 
 int main()
 {
@@ -226,8 +244,8 @@ int main()
   std::cout << "Mass: " << m3.value << " kg\n";
 
 
-  // si::length l = 50.*KM ;
-  // si::time t1 = 10.*Mi, t2 = 20.*Mi ;
-  // si::speed s = l/(t1+t2) ;
-  // assert(s==(100.*KM/H));
+  si::length l = 50.*KM ;
+  si::time t1 = 10.*Mi, t2 = 20.*Mi ;
+  si::speed s = l/(t1+t2) ;
+  assert(s==(100.*KM/H));
 }
