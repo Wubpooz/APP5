@@ -153,12 +153,6 @@ template<typename T, spec D> struct unit {
   unit(T v) : value(v) {} // if not explicit, like = default, it doesn't work properly
 };
 
-template<typename T> using mass = unit<T,spec(1,0,0,0,0,0,0)>;
-template<typename T> using length = unit<T,spec(0,0,1,0,0,0,0)>;
-template<typename T> using speed =  unit<T,spec(0,-1,1,0,0,0,0)>;
-template<typename T> using newton = unit<T,spec(1,-2,1,0,0,0,0)>;
-template<typename T> using siemens = unit<T,spec(-1,3,-2,0,2,0,0)>;
-
 
 template<typename T, spec D1, spec D2>
 unit<T,D1> operator+(const unit<T,D1>& a, const unit<T,D2>& b) {
@@ -227,21 +221,25 @@ bool operator==(const unit<T,D1>& a, const unit<T,D2>& b) {
   Compléter votre code pour que ce test passe.
 */
 
-// Constants
-const unit<double, spec(0,0,1,0,0,0,0)> KM(1000.0);
-const unit<double, spec(0,1,0,0,0,0,0)> Mi(60.0);
-const unit<double, spec(0,1,0,0,0,0,0)> H(3600.0);
-
 namespace si {
   using length = unit<double, spec(0,0,1,0,0,0,0)>;
   using time = unit<double, spec(0,1,0,0,0,0,0)>;
   using speed = unit<double, spec(0,-1,1,0,0,0,0)>;
+  using mass = unit<double, spec(1,0,0,0,0,0,0)>;
+  using newton = unit<double, spec(1,-2,1,0,0,0,0)>;
+  using siemens = unit<double, spec(-1,3,-2,0,2,0,0)>;
 };
+
+
+// Constants
+const si::length KM(1000.0);
+const si::time Mi(60.0);
+const si::time H(3600.0);
 
 int main()
 {
-  mass<double> m1(5.0);
-  mass<double> m2(3.0);
+  si::mass m1(5.0);
+  si::mass m2(3.0);
 
   auto m3 = m1 + m2;
   std::cout << "Mass: " << m3.value << " kg\n";
