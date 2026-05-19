@@ -3,7 +3,6 @@
 #include <utility>
 
 /*
-
 Le Système international d'unités (abrégé en SI), inspiré du 
 système métrique, est le système d'unités le plus largement 
 employé au monde.
@@ -36,26 +35,25 @@ pour empecher des erreurs comme "kg + m".
 
 Ressources
 - https://fr.wikipedia.org/wiki/Syst%C3%A8me_international_d%27unit%C3%A9s#Unit%C3%A9s_d%C3%A9riv%C3%A9es
-
 */
 
 /*
   ETAPE 1 - STRUCTURE UNIT
-
   Ecrivez une structure `unit` qui prend en parametre template un type `T`
   et 7 entiers, chacune représentant la puissance d'une unité de base.
   Vous les ordonnerez de façon à suivre l'ordre de la liste donnée plus haut.
 
   Cette structure contient une valeur de type `T`.
 */
-template<typename T, int weight, int time, int length, int temp, int elec, int mol_mass, int light> struct unit;
+template<typename T, int kg, int s, int m, int K, int A, int mol, int cd> struct unit {
+  T value;
+  unit(T v) : value(v) {} // if not explicit, like = default, it doesn't work properly
+};
 
 /*
-
   ETAPE 2 - UNITES ET UNITES DERIVEES
   En utilisant le modele ci dessous, définissez des types
   representant les grandeurs demandées.
-
 */
 
 // Masse : kg
@@ -72,28 +70,48 @@ using speed =  unit<T,0,-1,1,0,0,0,0>;
 
 // Force exprimée en Newton
 template<typename T>
-using newton = /* ECRIVEZ VOTRE CODE ICI */ ;
+using newton = unit<T,1,-2,1,0,0,0,0>;
 
 // conductance électrique
 template<typename T>
-using siemens = /* ECRIVEZ VOTRE CODE ICI */ ;
+using siemens = unit<T,-1,3,-2,0,2,0,0>;
 
 /*
-
   ETAPE 3 - OPERATIONS
-
   Ecrivez les operateurs +,-,* et / entre deux unités 
   du même type T mais avec des unités cohérentes.
 
   On peut multiplier ou diviser du temps par une masse mais
   on ne peut pas ajouter des Kelvin à des metres.
-
 */
+template<typename T, int kg, int s, int m, int K, int A, int mol, int cd>
+unit<T,kg,s,m,K,A,mol,cd> operator+(const unit<T,kg,s,m,K,A,mol,cd>& a, const unit<T,kg,s,m,K,A,mol,cd>& b) {
+  unit(a.value + b.value);
+}
 
-// ECRIVEZ VOTRE CODE ICI
+template<typename T, int kg, int s, int m, int K, int A, int mol, int cd>
+unit<T,kg,s,m,K,A,mol,cd> operator-(const unit<T,kg,s,m,K,A,mol,cd>& a, const unit<T,kg,s,m,K,A,mol,cd>& b) {
+  unit(a.value - b.value);
+}
+
+template<typename T, 
+    int kg_a, int s_a, int m_a, int K_a, int A_a, int mol_a, int cd_a,
+    int kg_b, int s_b, int m_b, int K_b, int A_b, int mol_b, int cd_b>
+unit<T, kg_a + kg_b, s_a + s_b, m_a + m_b, K_a + K_b, A_a + A_b, mol_a + mol_b, cd_a + cd_b> operator*(
+  const unit<T,kg_a,s_a,m_a,K_a,A_a,mol_a,cd_a>& a, const unit<T,kg_b,s_b,m_b,K_b,A_b,mol_b,cd_b>& b) {
+  unit(a.value * b.value);
+}
+
+template<typename T, 
+    int kg_a, int s_a, int m_a, int K_a, int A_a, int mol_a, int cd_a,
+    int kg_b, int s_b, int m_b, int K_b, int A_b, int mol_b, int cd_b>
+unit<T, kg_a - kg_b, s_a - s_b, m_a - m_b, K_a - K_b, A_a - A_b, mol_a - mol_b, cd_a - cd_b> operator/(
+  const unit<T,kg_a,s_a,m_a,K_a,A_a,mol_a,cd_a>& a, const unit<T,kg_b,s_b,m_b,K_b,A_b,mol_b,cd_b>& b) {
+  unit(a.value / b.value);
+}
+
 
 /*
-
   ETAPE 4 - SIMPLIFICATION
 
   A partir de C++20, n'importe quelle structure constexpr peut servir
@@ -104,7 +122,6 @@ using siemens = /* ECRIVEZ VOTRE CODE ICI */ ;
   totalité des opérations et types précédent en partant du principe que unit devient
 
   template<typename T, spec D> struct unit;
-
 */
 
 // ECRIVEZ VOTRE CODE ICI
@@ -126,5 +143,9 @@ using siemens = /* ECRIVEZ VOTRE CODE ICI */ ;
 
 int main()
 {
-  // POUR CHAQUE ETAPE, ECRIVEZ LES TESTS QUE VOUS JUGEREZ SUFFISANTS
+  mass<double> m1(5.0);
+  mass<double> m2(3.0);
+
+  auto m3 = m1 + m2;
+  std::cout << "Mass: " << m3.value << " kg\n";
 }
