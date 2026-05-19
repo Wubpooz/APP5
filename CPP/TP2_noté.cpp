@@ -123,7 +123,7 @@ static_assert(largest(test_tl) == 19);
 
 template<typename T, typename... U>
 constexpr bool all_of(type_list<U...>) {
-  return (std::is_same_v<T, U> && ...); // on applique le prédicat pour chaque élément
+  return (std::is_same_v<T, U> && ...); // on applique le prédicat pour chaque élément et on leur fait AND
 }
 
 // https://en.cppreference.com/cpp/language/fold: 
@@ -146,10 +146,9 @@ static_assert(!all_of<int>(type_list<int,int,int,void,int>{}));
 // une instance de "type_list"
 //==============================================================================
 
-template<--->
---- any_of(---)
-{
-  ---
+template<typename T, typename... U>
+constexpr bool any_of(type_list<U...>) {
+  return (std::is_same_v<T, U> || ...); // on applique le prédicat pour chaque élément et on leur fait OR
 }
 
 static_assert(!any_of<int>(type_list<double>{}));
@@ -164,10 +163,9 @@ static_assert( any_of<int>(type_list<void,void,void,void,int>{}));
 // au type "T" donné
 //==============================================================================
 
-template<--->
---- none_of(---)
-{
-  ---
+template<typename T, typename... U>
+constexpr bool none_of(type_list<U...> l) {
+  return !any_of<T>(l); // None of = !true && !true = !(false || false) par De Morgan
 }
 
 static_assert( none_of<int>(type_list<double>{}));
@@ -182,10 +180,19 @@ static_assert(!none_of<int>(type_list<void,void,void,void,int>{}));
 // une "type_list". Si "T" n'est pas présent, -1 est renvoyée
 //==============================================================================
 
----
---- std::ptrdiff_t find(---)
-{
-  ---
+template<typename T, typename... U>
+constexpr std::ptrdiff_t find(type_list<U...>) {
+  if constexpr (sizeof...(U) == 0) {
+    return -1;
+  } else {
+    bool matches[] = {std::is_same_v<T, U>...}; // on doit séparer en 2 car je ne peux pas directement itérer sur la liste des types avec un fold pour retourner le premier indice
+    for (std::size_t i = 0; i < sizeof...(U); i++) { // operateur size
+      if (matches[i]) {
+        return static_cast<std::ptrdiff_t>(i); // on aurait pu retourner un entier
+      }
+    }
+    return -1;
+  }
 }
 
 static_assert(find<int>(null_tl) == -1);
@@ -201,10 +208,20 @@ static_assert(find<void***>(test_tl) == -1);
 // "largest_index" renvoie l'index du type avec le plus grand sizeof
 //==============================================================================
 
-template<--->
---- largest_index(---)
-{
-  ---
+template<typename... T>
+constexpr std::ptrdiff_t largest_index(type_list<T...>) {
+  if constexpr (sizeof...(T) == 0) {
+    return -1;
+  } else {
+    std::size_t sizes[] = {sizeof(T)...};
+    std::size_t max_idx = 0;
+    for (std::size_t i = 0; i < sizeof...(T); i++) {
+      if (sizes[i] > sizes[max_idx]) {
+        max_idx = i;
+      }
+    }
+    return static_cast<std::ptrdiff_t>(max_idx);
+  }
 }
 
 static_assert(largest_index(null_tl) == -1);
@@ -217,16 +234,14 @@ static_assert(largest_index(test_tl) ==  2);
 // fait le produit cartésien.
 //==============================================================================
 
-template<--->
---- unroll(---)
-{ 
-  ---
+template<typename T1, typename ...T2>
+constexpr auto unroll(type_list<T1>, type_list<T2...>) { 
+  return type_list<type_list<T1, T2>...>{};
 }
 
-template<--->
---- cartesian_product(---)
-{ 
-  ---
+template<typename ...T1, typename ...T2>
+constexpr auto cartesian_product(type_list<T1...>, type_list<T2...> l) { 
+  return (type_list<>{} + ... + unroll(type_list<T1>{}, l));
 }
 
 constexpr type_list<int[1],int[2],int[3]> i123; 
