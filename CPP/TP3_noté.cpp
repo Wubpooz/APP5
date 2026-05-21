@@ -166,11 +166,20 @@ namespace et {
 
   struct div_ {
     constexpr auto operator()(auto&& a, auto&& b) const {
-      if (b == 0) {
-        throw std::runtime_error("Division par zero !");
+      if constexpr (std::is_arithmetic_v<std::decay_t<decltype(a)>>) { // cas normal
+        if (b == 0) {
+          throw std::runtime_error("Division par zero !");  // bonus pour éviter les sigterm 
+        }
+        return a / b;
+      } else { // std::vector
+        std::decay_t<decltype(a)> res(a.size());
+        for(size_t i = 0; i < a.size(); i++) {
+          res[i] = (*this)(a[i], b[i]); // Appel récursif sur chaque élément
+        }
+        return res;
       }
-      return a / b;
     }
+
     void print(std::ostream& os, const auto& a, const auto& b) const {
       os << "(";
       a.print(os);
@@ -182,9 +191,20 @@ namespace et {
 
   struct abs_ {
     constexpr auto operator()(auto&& a) const { 
-      // return std::abs(a);  // Attention, abs n'est pas constexpr avant C++ 23 (pour des raisons obscures apparement, c.f. https://stackoverflow.com/questions/27708629/why-isnt-abs-constexpr)
-      return a > 0. ? a : -a;
+      //Attention, abs n'est pas constexpr avant C++ 23 (pour des raisons obscures apparement, c.f. https://stackoverflow.com/questions/27708629/why-isnt-abs-constexpr)
+      // return std::abs(a); => pas constexpr
+
+      if constexpr (std::is_arithmetic_v<std::decay_t<decltype(a)>>) { // cas normal
+        return a > 0 ? a : -a;
+      } else { // std::vector
+        std::decay_t<decltype(a)> res(a.size());
+        for(size_t i = 0; i < a.size(); i++) {
+          res[i] = (*this)(a[i]); // Appel récursif sur l'élément
+        }
+        return res;
+      }
     }
+
     void print(std::ostream& os, const auto& a) const {
       os << "| ";
       a.print(os);
@@ -267,7 +287,7 @@ template<typename T> std::vector<T> operator/(const std::vector<T>& a, const std
 template<typename T> std::vector<T> abs(const std::vector<T>& v) {
   std::vector<T> res(v.size());
   for(size_t i = 0; i < v.size(); i++) { 
-    res[i] = et::abs_(v[i]);
+    res[i] = et::abs_{}(v[i]); // utilisation de notre abs pour que ce soit constexpr
   }
   return res;
 }
@@ -324,4 +344,8 @@ int main() {
 
   // Q7 - Comment modifiez le code pour permettre l'utilisation de constante dans les formules
   // Ex: constexpr auto f = et::fma(et::_1, 3, et::_0)
+  // Je pense qu'il faut:
+  // 1) Créer des feuilles 'litteral'/'constantes (technique standard pour les AST)
+  // 2) Convertir les littéraux automatique (tout ce qui n'est pas une experssion)
+  // 3) Faire que nos opérateurs acceptent qu'un des 2 côtés ne soit pas une expression ( avec requires (expr<L> || expr<R>))
 }
