@@ -132,7 +132,18 @@ namespace et {
 
   // Pour être compatible avec node, on doit définir des structs "leaf" qui implémentent () et print
   struct add_ {
-    constexpr auto operator()(auto&& a, auto&& b) const { return a + b; }
+    constexpr auto operator()(auto&& a, auto&& b) const { 
+      if constexpr (std::is_arithmetic_v<std::decay_t<decltype(a)>>) { // cas scalaire
+        return a + b;
+      } else { // cas std::vector
+        std::decay_t<decltype(a)> res(a.size());
+        for(size_t i = 0; i < a.size(); i++) {
+          res[i] = (*this)(a[i], b[i]); // Appel récursif élément par élément
+        }
+        return res;
+      }
+    }
+
     void print(std::ostream& os, const auto& a, const auto& b) const {
       os << "(";
       a.print(os);
@@ -143,7 +154,19 @@ namespace et {
   };
 
   struct sub_ {
-    constexpr auto operator()(auto&& a, auto&& b) const { return a - b; }
+    constexpr auto operator()(auto&& a, auto&& b) const { 
+      if constexpr (std::is_arithmetic_v<std::decay_t<decltype(a)>>) { // cas scalaire
+        return a - b;
+      } else { // cas std::vector
+        std::decay_t<decltype(a)> res(a.size());
+        for(size_t i = 0; i < a.size(); i++) {
+          res[i] = (*this)(a[i], b[i]); // Appel récursif élément par élément
+        }
+        return res;
+      }
+    }
+
+
     void print(std::ostream& os, const auto& a, const auto& b) const {
       os << "(";
       a.print(os);
@@ -154,7 +177,18 @@ namespace et {
   };
 
   struct mul_ {
-    constexpr auto operator()(auto&& a, auto&& b) const { return a * b; }
+    constexpr auto operator()(auto&& a, auto&& b) const { 
+      if constexpr (std::is_arithmetic_v<std::decay_t<decltype(a)>>) { // cas scalaire
+        return a * b;
+      } else { // cas std::vector
+        std::decay_t<decltype(a)> res(a.size());
+        for(size_t i = 0; i < a.size(); i++) {
+          res[i] = (*this)(a[i], b[i]); // Appel récursif élément par élément
+        }
+        return res;
+      }
+    }
+
     void print(std::ostream& os, const auto& a, const auto& b) const {
       os << "(";
       a.print(os);
@@ -213,7 +247,17 @@ namespace et {
   };
 
   struct fma_ {
-    constexpr auto operator()(auto&& a, auto&& b, auto&& c) const { return a * b + c; }
+    constexpr auto operator()(auto&& a, auto&& b, auto&& c) const { 
+      if constexpr (std::is_arithmetic_v<std::decay_t<decltype(a)>>) { // cas scalaire
+        return a * b + c;
+      } else { // cas std::vector
+        std::decay_t<decltype(a)> res(a.size());
+        for(size_t i = 0; i < a.size(); i++) {
+          res[i] = (*this)(a[i], b[i], c[i]); // Appel récursif élément par élément
+        }
+        return res;
+      }
+    }
     void print(std::ostream& os, const auto& a, const auto& b, const auto& c) const {
       os << "(";
       a.print(os);
@@ -293,6 +337,54 @@ template<typename T> std::vector<T> abs(const std::vector<T>& v) {
 }
 
 
+
+
+
+// Code pour la Q7
+// template<typename T>
+// struct literal {
+//   static constexpr void is_expr() {}
+//   T value;
+//   std::ostream& print(std::ostream& os) const { return os << value; }
+  
+//   template<typename... Args>
+//   constexpr T operator()(Args&&...) const { return value; }
+// };
+
+// template<typename T>
+// constexpr auto as_expr(T&& val) {
+//   if constexpr (et::expr<std::decay_t<T>>) {
+//     return std::forward<T>(val);
+//   } else {
+//     return literal<std::decay_t<T>>{std::forward<T>(val)};
+//   }
+// }
+
+// template<typename L, typename R> requires (et::expr<L> || et::expr<R>)
+// constexpr auto operator+(L&& l, R&& r) {
+//   return et::node{et::add_{}, as_expr(std::forward<L>(l)), as_expr(std::forward<R>(r))};
+// }
+// template<typename L, typename R> requires (et::expr<L> || et::expr<R>)
+// constexpr auto operator-(L&& l, R&& r) {
+//   return et::node{et::sub_{}, as_expr(std::forward<L>(l)), as_expr(std::forward<R>(r))};
+// }
+// template<typename L, typename R> requires (et::expr<L> || et::expr<R>)
+// constexpr auto operator*(L&& l, R&& r) {
+//   return et::node{et::mul_{}, as_expr(std::forward<L>(l)), as_expr(std::forward<R>(r))};
+// }
+// template<typename L, typename R> requires (et::expr<L> || et::expr<R>)
+// constexpr auto operator/(L&& l, R&& r) {
+//   return et::node{et::div_{}, as_expr(std::forward<L>(l)), as_expr(std::forward<R>(r))};
+// }
+
+// template<typename A, typename B, typename C> requires (et::expr<A> || et::expr<B> || et::expr<C>) 
+// constexpr auto fma(A a, B b, C c) { return et::node{et::fma_{}, a, b, c}; } // pareil
+
+
+
+
+
+
 int main() {
   // Q5. Le mini exemple ci dessous doit fonctionner. Complétez le avec une série de tests
   // exhaustif de tous les cas qui vous paraissent nécessaire.
@@ -348,4 +440,14 @@ int main() {
   // 1) Créer des feuilles 'litteral'/'constantes (technique standard pour les AST)
   // 2) Convertir les littéraux automatique (tout ce qui n'est pas une experssion)
   // 3) Faire que nos opérateurs acceptent qu'un des 2 côtés ne soit pas une expression ( avec requires (expr<L> || expr<R>))
+
+  // TENTE DE FAIRE DU CODE MAIS IL NE FONCTIONNE PAS ENCORE:
+  //  fatal error: use of overloaded operator '-' is ambiguous (with operand types 'node<fma_, terminal<1>, node<abs_, terminal<2>>, node<div_, terminal<0>, terminal<1>>>' (aka 'et::node<et::fma_, et::terminal<1>, et::node<et::abs_, et::terminal<2>>, et::node<et::div_, et::terminal<0>, et::terminal<1>>>') and 'const terminal<1>')
+  //   357 |   constexpr auto f = et::fma(et::_1, et::abs(et::_2), et::_0/et::_1) - et::_1;
+
+  // constexpr auto g = fma(12, et::abs(et::_2), et::_0/et::_1) - 52;
+  // g.print(std::cout) << "\n"; // => ((12 * | arg<2>| + (arg<0> / arg<1>)) - 52)
+  // std::cout << g(1,2,-3) << "\n"; // => ??
 }
+
+
