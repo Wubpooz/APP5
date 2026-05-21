@@ -19,7 +19,9 @@ template <int I> using int_ = std::integral_constant<int, I>;
 
 template <int Debut, int Pas, int Fin, typename Func>
 void for_constexpr(Func &&f) {
-  // TODO
+  [&f]<std::size_t... Is>(std::index_sequence<Is...>){ (f(int_<Debut + Is * Pas>{}), ...); }
+    (std::make_index_sequence<(Fin - Debut + Pas - 1) / Pas>{});
+  // we create a lambda that is apply on each member using the indexe sequence
 }
 
 //==============================================================================
@@ -28,7 +30,9 @@ void for_constexpr(Func &&f) {
 /// fonction Func pour appliquer Func à chaque membre du tuple. Utilisez
 /// for_constexpr, std::tuple_size et std::get pour effectuer cette tache.
 template <typename T, typename F> void for_each_member(T &&t, F &&f) {
-  // TODO
+  for_constexpr<0, 1, std::tuple_size<std::decay_t<T>>::value>([&](auto i){ std::forward<F>(f)(std::get<i>(std::forward<T>(t))); });
+  // decay_t or remove_reference_t is needed because of && not being properly interpreted by std::tuple_size.
+  // TODO Dès que vous utilisez une référence universelle (T&&), vous devez utiliser std::forward<T> pour la transmettre à une autre fonction (here for t in std::get)
 }
 
 //==============================================================================
@@ -42,13 +46,26 @@ template <typename T, typename F> void for_each_member(T &&t, F &&f) {
 ///  std::array<std::uint8_t,N> avec N égal
 ///    à la somme des sizeof(Ts) et qui contient la copie des octets de chaque
 ///    membre du tuple.
-
 template <typename T> auto serialize(T const &value) {
-  // TODO
+  std::array<std::uint8_t, sizeof(T)> arr;
+  std::memcpy(arr.data(), &value, sizeof(T));
+  return arr;
+}
+
+template<typename T> constexpr auto size(T) { return sizeof(T); }
+template<typename ...Ts> constexpr auto total_size_of(std::tuple<Ts...> const&) { 
+  return (sizeof(Ts) + ...); 
 }
 
 template <typename... Ts> auto serialize(std::tuple<Ts...> const &value) {
-  // TODO
+  constexpr int size = total_size_of(std::tuple<Ts...>{});
+  std::array<std::uint8_t, size> arr{};
+  std::size_t offset = 0;
+  for_each_member(value, [&](auto const& elem) { 
+    std::memcpy(arr.data() + offset, &elem, sizeof(elem));
+    offset += sizeof(elem);
+  });
+  return arr;
 }
 
 /// Boite à type
@@ -66,15 +83,12 @@ template <typename T> struct as {};
 /// de même taille mais de contenu différent ? Par exemple deserialisez un float
 /// dans un int ou un tuple dans un autre tuple de layout différent.
 template <typename T, std::size_t N>
-T deserialize(std::array<std::uint8_t, N> const &bytes, as<T>) 
-{
+T deserialize(std::array<std::uint8_t, N> const &bytes, as<T>) {
 
 }
 
 template <typename... Ts, std::size_t N>
-std::tuple<Ts...> deserialize(std::array<std::uint8_t, N> const &bytes,
-                              as<std::tuple<Ts...>>) 
-{
+std::tuple<Ts...> deserialize(std::array<std::uint8_t, N> const &bytes, as<std::tuple<Ts...>>) {
 
 }
 
