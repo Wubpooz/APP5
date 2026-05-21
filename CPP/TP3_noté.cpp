@@ -2,6 +2,8 @@
 #include <cmath>
 #include <tuple>
 #include <algorithm>
+#include <cassert>
+#include <vector>
 
 /*
   À la fin de la séance, envoyez le *Short link* de votre travail à l'adresse
@@ -163,7 +165,12 @@ namespace et {
   };
 
   struct div_ {
-    constexpr auto operator()(auto&& a, auto&& b) const { return a / b; }
+    constexpr auto operator()(auto&& a, auto&& b) const {
+      if (b == 0) {
+        throw std::runtime_error("Division par zero !");
+      }
+      return a / b;
+    }
     void print(std::ostream& os, const auto& a, const auto& b) const {
       os << "(";
       a.print(os);
@@ -174,11 +181,14 @@ namespace et {
   };
 
   struct abs_ {
-    constexpr auto operator()(auto&& a) const { return std::abs(a); }
+    constexpr auto operator()(auto&& a) const { 
+      // return std::abs(a);  // Attention, abs n'est pas constexpr avant C++ 23 (pour des raisons obscures apparement, c.f. https://stackoverflow.com/questions/27708629/why-isnt-abs-constexpr)
+      return a > 0. ? a : -a;
+    }
     void print(std::ostream& os, const auto& a) const {
       os << "| ";
       a.print(os);
-      os << "|";
+      os << " |";
     }
   };
 
@@ -221,17 +231,96 @@ namespace et {
 }
 
 
+// Operateurs nécessaire pour la partie vecteurs
+template<typename T> std::vector<T> operator+(const std::vector<T>& a, const std::vector<T>& b) {
+  std::vector<T> res(a.size());
+  for(size_t i = 0; i < a.size(); i++) {
+    res[i] = a[i] + b[i];
+  }
+  return res;
+}
+
+template<typename T> std::vector<T> operator-(const std::vector<T>& a, const std::vector<T>& b) {
+  std::vector<T> res(a.size());
+  for(size_t i = 0; i < a.size(); i++) {
+    res[i] = a[i] - b[i];
+  }
+  return res;
+}
+
+template<typename T> std::vector<T> operator*(const std::vector<T>& a, const std::vector<T>& b) {
+  std::vector<T> res(a.size());
+  for(size_t i = 0; i < a.size(); i++) {
+    res[i] = a[i] * b[i];
+  }
+  return res;
+}
+
+template<typename T> std::vector<T> operator/(const std::vector<T>& a, const std::vector<T>& b) {
+  std::vector<T> res(a.size());
+  for(size_t i = 0; i < a.size(); i++) {
+    res[i] = a[i] / b[i];
+  }
+  return res;
+}
+
+template<typename T> std::vector<T> abs(const std::vector<T>& v) {
+  std::vector<T> res(v.size());
+  for(size_t i = 0; i < v.size(); i++) { 
+    res[i] = et::abs_(v[i]);
+  }
+  return res;
+}
+
+
 int main() {
   // Q5. Le mini exemple ci dessous doit fonctionner. Complétez le avec une série de tests
   // exhaustif de tous les cas qui vous paraissent nécessaire.
-  constexpr auto f = et::fma(et::_1, abs(et::_2), et::_0/et::_1) - et::_1;
-  f.print(std::cout) << "\n";
-  std::cout << f(1,2,-3) << "\n"; // => ((arg<1> * | arg<2>| + (arg<0> / arg<1>)) - arg<1>), correct
+  constexpr auto f = et::fma(et::_1, et::abs(et::_2), et::_0/et::_1) - et::_1;
+  f.print(std::cout) << "\n"; // => ((arg<1> * | arg<2>| + (arg<0> / arg<1>)) - arg<1>), correct
+  std::cout << f(1,2,-3) << "\n"; // => 4
+
+  // tests en plus:
+  // calculs
+  std::cout << "f(1, 2, -3) = " << f(1, 2, -3) << "\n";
+  assert(f(1, 2, -3) == 4);
+  std::cout << "f(1.0, 2.0, -3.0) = " << f(1.0, 2.0, -3.0) << "\n";
+  assert(f(1., 2., -3.) == 4.5);
+
+  // constexpr test  |  Attention, abs n'est pas constexpr avant C++ 23 (pour des raisons obscures apparement, c.f. https://stackoverflow.com/questions/27708629/why-isnt-abs-constexpr)
+  constexpr auto compile_time_val = f(1, 2, -3); 
+  static_assert(compile_time_val == 4, "Erreur de calcul à la compil");
+
+
+  // évaluation avec division par 0
+  try {
+    std::cout << "Tentative de f(1, 0, -3)..." << std::endl;
+    auto x = f(1, 0, -3); // Va lever une exception std::runtime_error via div_
+  } catch (const std::runtime_error& e) {
+    std::cout << "Exception capturée avec succès : " << e.what() << std::endl;
+  }
+
+  // types mismatch mais compatibles
+  double res_compatible = f(1.0, 3.0, -3);
+  std::cout << "f(1.0, 3.0, -3) = " << res_compatible << "\n";
+  assert(std::abs(res_compatible - 6.333333333333333) < 1e-9); // calculs sur les flotants on une certaine précision
+
+  // types mismatch incompatibles mais passe quand meme car pas de static_assert qui contraint les types
+  std::cout << "f('a', 3, -3) = " << f('a', 3, -3) << "\n";
+  assert(f('a', 3, -3) == 38);
+
 
   // Q6. Appliquez la fonction `f` à des vecteurs ou des matrices. Les operateurs + et *
   // doivent être effectués élément par élément (produit de hadamard).
+  std::vector<double> v0 = {1.0, 4.0, 9.0};
+  std::vector<double> v1 = {2.0, 2.0, 3.0};
+  std::vector<double> v2 = {-3.0, -1.0, -2.0};
 
-  /* ???? */ 
+  std::vector<double> result = f(v0, v1, v2);
+
+  std::cout << "Resultat vectoriel : { ";
+  for(double x : result) std::cout << x << " ";
+  std::cout << "}\n";
 
   // Q7 - Comment modifiez le code pour permettre l'utilisation de constante dans les formules
   // Ex: constexpr auto f = et::fma(et::_1, 3, et::_0)
